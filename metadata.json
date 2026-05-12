@@ -1,0 +1,6 @@
+{
+  "name": "FinSmart AI Expense Tracker",
+  "description": "A sophisticated AI-powered expense tracker with bill extraction, predictive insights, and multi-user support.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["AI Bill Extraction", "Financial Forecasting", "Multi-user Auth", "Expense Analytics"]
+}

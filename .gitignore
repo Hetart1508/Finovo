@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Build files
+dist/
+build/
+
+# Logs
+*.log
+
+# Uploaded bills
+server/uploads/
+
+# OS files
+.DS_Store
+
+# VS Code settings
+.vscode/
+
+# Coverage
+coverage/
+
+*.db
