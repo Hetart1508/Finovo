@@ -36,7 +36,6 @@ export default function CalendarView() {
     };
     fetchData();
   }, []);
-//Adding comment for showing git desktop changes
   const handleUpdateThreshold = async () => {
     try {
       await api.patch('/user/threshold', { threshold });
