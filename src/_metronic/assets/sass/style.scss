@@ -1,0 +1,13 @@
+// Metronic/KT-like theme entrypoint (scaffold)
+// This project currently does not include the full Metronic SCSS source.
+// Add your Metronic SCSS imports here when you obtain the kit.
+
+@import 'plugins';
+
+// Minimal base so that bootstrap/animate/icon CSS has a place to hook.
+// Replace with real Metronic styles when SCSS sources are available.
+
+body {
+  // keep Tailwind base; this is just a placeholder.
+}
+

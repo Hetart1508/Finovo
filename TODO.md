@@ -1,29 +1,20 @@
-# Database Migration System - Progress Tracker
+# TODO
 
-## Current Status: ✅ Migration System Implemented
+## Metronic/KT Theme Integration (Vite + React)
 
-### Completed Steps:
-1. **✅** Created `migrations/001_initial.sql` with current schema + indexes.
-2. **✅** Updated `server.ts`:
-   - Added `runMigrations()` function.
-   - Scans `migrations/*.sql` files (numbered order).
-   - Tracks applied versions in `schema_migrations` table.
-   - Runs pending migrations on server startup.
-   - Replaced inline schema creation with migration runner.
-3. **✅** Verified migration safety: Idempotent, transactional per migration.
+- [x] Add required dependencies to `package.json` (Bootstrap, animate.css, Metronic-like theme deps, charts, prism, icons, MUI libs).
+- [x] Configure Vite to compile SCSS theme assets and include global theme stylesheet.
+- [x] Create `src/_metronic/` scaffolding and add theme entrypoint SCSS files (`assets/sass/style.scss`, `plugins.scss`, `style.react.scss`).
 
-### Verification Commands:
-```bash
-# Check applied migrations
-sqlite3 expense_tracker.db \"SELECT * FROM schema_migrations;\"
 
-# Restart server and check logs for 'Applied X migrations'
-npm run dev
-```
+- [ ] Add placeholder/theme CSS imports for bootstrap/animate/icons so the app renders with correct base styling.
+- [ ] Implement RTL build output in a Vite-compatible way (generate `*.rtl.css` via rtlcss post-build and load conditionally).
 
-### Next Steps (Future):
-1. Add new migration: Create `migrations/002_add_new_feature.sql` with schema changes.
-2. Test: Restart server → auto-applies pending.
-3. Deploy: Works in prod (runs on start).
+- [ ] Wire theme imports into `src/main.tsx` or `src/index.css`.
+- [ ] Add Prism/Markdown code highlighting integration in `Insights.tsx` (optional once theme is stable).
+- [ ] Add ApexCharts support into Dashboard widgets (optional; keep existing charts working).
+- [x] Run `npm run build`, and fix TS errors introduced by existing bad `src/lib/gemini.ts`.
+- [ ] Implement RTL css generation pipeline + conditional runtime loading.
+- [ ] Run `npm run dev` and verify UI styling at runtime.
 
-**Migration system ready! Changes now automatically applied to DB on server start.**
+
