@@ -122,13 +122,29 @@ if (message.toLowerCase().includes('otp')) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-8 relative">
+        {/* Background */}
+        <div
+          className="absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+          style={{
+            backgroundImage:
+              "linear-gradient(135deg, rgba(99,102,241,0.35), rgba(16,185,129,0.18)), url(/src/assets/auth-bg.jpg)",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+
+        {/* Subtle overlay for better contrast */}
+        <div className="absolute inset-0 -z-9 rounded-3xl bg-gradient-to-b from-white/70 to-white/30 dark:from-slate-950/70 dark:to-slate-950/40 backdrop-blur-md" />
+
+
         <div className="text-center">
-          <div className="mx-auto w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4">F</div>
-          <h1 className="text-3xl font-bold tracking-tight">FinSight AI</h1>
-          <p className="text-slate-500 mt-2">Intelligent expense tracking for the modern era.</p>
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-600 to-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-indigo-500/20">F</div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">FinSight AI</h1>
+          <p className="text-slate-600 dark:text-slate-300 mt-2">Intelligent expense tracking for the modern era.</p>
         </div>
+
 
         <Tabs
           value={currentTab}
@@ -144,7 +160,8 @@ if (message.toLowerCase().includes('otp')) {
           </TabsList>
 
           <TabsContent value="login">
-            <Card>
+            <Card className="glass border-white/20">
+
               {otpStep === 'email' ? (
                 <form onSubmit={handleSendOTP}>
                   <CardHeader>
@@ -228,7 +245,8 @@ if (message.toLowerCase().includes('otp')) {
           </TabsContent>
 
           <TabsContent value="register">
-            <Card>
+            <Card className="glass border-white/20">
+
               <form onSubmit={(e) => handleAuth('register', e)}>
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
