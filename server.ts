@@ -82,6 +82,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -107,12 +110,20 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // --- Auth Routes ---
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, name } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
+
+  if (!isNonEmptyString(email) || !isNonEmptyString(password) || !isNonEmptyString(name)) {
+    return res.status(400).json({ error: "Name, email, and password are required" });
+  }
+
   try {
+    const hashedPassword = await bcrypt.hash(password, 10);
     const stmt = db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)");
-    const info = stmt.run(email, hashedPassword, name);
-    res.json({ message: "Account created successfully. Please login with OTP.", user: { id: info.lastInsertRowid, email, name } });
-  } catch (e) {
+    const info = stmt.run(email.trim(), hashedPassword, name.trim());
+    res.json({ message: "Account created successfully. Please login with OTP.", user: { id: info.lastInsertRowid, email: email.trim(), name: name.trim() } });
+  } catch (e: any) {
+    if (e?.code !== "SQLITE_CONSTRAINT_UNIQUE") {
+      console.error("Register error:", e);
+    }
     res.status(400).json({ error: "Email already exists" });
   }
 });
@@ -170,6 +181,41 @@ app.post("/api/auth/send-otp", async (req, res) => {
   }
 });
 
+app.get("/api/auth/debug-otp", (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const email = String(req.query.email || "").trim();
+  if (!email) {
+    return res.status(400).json({ error: "Email query parameter is required" });
+  }
+
+  const otpRecord: any = db.prepare(`
+    SELECT email, otp, expires_at, created_at
+    FROM otps
+    WHERE email = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(email);
+
+  if (!otpRecord) {
+    return res.status(404).json({ error: "No OTP found for this email" });
+  }
+
+  const now = Date.now();
+  const isExpired = otpRecord.expires_at <= now;
+
+  res.json({
+    email: otpRecord.email,
+    otp: otpRecord.otp,
+    expires_at: otpRecord.expires_at,
+    expires_in_seconds: Math.max(0, Math.ceil((otpRecord.expires_at - now) / 1000)),
+    is_expired: isExpired,
+    created_at: otpRecord.created_at,
+  });
+});
+
 app.post("/api/auth/verify-otp", async (req, res) => {
   const { email, otp } = req.body;
   
@@ -214,9 +260,39 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   });
 });
 
+app.get("/api/auth/debug-otp", (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const { email } = req.query;
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  const otpRecord = db.prepare(`
+    SELECT email, otp, expires_at, created_at
+    FROM otps
+    WHERE email = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(email);
+
+  if (!otpRecord) {
+    return res.status(404).json({ error: "OTP not found" });
+  }
+
+  res.json(otpRecord);
+});
+
 // Legacy password login kept for register testing
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
+
+  if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
   const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   if (!user || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: "Invalid credentials" });
