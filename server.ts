@@ -147,9 +147,9 @@ app.post("/api/auth/send-otp", async (req, res) => {
 
   try {
     await transporter.sendMail({
-      from: `"FinSmart AI" <${EMAIL_USER}>`,
+      from: `"FinSight AI" <${EMAIL_USER}>`,
       to: email,
-      subject: "Your FinSmart AI Login OTP",
+      subject: "Your FinSight AI Login OTP",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #6366f1;">Your Login OTP</h2>
@@ -159,7 +159,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
           <p style="margin-top: 24px;">This OTP is valid for <strong>5 minutes</strong>.</p>
           <p>If you didn't request this, please ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 14px;">FinSmart AI - Intelligent expense tracking</p>
+          <p style="color: #6b7280; font-size: 14px;">FinSight AI - Intelligent expense tracking</p>
         </div>
       `,
     });

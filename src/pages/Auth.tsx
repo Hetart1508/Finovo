@@ -126,7 +126,7 @@ if (message.toLowerCase().includes('otp')) {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4">F</div>
-          <h1 className="text-3xl font-bold tracking-tight">FinSmart AI</h1>
+          <h1 className="text-3xl font-bold tracking-tight">FinSight AI</h1>
           <p className="text-slate-500 mt-2">Intelligent expense tracking for the modern era.</p>
         </div>
 

@@ -1,4 +1,4 @@
-# FinSmart AI Expense Tracker
+# FinSight AI Expense Tracker
 
 A sophisticated AI-powered expense tracker designed for the Indian market.
 

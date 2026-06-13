@@ -43,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
       <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
         <div className="p-6 flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div>
-          <h1 className="text-xl font-bold tracking-tight">FinSmart AI</h1>
+          <h1 className="text-xl font-bold tracking-tight">FinSight AI</h1>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
