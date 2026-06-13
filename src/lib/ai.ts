@@ -1,4 +1,41 @@
-// Unified AI interface - powered by local Ollama (unlimited, no API keys/limits)
-// Replace for Gemini. Assumes Ollama running on localhost:11434
+// Unified AI interface. Gemini is primary via server routes; local Ollama remains as fallback.
 
-export { extractBillData, getFinancialInsights } from './ollama';
+import api from './api';
+
+type BillData = {
+  merchant: string;
+  amount: number;
+  date: string;
+  category: string;
+  rawText?: string;
+  provider?: string;
+  model?: string;
+};
+
+type FinancialInsights = {
+  summary: string;
+  provider?: string;
+  model?: string;
+};
+
+export const extractBillData = async (base64Data: string, mimeType: string): Promise<BillData> => {
+  try {
+    const { data } = await api.post('/ai/extract-bill', { base64Data, mimeType });
+    return data;
+  } catch (error) {
+    console.warn('Gemini bill extraction failed, falling back to local Ollama/OCR:', error);
+    const ollama = await import('./ollama');
+    return ollama.extractBillData(base64Data, mimeType);
+  }
+};
+
+export const getFinancialInsights = async (transactions: any[]): Promise<FinancialInsights> => {
+  try {
+    const { data } = await api.post('/ai/insights', { transactions });
+    return data;
+  } catch (error) {
+    console.warn('Gemini insights failed, falling back to local Ollama:', error);
+    const ollama = await import('./ollama');
+    return ollama.getFinancialInsights(transactions);
+  }
+};

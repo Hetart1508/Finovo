@@ -1,0 +1,437 @@
+{
+  "info": {
+    "name": "FinSight Expense API",
+    "description": "Postman collection for the FinSight AI Expense Tracker backend.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "otp", "value": "", "type": "string" },
+    { "key": "userId", "value": "3", "type": "string" },
+    { "key": "transactionId", "value": "6", "type": "string" },
+    { "key": "recurringId", "value": "1", "type": "string" },
+    { "key": "name", "value": "Hetarth", "type": "string" },
+    { "key": "email", "value": "hetarth150804@gmail.com", "type": "string" },
+    { "key": "password", "value": "Hetarth@1508", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Creates a new user. Change the email variable when re-testing."
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/send-otp",
+            "description": "Generates and emails an OTP for the selected email."
+          }
+        },
+        {
+          "name": "Debug OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('otp', json.otp);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/debug-otp?email={{email}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "debug-otp"],
+              "query": [{ "key": "email", "value": "{{email}}" }]
+            },
+            "description": "Development-only helper. Reads the latest OTP for the email and saves it into the otp collection variable."
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "  pm.collectionVariables.set('userId', String(json.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/verify-otp",
+            "description": "Verifies OTP and stores the JWT token automatically."
+          }
+        },
+        {
+          "name": "Login - Send OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Starts OTP login. Use Debug OTP, then Verify OTP to receive and store the JWT token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Get My Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?limit=100&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "limit", "value": "100" },
+                { "key": "offset", "value": "0" },
+                { "key": "type", "value": "expense", "disabled": true },
+                { "key": "category", "value": "Food", "disabled": true },
+                { "key": "payment_mode", "value": "UPI", "disabled": true },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Lists authenticated user's transactions with optional filters and pagination."
+          }
+        },
+        {
+          "name": "Get Transaction By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Gets one transaction by id for the authenticated user."
+          }
+        },
+        {
+          "name": "Get Transactions By User ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}/transactions",
+            "description": "Gets transactions by user id. The id must match the authenticated user."
+          }
+        },
+        {
+          "name": "Create Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('transactionId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 250,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Lunch\",\n  \"bill_url\": null\n}"
+            },
+            "url": "{{baseUrl}}/transactions"
+          }
+        },
+        {
+          "name": "Create Transaction By User ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('transactionId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1500,\n  \"type\": \"income\",\n  \"category\": \"Salary\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"Bank Transfer\",\n  \"description\": \"Freelance payout\",\n  \"bill_url\": null\n}"
+            },
+            "url": "{{baseUrl}}/users/{{userId}}/transactions",
+            "description": "Creates a transaction for a user id. The id must match the authenticated user."
+          }
+        },
+        {
+          "name": "Update Transaction Partial",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 275,\n  \"description\": \"Lunch with tip\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Updates selected fields on a transaction."
+          }
+        },
+        {
+          "name": "Replace Transaction",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 300,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Dinner\",\n  \"bill_url\": null\n}"
+            },
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Replaces editable fields on a transaction."
+          }
+        },
+        {
+          "name": "Transaction Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/summary?from=2026-01-01&to=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "summary"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-12-31" },
+                { "key": "type", "value": "expense", "disabled": true },
+                { "key": "category", "value": "Food", "disabled": true },
+                { "key": "payment_mode", "value": "UPI", "disabled": true }
+              ]
+            },
+            "description": "Returns total income, total expense, balance, and transaction count."
+          }
+        },
+        {
+          "name": "Category Totals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/categories?from=2026-01-01&to=2026-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "categories"],
+              "query": [
+                { "key": "from", "value": "2026-01-01" },
+                { "key": "to", "value": "2026-12-31" },
+                { "key": "type", "value": "expense", "disabled": true }
+              ]
+            },
+            "description": "Groups transactions by category and type with count and total amount."
+          }
+        },
+        {
+          "name": "Delete Transaction By ID",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Deletes one transaction by id for the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Settings",
+      "item": [
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "description": "Returns the authenticated user's profile. The id must match the token user."
+          }
+        },
+        {
+          "name": "Update Daily Threshold",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"threshold\": 1000\n}"
+            },
+            "url": "{{baseUrl}}/user/threshold"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recurring Events",
+      "item": [
+        {
+          "name": "Get Recurring Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/recurring"
+          }
+        },
+        {
+          "name": "Create Recurring Event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('recurringId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rent\",\n  \"amount\": 12000,\n  \"day_of_month\": 1,\n  \"category\": \"Rent\",\n  \"type\": \"expense\"\n}"
+            },
+            "url": "{{baseUrl}}/recurring"
+          }
+        },
+        {
+          "name": "Get Recurring Event By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/recurring/{{recurringId}}",
+            "description": "Gets one recurring event by id for the authenticated user."
+          }
+        },
+        {
+          "name": "Update Recurring Event",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 12500,\n  \"day_of_month\": 2\n}"
+            },
+            "url": "{{baseUrl}}/recurring/{{recurringId}}",
+            "description": "Updates selected fields on a recurring event."
+          }
+        },
+        {
+          "name": "Delete Recurring Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/recurring/{{recurringId}}",
+            "description": "Deletes one recurring event by id for the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Upload Bill",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/upload",
+            "description": "Choose a file for the file field before sending."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Local AI - Ollama",
+      "item": [
+        {
+          "name": "Generate",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"llama3.2:1b\",\n  \"prompt\": \"Give one saving tip for monthly expenses.\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0,\n    \"top_p\": 0.95,\n    \"top_k\": 40,\n    \"num_predict\": 256,\n    \"seed\": 42\n  }\n}"
+            },
+            "url": "http://localhost:11434/api/generate",
+            "description": "Direct local Ollama endpoint used by the frontend AI helpers."
+          }
+        }
+      ]
+    }
+  ]
+}

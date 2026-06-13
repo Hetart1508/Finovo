@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  TrendingUp, 
   Sparkles, 
-  ShieldCheck, 
   RefreshCw, 
   FileText, 
-  Download
+  Download,
+  AlertCircle,
+  Upload,
+  CheckCircle2
 } from 'lucide-react';
 import { getFinancialInsights } from '@/src/lib/ai';
 import { 
@@ -19,19 +20,32 @@ import {
   Tooltip, 
   ResponsiveContainer
 } from 'recharts';
-import { AlertCircle, Lightbulb } from 'lucide-react';
 import api from '@/src/lib/api';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import Markdown from 'react-markdown';
 import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+
+type ImportedStatementTransaction = {
+  date: string;
+  description: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  payment_mode: string;
+};
 
 export default function Insights() {
   const [insights, setInsights] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [statementFile, setStatementFile] = useState<File | null>(null);
+  const [statementLoading, setStatementLoading] = useState(false);
+  const [statementImporting, setStatementImporting] = useState(false);
+  const [statementResult, setStatementResult] = useState<{
+    transactions: ImportedStatementTransaction[];
+    model?: string;
+  } | null>(null);
+  const statementInputRef = useRef<HTMLInputElement | null>(null);
 
   const [transactions, setTransactions] = useState<any[]>([]);
   const [categoryData, setCategoryData] = useState<any[]>([]);
@@ -79,20 +93,103 @@ export default function Insights() {
     fetchInsights();
   }, []);
 
-  const handleSyncAA = () => {
-    setSyncing(true);
-    setTimeout(() => {
-      setSyncing(false);
-      toast.success("Successfully synced with HDFC, ICICI, and SBI via Account Aggregator!");
-    }, 2000);
+  const readFileAsBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+
+  const handleStatementFile = async (selectedFile: File | null) => {
+    if (!selectedFile) return;
+
+    const supported = selectedFile.type === 'application/pdf' || selectedFile.type.startsWith('image/');
+    if (!supported) {
+      toast.error('Upload a PDF, JPG, or PNG statement.');
+      return;
+    }
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error('Statement file must be 10MB or smaller.');
+      return;
+    }
+
+    setStatementFile(selectedFile);
+    setStatementResult(null);
+    setStatementLoading(true);
+
+    try {
+      const base64Data = await readFileAsBase64(selectedFile);
+      const { data } = await api.post('/ai/import-statement', {
+        base64Data,
+        mimeType: selectedFile.type,
+      });
+
+      setStatementResult({
+        transactions: data.transactions || [],
+        model: data.model,
+      });
+
+      if (data.transactions?.length) {
+        toast.success(`Found ${data.transactions.length} statement transactions.`);
+      } else {
+        toast.warning('No transactions found in this statement.');
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.error || 'Failed to import statement.');
+    } finally {
+      setStatementLoading(false);
+    }
   };
+
+  const saveStatementTransactions = async () => {
+    if (!statementResult?.transactions.length) return;
+
+    setStatementImporting(true);
+    try {
+      for (const transaction of statementResult.transactions) {
+        await api.post('/transactions', {
+          amount: transaction.amount,
+          type: transaction.type,
+          category: transaction.category,
+          date: transaction.date,
+          payment_mode: transaction.payment_mode || 'Bank Statement',
+          description: `Statement Import: ${transaction.description}`,
+        });
+      }
+
+      toast.success(`Imported ${statementResult.transactions.length} transactions.`);
+      setStatementFile(null);
+      setStatementResult(null);
+      await fetchInsights();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.response?.data?.error || 'Failed to save imported transactions.');
+    } finally {
+      setStatementImporting(false);
+    }
+  };
+
+  const statementTotals = useMemo(() => {
+    const rows = statementResult?.transactions || [];
+    return rows.reduce(
+      (acc, transaction) => {
+        if (transaction.type === 'income') acc.income += transaction.amount;
+        if (transaction.type === 'expense') acc.expense += transaction.amount;
+        return acc;
+      },
+      { income: 0, expense: 0 }
+    );
+  }, [statementResult]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Financial Insights</h1>
-powered by local AI (unlimited).
+          <p className="text-sm text-slate-500">Powered by Gemini, with local AI fallback.</p>
         </div>
         <Button variant="outline" onClick={fetchInsights} disabled={loading} className="gap-2">
           <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
@@ -108,7 +205,10 @@ powered by local AI (unlimited).
               <Sparkles className="w-5 h-5" />
 <CardTitle className="text-xl">AI Analysis</CardTitle>
             </div>
-            <CardDescription>Based on your spending patterns from the last 30 days.</CardDescription>
+            <CardDescription>
+              Based on your spending patterns from the last 30 days
+              {insights?.model ? ` using ${insights.model}.` : '.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -157,57 +257,90 @@ powered by local AI (unlimited).
             </CardContent>
           </Card>
 
-          {/* Account Aggregator Mock */}
-          <Card className="border-none shadow-sm overflow-hidden">
-            <div className="h-2 bg-indigo-600"></div>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Bank Sync (AA)</CardTitle>
-                <ShieldCheck className="w-5 h-5 text-emerald-500" />
-              </div>
-              <CardDescription>Connect your Indian bank accounts via Sahamati AA framework.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">HDFC Bank</span>
-                  <Badge variant="secondary">Synced</Badge>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">SBI</span>
-                  <Badge variant="secondary">Synced</Badge>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">ICICI Bank</span>
-                  <Badge variant="outline" className="text-slate-400 border-slate-200">Disconnected</Badge>
-                </div>
-              </div>
-              <Button className="w-full gap-2" variant="outline" onClick={handleSyncAA} disabled={syncing}>
-                <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-                {syncing ? "Syncing..." : "Sync All Accounts"}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* PDF Import */}
+          {/* Statement Import */}
           <Card className="border-none shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 <CardTitle className="text-lg">Statement Import</CardTitle>
               </div>
-              <CardDescription>Import PhonePe or GPay PDF statements.</CardDescription>
+              <CardDescription>Import PDF or image statements for income and expenses.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <input
+                ref={statementInputRef}
+                type="file"
+                accept="application/pdf,image/*"
+                className="hidden"
+                onChange={(event) => handleStatementFile(event.target.files?.[0] || null)}
+              />
+
               <div className="p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-center">
-                <Download className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-xs text-slate-500">Drag & drop your bank statement PDF</p>
+                {statementResult?.transactions.length ? (
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                ) : (
+                  <Download className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                )}
+                <p className="text-xs text-slate-500">
+                  {statementFile ? statementFile.name : 'Upload a PDF, JPG, or PNG statement'}
+                </p>
+                {statementResult?.model ? (
+                  <p className="mt-1 text-[10px] text-slate-400">Parsed with {statementResult.model}</p>
+                ) : null}
               </div>
-              <Button className="w-full" variant="secondary">Select PDF File</Button>
+
+              <Button
+                className="w-full gap-2"
+                variant="secondary"
+                onClick={() => statementInputRef.current?.click()}
+                disabled={statementLoading || statementImporting}
+              >
+                <Upload className="w-4 h-4" />
+                {statementLoading ? 'Reading statement...' : 'Select Statement File'}
+              </Button>
+
+              {statementResult ? (
+                <div className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-md bg-emerald-50 p-2 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                      Income ₹{statementTotals.income.toFixed(2)}
+                    </div>
+                    <div className="rounded-md bg-red-50 p-2 text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                      Expense ₹{statementTotals.expense.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                    {statementResult.transactions.slice(0, 8).map((transaction, index) => (
+                      <div key={`${transaction.date}-${transaction.amount}-${index}`} className="text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-medium">{transaction.description}</span>
+                          <span className={transaction.type === 'income' ? 'text-emerald-600' : 'text-red-600'}>
+                            {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500">{transaction.date} · {transaction.category}</p>
+                      </div>
+                    ))}
+                    {statementResult.transactions.length > 8 ? (
+                      <p className="text-[10px] text-slate-500">+{statementResult.transactions.length - 8} more transactions</p>
+                    ) : null}
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={saveStatementTransactions}
+                    disabled={!statementResult.transactions.length || statementImporting}
+                  >
+                    {statementImporting ? 'Importing...' : `Import ${statementResult.transactions.length} Transactions`}
+                  </Button>
+                </div>
+              ) : null}
+
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
                 <p className="text-[10px] text-amber-700 dark:text-amber-400">
-                  Note: PDF parsing is currently in beta. Ensure the PDF is not password protected.
+                  Ensure the statement is readable and not password protected. Review extracted entries before importing.
                 </p>
               </div>
             </CardContent>

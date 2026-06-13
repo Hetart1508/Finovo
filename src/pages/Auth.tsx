@@ -36,33 +36,21 @@ const getErrorMessage = (error: any) => {
   );
 };
 
-  const handleAuth = async (type: 'login' | 'register', e: React.FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    const toastId = toast.loading('Authenticating...');
+    const toastId = toast.loading('Creating account...');
 
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const endpoint = type === 'register' ? '/auth/register' : '/auth/login';
-
-      const response = await api.post(endpoint, data);
-
-      if (type === 'register') {
-        toast.success('Account created! Check your email for login OTP.', { id: toastId });
-        toast.dismiss(toastId);
-        setCurrentTab('login');
-        setOtpEmail(data.email as string);
-        return;
-      }
-
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      toast.success(`Welcome back, ${response.data.user.name}!`, { id: toastId });
+      await api.post('/auth/register', data);
+      toast.success('Account created! Check your email for login OTP.', { id: toastId });
       toast.dismiss(toastId);
-      navigate('/'); 
+      setCurrentTab('login');
+      setOtpEmail(data.email as string);
     } catch (error: any) {
      const message = getErrorMessage(error);
      toast.error(message, { id: toastId });
@@ -247,7 +235,7 @@ if (message.toLowerCase().includes('otp')) {
           <TabsContent value="register">
             <Card className="glass border-white/20">
 
-              <form onSubmit={(e) => handleAuth('register', e)}>
+              <form onSubmit={handleRegister}>
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
                   <CardDescription>

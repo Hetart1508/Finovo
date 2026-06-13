@@ -19,6 +19,9 @@ interface Extracted {
     amount: number;
     date: string;
     category: string;
+    rawText?: string;
+    provider?: string;
+    model?: string;
   };
   confidence: 'low' | 'medium' | 'high';
 }
@@ -41,7 +44,7 @@ export default function SmartUpload() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [], 'application/pdf': [] },
+    accept: { 'image/*': [] },
     multiple: false
   });
 
@@ -57,12 +60,12 @@ export default function SmartUpload() {
       const confidence = data.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? 'high' : 'medium';
       
       setExtractedData({ data, confidence });
-      toast.success(`AI extracted data (Confidence: ${confidence.toUpperCase()})`);
+      toast.success(`${data.provider === 'gemini' ? 'Gemini' : 'AI'} extracted data (Confidence: ${confidence.toUpperCase()})`);
     } catch (error: any) {
       console.error('Extraction error:', error);
       const msg = error.message || 'Failed to extract data';
-      setExtractionError(msg.includes('Invalid') ? msg : 'AI extraction failed. Try clearer image.');
-      toast.error('Extraction failed - check preview');
+      setExtractionError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -103,7 +106,7 @@ export default function SmartUpload() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Smart Bill Upload</h1>
-        <p className="text-slate-500">Upload a receipt or invoice, and our AI will automatically extract the details for you.</p>
+        <p className="text-slate-500">Upload a receipt or invoice image, and Gemini will extract the details for you.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -123,7 +126,7 @@ export default function SmartUpload() {
                   <Upload className="w-8 h-8 text-indigo-600" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
-                <p className="text-sm text-slate-500 mt-2">Supports JPG, PNG, and PDF</p>
+                <p className="text-sm text-slate-500 mt-2">Supports JPG and PNG</p>
               </div>
             ) : (
               <div className="relative h-[400px] group">
@@ -176,14 +179,14 @@ export default function SmartUpload() {
               <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-4">
                 <Loader2 className={cn("w-6 h-6 text-indigo-600", loading && "animate-spin")} />
               </div>
-              <h3 className="font-semibold">AI Extraction Ready</h3>
+              <h3 className="font-semibold">Gemini Extraction Ready</h3>
               <p className="text-sm text-slate-500 mt-2">Upload complete. Click to analyze.</p>
               <Button 
                 className="mt-6 w-full" 
                 onClick={handleExtract} 
                 disabled={!file || loading}
               >
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</> : "Extract with AI"}
+                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</> : "Extract with Gemini"}
               </Button>
             </Card>
           ) : (
@@ -201,6 +204,12 @@ export default function SmartUpload() {
                           'bg-red-100 text-red-800 dark:bg-red-900/50'
                         )}>{extractedData!.confidence.toUpperCase()}</span>
                       </p>
+                      {extractedData.data.provider ? (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {extractedData.data.provider === 'gemini' ? 'Gemini' : extractedData.data.provider}
+                          {extractedData.data.model ? ` (${extractedData.data.model})` : ''}
+                        </p>
+                      ) : null}
                     </div>
                     <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                   </div>
@@ -254,6 +263,16 @@ export default function SmartUpload() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {extractedData.data.rawText ? (
+                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3 text-left dark:border-slate-800 dark:bg-slate-900">
+                        <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">
+                          OCR text
+                        </summary>
+                        <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                          {extractedData.data.rawText}
+                        </pre>
+                      </details>
+                    ) : null}
                   </CardContent>
                   <CardFooter className="flex gap-4">
                     <Button variant="outline" className="flex-1" onClick={() => setExtractedData(null)}>Reset</Button>

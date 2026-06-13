@@ -21,10 +21,7 @@ export default function CalendarView() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [tRes, uRes] = await Promise.all([
-          api.get('/transactions'),
-          api.get('/auth/login') // This is a hack to get user data if needed, but we'll use localStorage
-        ]);
+        const tRes = await api.get('/transactions');
         setTransactions(tRes.data);
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         setThreshold(user.daily_threshold || 1000);

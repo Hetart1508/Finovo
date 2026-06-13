@@ -76,14 +76,493 @@ const db = new Database("expense_tracker.db");
 runMigrations();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
+const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const GEMINI_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'] as const;
+type GeminiCategory = typeof GEMINI_CATEGORIES[number];
+type GeminiStatementTransaction = {
+  date: string;
+  description: string;
+  amount: number;
+  type: "income" | "expense";
+  category: string;
+  payment_mode: string;
+};
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+
+const normalizeEmail = (value: unknown) =>
+  isNonEmptyString(value) ? value.trim().toLowerCase() : "";
+
+const toNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toPositiveInteger = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const isValidDateString = (value: unknown) =>
+  isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const extractJsonObject = (text: string) => {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : text;
+};
+
+const normalizeGeminiCategory = (value: unknown): GeminiCategory => {
+  const category = typeof value === "string" ? value.trim() : "";
+  return GEMINI_CATEGORIES.includes(category as GeminiCategory) ? category as GeminiCategory : "Other";
+};
+
+const normalizeGeminiAmount = (value: unknown) => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const amount = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(amount) ? amount : null;
+};
+
+const normalizeGeminiBillData = (text: string) => {
+  const parsed = JSON.parse(extractJsonObject(text));
+  const amount = normalizeGeminiAmount(parsed.amount);
+
+  if (!isNonEmptyString(parsed.merchant) || amount === null || amount <= 0 || !isValidDateString(parsed.date)) {
+    throw new Error("Gemini returned incomplete bill data");
+  }
+
+  return {
+    merchant: parsed.merchant.trim(),
+    amount,
+    date: parsed.date,
+    category: normalizeGeminiCategory(parsed.category),
+    rawText: isNonEmptyString(parsed.rawText) ? parsed.rawText.trim() : undefined,
+  };
+};
+
+const normalizeGeminiStatementTransactions = (text: string) => {
+  const parsed = JSON.parse(extractJsonObject(text));
+  const transactions = Array.isArray(parsed) ? parsed : parsed.transactions;
+
+  if (!Array.isArray(transactions)) {
+    throw new Error("Gemini returned no statement transactions");
+  }
+
+  return transactions
+    .map((transaction: any): GeminiStatementTransaction | null => {
+      const amount = normalizeGeminiAmount(transaction.amount);
+      const type = transaction.type === "income" ? "income" : transaction.type === "expense" ? "expense" : null;
+      const date = isValidDateString(transaction.date) ? transaction.date : null;
+      const description = isNonEmptyString(transaction.description) ? transaction.description.trim() : "";
+
+      if (!date || !type || amount === null || amount <= 0 || !description) {
+        return null;
+      }
+
+      return {
+        date,
+        description,
+        amount,
+        type,
+        category: isNonEmptyString(transaction.category)
+          ? transaction.category.trim()
+          : type === "income"
+            ? "Income"
+            : "Other",
+        payment_mode: isNonEmptyString(transaction.payment_mode)
+          ? transaction.payment_mode.trim()
+          : "Bank Statement",
+      };
+    })
+    .filter((transaction): transaction is GeminiStatementTransaction => transaction !== null)
+    .slice(0, 150);
+};
+
+const generateGemini = async (
+  parts: any[],
+  options: { responseMimeType?: "application/json" | "text/plain"; maxOutputTokens?: number } = {}
+) => {
+  if (AI_PROVIDER !== "gemini") {
+    throw new Error("Gemini provider is disabled");
+  }
+
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
+
+  const response = await fetch(
+    `${GEMINI_API_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: options.maxOutputTokens || 1024,
+          ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini error: ${response.status} ${await response.text()}`);
+  }
+
+  const data: any = await response.json();
+  const text = data.candidates?.[0]?.content?.parts
+    ?.map((part: any) => part.text || "")
+    .join("\n")
+    .trim();
+
+  if (!text) {
+    throw new Error("Gemini returned an empty response");
+  }
+
+  return text;
+};
+
+const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
+  const today = new Date().toISOString().split("T")[0];
+  const prompt = `Extract expense transaction data from this Indian receipt or invoice image.
+Return ONLY valid JSON with this exact shape:
+{"merchant":"string","amount":number,"date":"YYYY-MM-DD","category":"Food|Transport|Shopping|Utilities|Entertainment|Health|Other","rawText":"short OCR text you used"}
+
+Rules:
+- Pick the final payable amount only. Ignore GST, CGST, SGST, discounts, invoice numbers, phone numbers, GSTIN, item counts, and dates.
+- Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
+- Use ${today} only if the bill date is unreadable.
+- Category must be exactly one of: Food, Transport, Shopping, Utilities, Entertainment, Health, Other.`;
+
+  const result = await generateGemini(
+    [
+      { text: prompt },
+      {
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data,
+        },
+      },
+    ],
+    { responseMimeType: "application/json", maxOutputTokens: 1024 }
+  );
+
+  return normalizeGeminiBillData(result);
+};
+
+const getFinancialInsightsWithGemini = async (transactions: any[]) => {
+  const prompt = `You are an expert Indian financial advisor. Analyze these expense tracker transactions and provide 1-2 concise paragraphs.
+
+Cover:
+- Spending summary by category percentage
+- Notable trends or anomalies
+- Next month prediction with reasoning
+- 2-3 practical saving suggestions for an Indian user
+
+Use INR formatting. Do not use markdown tables. Keep it professional and specific.
+
+Transactions:
+${JSON.stringify(transactions.slice(0, 60), null, 2)}`;
+
+  const summary = await generateGemini([{ text: prompt }], { maxOutputTokens: 1200 });
+  return { summary };
+};
+
+const importStatementWithGemini = async (base64Data: string, mimeType: string) => {
+  const today = new Date().toISOString().split("T")[0];
+  const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
+Return ONLY valid JSON with this exact shape:
+{"transactions":[{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"income|expense","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet"}]}
+
+Rules:
+- Extract real money movement rows only.
+- CREDIT, CR, deposit, salary, refund, interest, received, inward UPI = type "income".
+- DEBIT, DR, withdrawal, purchase, paid, sent, outward UPI, ATM, card spend, charges = type "expense".
+- Use absolute positive amount values only. Do not use negative numbers.
+- Ignore opening balance, closing balance, available balance, account numbers, totals, summaries, page headers, and duplicate continuation rows.
+- Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
+- If a date is unreadable, omit that row rather than using ${today}.
+- Choose a practical category. Use Salary, Refund, Interest, Transfer, Food, Transport, Shopping, Utilities, Entertainment, Health, Fees, ATM, Other.
+- Keep descriptions short but traceable to the statement narration.
+- Return up to 150 transactions, newest or statement order is fine.`;
+
+  const result = await generateGemini(
+    [
+      {
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data,
+        },
+      },
+      { text: prompt },
+    ],
+    { responseMimeType: "application/json", maxOutputTokens: 8192 }
+  );
+
+  return normalizeGeminiStatementTransactions(result);
+};
+
+const retrySqliteBusy = async (operation: () => void, retries = 3) => {
+  while (retries > 0) {
+    try {
+      operation();
+      return;
+    } catch (e: any) {
+      if (e.code !== "SQLITE_BUSY") throw e;
+      retries--;
+      if (retries === 0) throw e;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+};
+
+const createAuthResponse = (user: any) => {
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name },
+    JWT_SECRET
+  );
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      daily_threshold: user.daily_threshold,
+    },
+  };
+};
+
+const createTransaction = (userId: number, body: any) => {
+  const { amount, type, category, date, payment_mode, description, bill_url } = body;
+  const parsedAmount = toNumber(amount);
+
+  if (parsedAmount === null || parsedAmount <= 0) {
+    return { status: 400, body: { error: "Amount must be a positive number" } };
+  }
+
+  if (type !== "expense" && type !== "income") {
+    return { status: 400, body: { error: "Type must be expense or income" } };
+  }
+
+  if (!isNonEmptyString(category) || !isValidDateString(date) || !isNonEmptyString(payment_mode)) {
+    return { status: 400, body: { error: "Category, date, and payment mode are required" } };
+  }
+
+  const transaction = {
+    amount: parsedAmount,
+    type,
+    category: category.trim(),
+    date,
+    payment_mode: payment_mode.trim(),
+    description: isNonEmptyString(description) ? description.trim() : null,
+    bill_url: isNonEmptyString(bill_url) ? bill_url.trim() : null,
+  };
+
+  const stmt = db.prepare(`
+    INSERT INTO transactions (user_id, amount, type, category, date, payment_mode, description, bill_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const info = stmt.run(
+    userId,
+    transaction.amount,
+    transaction.type,
+    transaction.category,
+    transaction.date,
+    transaction.payment_mode,
+    transaction.description,
+    transaction.bill_url
+  );
+
+  return {
+    status: 201,
+    body: {
+      id: info.lastInsertRowid,
+      user_id: userId,
+      ...transaction,
+    },
+  };
+};
+
+const findTransactionById = (id: number, userId: number) =>
+  db.prepare("SELECT * FROM transactions WHERE id = ? AND user_id = ?").get(id, userId);
+
+const getTransactionFilters = (query: any, userId: number) => {
+  const conditions = ["user_id = ?"];
+  const params: any[] = [userId];
+
+  if (isNonEmptyString(query.type)) {
+    if (query.type !== "expense" && query.type !== "income") {
+      return { error: "Type must be expense or income" };
+    }
+    conditions.push("type = ?");
+    params.push(query.type);
+  }
+
+  if (isNonEmptyString(query.category)) {
+    conditions.push("category = ?");
+    params.push(query.category.trim());
+  }
+
+  if (isNonEmptyString(query.payment_mode)) {
+    conditions.push("payment_mode = ?");
+    params.push(query.payment_mode.trim());
+  }
+
+  if (isNonEmptyString(query.from)) {
+    if (!isValidDateString(query.from)) {
+      return { error: "From date must use YYYY-MM-DD format" };
+    }
+    conditions.push("date >= ?");
+    params.push(query.from);
+  }
+
+  if (isNonEmptyString(query.to)) {
+    if (!isValidDateString(query.to)) {
+      return { error: "To date must use YYYY-MM-DD format" };
+    }
+    conditions.push("date <= ?");
+    params.push(query.to);
+  }
+
+  return { where: conditions.join(" AND "), params };
+};
+
+const updateTransaction = (id: number, userId: number, body: any) => {
+  const existing: any = findTransactionById(id, userId);
+  if (!existing) {
+    return { status: 404, body: { error: "Transaction not found" } };
+  }
+
+  const next = {
+    amount: body.amount === undefined ? existing.amount : toNumber(body.amount),
+    type: body.type === undefined ? existing.type : body.type,
+    category: body.category === undefined ? existing.category : body.category,
+    date: body.date === undefined ? existing.date : body.date,
+    payment_mode: body.payment_mode === undefined ? existing.payment_mode : body.payment_mode,
+    description: body.description === undefined ? existing.description : body.description,
+    bill_url: body.bill_url === undefined ? existing.bill_url : body.bill_url,
+  };
+
+  if (next.amount === null || next.amount <= 0) {
+    return { status: 400, body: { error: "Amount must be a positive number" } };
+  }
+
+  if (next.type !== "expense" && next.type !== "income") {
+    return { status: 400, body: { error: "Type must be expense or income" } };
+  }
+
+  if (!isNonEmptyString(next.category) || !isValidDateString(next.date) || !isNonEmptyString(next.payment_mode)) {
+    return { status: 400, body: { error: "Category, date, and payment mode are required" } };
+  }
+
+  const transaction = {
+    amount: next.amount,
+    type: next.type,
+    category: next.category.trim(),
+    date: next.date,
+    payment_mode: next.payment_mode.trim(),
+    description: isNonEmptyString(next.description) ? next.description.trim() : null,
+    bill_url: isNonEmptyString(next.bill_url) ? next.bill_url.trim() : null,
+  };
+
+  db.prepare(`
+    UPDATE transactions
+    SET amount = ?, type = ?, category = ?, date = ?, payment_mode = ?, description = ?, bill_url = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    transaction.amount,
+    transaction.type,
+    transaction.category,
+    transaction.date,
+    transaction.payment_mode,
+    transaction.description,
+    transaction.bill_url,
+    id,
+    userId
+  );
+
+  return {
+    status: 200,
+    body: {
+      id,
+      user_id: userId,
+      ...transaction,
+    },
+  };
+};
+
+const findRecurringEventById = (id: number, userId: number) =>
+  db.prepare("SELECT * FROM recurring_events WHERE id = ? AND user_id = ?").get(id, userId);
+
+const updateRecurringEvent = (id: number, userId: number, body: any) => {
+  const existing: any = findRecurringEventById(id, userId);
+  if (!existing) {
+    return { status: 404, body: { error: "Recurring event not found" } };
+  }
+
+  const next = {
+    name: body.name === undefined ? existing.name : body.name,
+    amount: body.amount === undefined ? existing.amount : toNumber(body.amount),
+    day_of_month: body.day_of_month === undefined ? existing.day_of_month : Number(body.day_of_month),
+    category: body.category === undefined ? existing.category : body.category,
+    type: body.type === undefined ? existing.type : body.type,
+  };
+
+  if (!isNonEmptyString(next.name) || !isNonEmptyString(next.category) || !isNonEmptyString(next.type)) {
+    return { status: 400, body: { error: "Name, category, and type are required" } };
+  }
+
+  if (next.amount === null || next.amount <= 0) {
+    return { status: 400, body: { error: "Amount must be a positive number" } };
+  }
+
+  if (!Number.isInteger(next.day_of_month) || next.day_of_month < 1 || next.day_of_month > 31) {
+    return { status: 400, body: { error: "Day of month must be between 1 and 31" } };
+  }
+
+  const event = {
+    name: next.name.trim(),
+    amount: next.amount,
+    day_of_month: next.day_of_month,
+    category: next.category.trim(),
+    type: next.type.trim(),
+  };
+
+  db.prepare(`
+    UPDATE recurring_events
+    SET name = ?, amount = ?, day_of_month = ?, category = ?, type = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    event.name,
+    event.amount,
+    event.day_of_month,
+    event.category,
+    event.type,
+    id,
+    userId
+  );
+
+  return {
+    status: 200,
+    body: {
+      id,
+      user_id: userId,
+      ...event,
+    },
+  };
+};
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -93,66 +572,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Auth Middleware
-const authenticateToken = (req: any, res: any, next: any) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
-
-// --- Auth Routes ---
-app.post("/api/auth/register", async (req, res) => {
-  const { email, password, name } = req.body;
-
-  if (!isNonEmptyString(email) || !isNonEmptyString(password) || !isNonEmptyString(name)) {
-    return res.status(400).json({ error: "Name, email, and password are required" });
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const stmt = db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)");
-    const info = stmt.run(email.trim(), hashedPassword, name.trim());
-    res.json({ message: "Account created successfully. Please login with OTP.", user: { id: info.lastInsertRowid, email: email.trim(), name: name.trim() } });
-  } catch (e: any) {
-    if (e?.code !== "SQLITE_CONSTRAINT_UNIQUE") {
-      console.error("Register error:", e);
-    }
-    res.status(400).json({ error: "Email already exists" });
-  }
-});
-
-app.post("/api/auth/send-otp", async (req, res) => {
-  const { email } = req.body;
+const sendOtpEmail = async (email: string) => {
   const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
   if (!user) {
-    return res.status(404).json({ error: "User not found" });
+    return { status: 404, body: { error: "User not found" } };
   }
 
   const otp = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
-  
-// Delete old OTP with retry
-  let retries = 3;
-  while (retries > 0) {
-    try {
-      db.prepare("DELETE FROM otps WHERE email = ?").run(email);
-      break;
-    } catch (e: any) {
-      if (e.code !== 'SQLITE_BUSY') throw e;
-      retries--;
-      if (retries === 0) throw e;
-      await new Promise(r => setTimeout(r, 100));
-    }
-  }
-  
-  // Insert new OTP
+
+  await retrySqliteBusy(() => {
+    db.prepare("DELETE FROM otps WHERE email = ?").run(email);
+  });
+
   db.prepare("INSERT INTO otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)")
     .run(email, otp, expiresAt, Date.now());
 
@@ -174,15 +606,65 @@ app.post("/api/auth/send-otp", async (req, res) => {
         </div>
       `,
     });
-    res.json({ message: "OTP sent successfully" });
+
+    return { status: 200, body: { message: "OTP sent successfully" } };
   } catch (error) {
     console.error("Email error:", error);
-    res.status(500).json({ error: "Failed to send OTP" });
+    return { status: 500, body: { error: "Failed to send OTP" } };
+  }
+};
+
+// Auth Middleware
+const authenticateToken = (req: any, res: any, next: any) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// --- Auth Routes ---
+app.post("/api/auth/register", async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const { password, name } = req.body;
+
+  if (!email || !isNonEmptyString(password) || !isNonEmptyString(name)) {
+    return res.status(400).json({ error: "Name, email, and password are required" });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const stmt = db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)");
+    const info = stmt.run(email, hashedPassword, name.trim());
+    res.status(201).json({
+      message: "Account created successfully. Please login with OTP.",
+      user: { id: info.lastInsertRowid, email, name: name.trim() },
+    });
+  } catch (e: any) {
+    if (e?.code !== "SQLITE_CONSTRAINT_UNIQUE") {
+      console.error("Register error:", e);
+    }
+    res.status(400).json({ error: "Email already exists" });
   }
 });
 
+app.post("/api/auth/send-otp", async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  const result = await sendOtpEmail(email);
+  res.status(result.status).json(result.body);
+});
+
 app.get("/api/auth/debug-otp", (req, res) => {
-  if (process.env.NODE_ENV === "production") {
+  if (IS_PRODUCTION) {
     return res.status(404).json({ error: "Not found" });
   }
 
@@ -217,7 +699,12 @@ app.get("/api/auth/debug-otp", (req, res) => {
 });
 
 app.post("/api/auth/verify-otp", async (req, res) => {
-  const { email, otp } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const otp = String(req.body.otp || "").trim();
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email and OTP are required" });
+  }
   
   const otpRecord: any = db.prepare(`
     SELECT * FROM otps WHERE email = ? AND otp = ? AND expires_at > ?
@@ -227,106 +714,207 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     return res.status(400).json({ error: "Invalid or expired OTP" });
   }
 
-  // Get user and generate token
   const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-  const token = jwt.sign({ 
-    id: user.id, 
-    email: user.email, 
-    name: user.name 
-  }, JWT_SECRET);
-  
-// Clean up OTP with retry
-  let retries2 = 3;
-  while (retries2 > 0) {
-    try {
-      db.prepare("DELETE FROM otps WHERE email = ?").run(email);
-      break;
-    } catch (e: any) {
-      if (e.code !== 'SQLITE_BUSY') throw e;
-      retries2--;
-      if (retries2 === 0) throw e;
-      await new Promise(r => setTimeout(r, 100));
-    }
-  }
-  
-  res.json({ 
-    token, 
-    user: { 
-      id: user.id, 
-      email: user.email, 
-      name: user.name, 
-      daily_threshold: user.daily_threshold 
-    } 
+
+  await retrySqliteBusy(() => {
+    db.prepare("DELETE FROM otps WHERE email = ?").run(email);
   });
+
+  res.json(createAuthResponse(user));
 });
 
-app.get("/api/auth/debug-otp", (req, res) => {
-  if (process.env.NODE_ENV === "production") {
-    return res.status(404).json({ error: "Not found" });
-  }
-
-  const { email } = req.query;
-  if (!email || typeof email !== "string") {
+app.post("/api/auth/login", async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  if (!email) {
     return res.status(400).json({ error: "Email is required" });
   }
 
-  const otpRecord = db.prepare(`
-    SELECT email, otp, expires_at, created_at
-    FROM otps
-    WHERE email = ?
-    ORDER BY created_at DESC
-    LIMIT 1
-  `).get(email);
-
-  if (!otpRecord) {
-    return res.status(404).json({ error: "OTP not found" });
-  }
-
-  res.json(otpRecord);
-});
-
-// Legacy password login kept for register testing
-app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!isNonEmptyString(email) || !isNonEmptyString(password)) {
-    return res.status(400).json({ error: "Email and password are required" });
-  }
-
-  const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name, daily_threshold: user.daily_threshold } });
+  const result = await sendOtpEmail(email);
+  res.status(result.status).json(result.body);
 });
 
 // --- Transaction Routes ---
 app.get("/api/transactions", authenticateToken, (req: any, res) => {
-  const transactions = db.prepare("SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC").all(req.user.id);
+  const filters = getTransactionFilters(req.query, req.user.id);
+  if ("error" in filters) {
+    return res.status(400).json({ error: filters.error });
+  }
+
+  const limit = req.query.limit === undefined ? 100 : toPositiveInteger(req.query.limit);
+  const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
+
+  if (!limit || !Number.isInteger(offset) || offset < 0) {
+    return res.status(400).json({ error: "Limit must be positive and offset must be zero or greater" });
+  }
+
+  const transactions = db.prepare(`
+    SELECT *
+    FROM transactions
+    WHERE ${filters.where}
+    ORDER BY date DESC, id DESC
+    LIMIT ? OFFSET ?
+  `).all(...filters.params, limit, offset);
+
   res.json(transactions);
 });
 
 app.post("/api/transactions", authenticateToken, (req: any, res) => {
-  const { amount, type, category, date, payment_mode, description, bill_url } = req.body;
-  const stmt = db.prepare(`
-    INSERT INTO transactions (user_id, amount, type, category, date, payment_mode, description, bill_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const info = stmt.run(req.user.id, amount, type, category, date, payment_mode, description, bill_url);
-  res.json({ id: info.lastInsertRowid, ...req.body });
+  const result = createTransaction(req.user.id, req.body);
+  res.status(result.status).json(result.body);
+});
+
+app.get("/api/transactions/summary", authenticateToken, (req: any, res) => {
+  const filters = getTransactionFilters(req.query, req.user.id);
+  if ("error" in filters) {
+    return res.status(400).json({ error: filters.error });
+  }
+
+  const summary: any = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense,
+      COUNT(*) AS transaction_count
+    FROM transactions
+    WHERE ${filters.where}
+  `).get(...filters.params);
+
+  res.json({
+    total_income: summary.total_income,
+    total_expense: summary.total_expense,
+    balance: summary.total_income - summary.total_expense,
+    transaction_count: summary.transaction_count,
+  });
+});
+
+app.get("/api/transactions/categories", authenticateToken, (req: any, res) => {
+  const filters = getTransactionFilters(req.query, req.user.id);
+  if ("error" in filters) {
+    return res.status(400).json({ error: filters.error });
+  }
+
+  const categories = db.prepare(`
+    SELECT category, type, COUNT(*) AS transaction_count, SUM(amount) AS total_amount
+    FROM transactions
+    WHERE ${filters.where}
+    GROUP BY category, type
+    ORDER BY total_amount DESC
+  `).all(...filters.params);
+
+  res.json(categories);
+});
+
+app.get("/api/transactions/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid transaction id is required" });
+  }
+
+  const transaction = findTransactionById(id, req.user.id);
+
+  if (!transaction) {
+    return res.status(404).json({ error: "Transaction not found" });
+  }
+
+  res.json(transaction);
+});
+
+app.patch("/api/transactions/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid transaction id is required" });
+  }
+
+  const result = updateTransaction(id, req.user.id, req.body);
+  res.status(result.status).json(result.body);
+});
+
+app.put("/api/transactions/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid transaction id is required" });
+  }
+
+  const result = updateTransaction(id, req.user.id, req.body);
+  res.status(result.status).json(result.body);
 });
 
 app.delete("/api/transactions/:id", authenticateToken, (req: any, res) => {
-  db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?").run(req.params.id, req.user.id);
-  res.sendStatus(204);
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid transaction id is required" });
+  }
+
+  const info = db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?").run(id, req.user.id);
+  if (info.changes === 0) {
+    return res.status(404).json({ error: "Transaction not found" });
+  }
+
+  res.json({ message: "Transaction deleted successfully", id });
 });
 
 // --- User Settings ---
 app.patch("/api/user/threshold", authenticateToken, (req: any, res) => {
-  const { threshold } = req.body;
+  const threshold = toNumber(req.body.threshold);
+  if (threshold === null || threshold < 0) {
+    return res.status(400).json({ error: "Threshold must be a non-negative number" });
+  }
+
   db.prepare("UPDATE users SET daily_threshold = ? WHERE id = ?").run(threshold, req.user.id);
   res.sendStatus(204);
+});
+
+app.get("/api/users/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid user id is required" });
+  }
+
+  if (id !== req.user.id) {
+    return res.status(403).json({ error: "You can only access your own user record" });
+  }
+
+  const user = db.prepare(`
+    SELECT id, email, name, daily_threshold
+    FROM users
+    WHERE id = ?
+  `).get(id);
+
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  res.json(user);
+});
+
+app.get("/api/users/:userId/transactions", authenticateToken, (req: any, res) => {
+  const userId = toPositiveInteger(req.params.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "Valid user id is required" });
+  }
+
+  if (userId !== req.user.id) {
+    return res.status(403).json({ error: "You can only access your own transactions" });
+  }
+
+  const transactions = db.prepare(
+    "SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC"
+  ).all(userId);
+
+  res.json(transactions);
+});
+
+app.post("/api/users/:userId/transactions", authenticateToken, (req: any, res) => {
+  const userId = toPositiveInteger(req.params.userId);
+  if (!userId) {
+    return res.status(400).json({ error: "Valid user id is required" });
+  }
+
+  if (userId !== req.user.id) {
+    return res.status(403).json({ error: "You can only create transactions for yourself" });
+  }
+
+  const result = createTransaction(userId, req.body);
+  res.status(result.status).json(result.body);
 });
 
 // --- Recurring Events ---
@@ -337,18 +925,156 @@ app.get("/api/recurring", authenticateToken, (req: any, res) => {
 
 app.post("/api/recurring", authenticateToken, (req: any, res) => {
   const { name, amount, day_of_month, category, type } = req.body;
+  const parsedAmount = toNumber(amount);
+  const parsedDay = Number(day_of_month);
+
+  if (!isNonEmptyString(name) || !isNonEmptyString(category) || !isNonEmptyString(type)) {
+    return res.status(400).json({ error: "Name, category, and type are required" });
+  }
+
+  if (parsedAmount === null || parsedAmount <= 0) {
+    return res.status(400).json({ error: "Amount must be a positive number" });
+  }
+
+  if (!Number.isInteger(parsedDay) || parsedDay < 1 || parsedDay > 31) {
+    return res.status(400).json({ error: "Day of month must be between 1 and 31" });
+  }
+
   const stmt = db.prepare(`
     INSERT INTO recurring_events (user_id, name, amount, day_of_month, category, type)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
-  const info = stmt.run(req.user.id, name, amount, day_of_month, category, type);
-  res.json({ id: info.lastInsertRowid, ...req.body });
+  const info = stmt.run(
+    req.user.id,
+    name.trim(),
+    parsedAmount,
+    parsedDay,
+    category.trim(),
+    type.trim()
+  );
+
+  res.status(201).json({
+    id: info.lastInsertRowid,
+    name: name.trim(),
+    amount: parsedAmount,
+    day_of_month: parsedDay,
+    category: category.trim(),
+    type: type.trim(),
+  });
+});
+
+app.get("/api/recurring/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid recurring event id is required" });
+  }
+
+  const event = findRecurringEventById(id, req.user.id);
+  if (!event) {
+    return res.status(404).json({ error: "Recurring event not found" });
+  }
+
+  res.json(event);
+});
+
+app.patch("/api/recurring/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid recurring event id is required" });
+  }
+
+  const result = updateRecurringEvent(id, req.user.id, req.body);
+  res.status(result.status).json(result.body);
+});
+
+app.delete("/api/recurring/:id", authenticateToken, (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid recurring event id is required" });
+  }
+
+  const info = db.prepare("DELETE FROM recurring_events WHERE id = ? AND user_id = ?").run(id, req.user.id);
+  if (info.changes === 0) {
+    return res.status(404).json({ error: "Recurring event not found" });
+  }
+
+  res.json({ message: "Recurring event deleted successfully", id });
+});
+
+// --- AI Routes (Gemini primary, client keeps Ollama fallback) ---
+app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
+  const { base64Data, mimeType } = req.body || {};
+
+  if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
+    return res.status(400).json({ error: "base64Data and mimeType are required" });
+  }
+
+  if (mimeType === "application/pdf") {
+    return res.status(400).json({ error: "PDF extraction is not supported yet. Please upload a JPG or PNG invoice." });
+  }
+
+  if (!mimeType.startsWith("image/")) {
+    return res.status(400).json({ error: "Unsupported file type. Please upload a JPG or PNG invoice." });
+  }
+
+  try {
+    const data = await extractBillDataWithGemini(base64Data, mimeType);
+    res.json({ ...data, provider: "gemini", model: GEMINI_MODEL });
+  } catch (error: any) {
+    console.error("Gemini bill extraction error:", error);
+    res.status(502).json({
+      error: "Gemini bill extraction failed",
+      detail: IS_PRODUCTION ? undefined : error.message,
+    });
+  }
+});
+
+app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
+  const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+
+  if (!transactions) {
+    return res.status(400).json({ error: "transactions must be an array" });
+  }
+
+  try {
+    const insights = await getFinancialInsightsWithGemini(transactions);
+    res.json({ ...insights, provider: "gemini", model: GEMINI_MODEL });
+  } catch (error: any) {
+    console.error("Gemini insights error:", error);
+    res.status(502).json({
+      error: "Gemini insights generation failed",
+      detail: IS_PRODUCTION ? undefined : error.message,
+    });
+  }
+});
+
+app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) => {
+  const { base64Data, mimeType } = req.body || {};
+
+  if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
+    return res.status(400).json({ error: "base64Data and mimeType are required" });
+  }
+
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, or PNG statement." });
+  }
+
+  try {
+    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    res.json({ transactions, provider: "gemini", model: GEMINI_MODEL });
+  } catch (error: any) {
+    console.error("Gemini statement import error:", error);
+    res.status(502).json({
+      error: "Gemini statement import failed",
+      detail: IS_PRODUCTION ? undefined : error.message,
+    });
+  }
 });
 
 // --- File Upload (for bills) ---
 const upload = multer({ dest: 'uploads/' });
 app.post("/api/upload", authenticateToken, upload.single('file'), (req: any, res) => {
-  if (!req.file) return res.status(400).send('No file uploaded.');
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   // In a real app, we'd upload to S3/Cloudinary. Here we just return the local path.
   res.json({ url: `/uploads/${req.file.filename}` });
 });
