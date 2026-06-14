@@ -26,6 +26,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -38,8 +39,8 @@ export default function Transactions() {
     try {
       const { data } = await api.get('/transactions');
       setTransactions(data);
-    } catch (error) {
-      toast.error("Failed to fetch transactions.");
+    } catch (error: any) {
+      toast.error(getApiMessage(error, "Failed to fetch transactions."));
     } finally {
       setLoading(false);
     }
@@ -51,11 +52,11 @@ export default function Transactions() {
 
   const handleDelete = async (id: number) => {
     try {
-      await api.delete(`/transactions/${id}`);
+      const response = await api.delete(`/transactions/${id}`);
       setTransactions(transactions.filter(t => t.id !== id));
-      toast.success("Transaction deleted.");
-    } catch (error) {
-      toast.error("Failed to delete transaction.");
+      toast.success(getApiSuccessMessage(response.data, "Transaction deleted successfully"));
+    } catch (error: any) {
+      toast.error(getApiMessage(error, "Failed to delete transaction."));
     }
   };
 
@@ -65,14 +66,14 @@ export default function Transactions() {
     const data = Object.fromEntries(formData.entries());
     
     try {
-      await api.post('/transactions', {
+      const response = await api.post('/transactions', {
         ...data,
         amount: parseFloat(data.amount as string),
       });
-      toast.success("Transaction added!");
+      toast.success(getApiSuccessMessage(response.data, "Transaction added successfully"));
       fetchTransactions();
-    } catch (error) {
-      toast.error("Failed to add transaction.");
+    } catch (error: any) {
+      toast.error(getApiMessage(error, "Failed to add transaction."));
     }
   };
 

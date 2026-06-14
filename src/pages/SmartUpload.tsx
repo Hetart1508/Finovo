@@ -12,6 +12,7 @@ import api from '@/src/lib/api';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
+import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 // Add this at the top of your file, after your imports
 interface Extracted {
   data: {
@@ -63,7 +64,7 @@ export default function SmartUpload() {
       toast.success(`${data.provider === 'gemini' ? 'Gemini' : 'AI'} extracted data (Confidence: ${confidence.toUpperCase()})`);
     } catch (error: any) {
       console.error('Extraction error:', error);
-      const msg = error.message || 'Failed to extract data';
+      const msg = getApiMessage(error, 'Failed to extract data');
       setExtractionError(msg);
       toast.error(msg);
     } finally {
@@ -76,19 +77,19 @@ export default function SmartUpload() {
     if (!extractedData?.data) return;
     setLoading(true);
     try {
-      await api.post('/transactions', {
+      const response = await api.post('/transactions', {
         ...extractedData.data,
         type: 'expense',
         payment_mode: 'UPI',
         description: `AI Extracted (${extractedData.confidence}): ${extractedData.data.merchant}`
       });
-      toast.success("Transaction saved successfully!");
+      toast.success(getApiSuccessMessage(response.data, "Transaction saved successfully"));
       setFile(null);
       setPreview(null);
       setExtractedData(null);
       setExtractionError(null);
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to save transaction.');
+      toast.error(getApiMessage(error, 'Failed to save transaction.'));
     } finally {
       setLoading(false);
     }

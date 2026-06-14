@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Settings } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 
 export default function CalendarView() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -25,8 +26,9 @@ export default function CalendarView() {
         setTransactions(tRes.data);
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         setThreshold(user.daily_threshold || 1000);
-      } catch (error) {
+      } catch (error: any) {
         console.error(error);
+        toast.error(getApiMessage(error, "Failed to fetch calendar transactions."));
       } finally {
         setLoading(false);
       }
@@ -35,12 +37,12 @@ export default function CalendarView() {
   }, []);
   const handleUpdateThreshold = async () => {
     try {
-      await api.patch('/user/threshold', { threshold });
+      const response = await api.patch('/user/threshold', { threshold });
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       localStorage.setItem('user', JSON.stringify({ ...user, daily_threshold: threshold }));
-      toast.success("Daily threshold updated!");
-    } catch (error) {
-      toast.error("Failed to update threshold.");
+      toast.success(getApiSuccessMessage(response.data, "Daily threshold updated successfully"));
+    } catch (error: any) {
+      toast.error(getApiMessage(error, "Failed to update threshold."));
     }
   };
 

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import api from '@/src/lib/api';
+import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
@@ -27,14 +28,6 @@ export default function Auth() {
     }
   }, [resendTimer]);
   const [otpEmail, setOtpEmail] = useState('');
-const getErrorMessage = (error: any) => {
-  return (
-    error?.response?.data?.error ||
-    error?.response?.data?.message ||
-    error?.message ||
-    'Something went wrong'
-  );
-};
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,15 +39,13 @@ const getErrorMessage = (error: any) => {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      await api.post('/auth/register', data);
-      toast.success('Account created! Check your email for login OTP.', { id: toastId });
-      toast.dismiss(toastId);
+      const response = await api.post('/auth/register', data);
+      toast.success(getApiSuccessMessage(response.data, 'Account created successfully.'), { id: toastId });
       setCurrentTab('login');
       setOtpEmail(data.email as string);
     } catch (error: any) {
-     const message = getErrorMessage(error);
+     const message = getApiMessage(error, 'Failed to create account.');
      toast.error(message, { id: toastId });
-     toast.dismiss(toastId);
 } finally {
       setLoading(false);
     }
@@ -65,15 +56,13 @@ const getErrorMessage = (error: any) => {
     setLoading(true);
     const toastId = toast.loading('Sending OTP...');
     try {
-      await api.post('/auth/send-otp', { email: otpEmail });
+      const response = await api.post('/auth/send-otp', { email: otpEmail });
       setOtpStep('verify');
       setResendTimer(300);
-      toast.success('OTP sent to your email!', { id: toastId });
-      toast.dismiss(toastId);
+      toast.success(getApiSuccessMessage(response.data, 'OTP sent successfully'), { id: toastId });
     } catch (error: any) {
-      const message = getErrorMessage(error);
+      const message = getApiMessage(error, 'Failed to send OTP.');
       toast.error(message, { id: toastId });
-      toast.dismiss(toastId);
 
     } finally {
       setLoading(false);
@@ -89,12 +78,10 @@ const getErrorMessage = (error: any) => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       toast.success(`Welcome back, ${response.data.user.name}!`, { id: toastId });
-      toast.dismiss(toastId);
       navigate('/'); 
     } catch (error: any) {
-      const message = getErrorMessage(error);
+      const message = getApiMessage(error, 'Failed to verify OTP.');
       toast.error(message, { id: toastId });
-      toast.dismiss(toastId);
 
 if (message.toLowerCase().includes('otp')) {
   setOtpStep('email');

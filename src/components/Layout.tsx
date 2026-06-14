@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -26,6 +26,7 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    toast.success('Logged out successfully');
     navigate('/auth');
   };
 
@@ -103,7 +104,6 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
-      <Toaster position="top-right" />
     </div>
   );
 }

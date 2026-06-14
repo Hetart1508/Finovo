@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 
 type ImportedStatementTransaction = {
   date: string;
@@ -82,9 +83,9 @@ export default function Insights() {
       setInsights(aiInsights);
       console.log('AI Insights:', aiInsights); // Debug log
       toast.success('AI suggestions generated!');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Failed to generate AI insights.");
+      toast.error(getApiMessage(error, "Failed to generate AI insights."));
     } finally {
       setLoading(false);
     }
@@ -137,7 +138,7 @@ export default function Insights() {
       });
 
       if (data.savedCount > 0) {
-        toast.success(`Imported ${data.savedCount} statement transactions.`);
+        toast.success(getApiSuccessMessage(data, `Imported ${data.savedCount} statement transactions.`));
         if (data.skippedCount > 0) {
           toast.warning(`${data.skippedCount} extracted rows were skipped.`);
         }
@@ -148,7 +149,7 @@ export default function Insights() {
     } catch (error: any) {
       console.error(error);
       const detail = error.response?.data?.detail;
-      const message = error.response?.data?.error || error.response?.data?.message || 'Failed to import statement.';
+      const message = getApiMessage(error, 'Failed to import statement.');
       toast.error(detail ? `${message}: ${detail}` : message);
     } finally {
       setStatementLoading(false);

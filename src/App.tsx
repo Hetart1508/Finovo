@@ -6,6 +6,7 @@ import SmartUpload from './pages/SmartUpload';
 import CalendarView from './pages/Calendar';
 import Insights from './pages/Insights';
 import Auth from './pages/Auth';
+import { Toaster } from '@/components/ui/sonner';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
       </Routes>
+      <Toaster position="top-right" />
     </Router>
   );
 }

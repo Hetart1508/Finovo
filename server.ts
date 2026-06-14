@@ -5,75 +5,127 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import Database from "better-sqlite3";
+import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import multer from "multer";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
-// Migration system
-function runMigrations() {
-  console.log("🔄 Running database migrations...");
-  
-  // Ensure schema_migrations table exists
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INTEGER PRIMARY KEY
+const db = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  port: Number(process.env.DB_PORT || 3306),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "expense_tracker",
+  waitForConnections: true,
+  connectionLimit: 10,
+  decimalNumbers: true,
+  dateStrings: true,
+});
+
+const queryAll = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
+  const [rows] = await db.execute<T[]>(sql, params);
+  return rows;
+};
+
+const queryOne = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
+  const rows = await queryAll<T>(sql, params);
+  return rows[0];
+};
+
+const execute = async (sql: string, params: any[] = []) => {
+  const [result] = await db.execute<ResultSetHeader>(sql, params);
+  return result;
+};
+
+const ensureIndex = async (tableName: string, indexName: string, columns: string) => {
+  const existing = await queryOne(
+    `
+      SELECT 1
+      FROM information_schema.statistics
+      WHERE table_schema = DATABASE()
+        AND table_name = ?
+        AND index_name = ?
+      LIMIT 1
+    `,
+    [tableName, indexName]
+  );
+
+  if (!existing) {
+    await db.query(`CREATE INDEX ${indexName} ON ${tableName}(${columns})`);
+  }
+};
+
+const runMigrations = async () => {
+  console.log("Running MySQL schema check...");
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      daily_threshold DECIMAL(10,2) DEFAULT 1000.00
     )
   `);
-  
-  // Get list of migration files (001_initial.sql, 002_xxx.sql, etc.)
-  const migrationsDir = "./migrations";
-  let migrationFiles: string[];
-  try {
-    migrationFiles = fs.readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
-      .sort(); // Natural sort by filename (001, 002, etc.)
-  } catch (error) {
-    console.log("❌ No migrations directory found. Skipping migrations.");
-    return;
-  }
-  
-  let appliedCount = 0;
-  
-  for (const file of migrationFiles) {
-    const version = parseInt(file.split('_')[0], 10); // Extract version from 001_initial.sql
-    
-    if (isNaN(version)) {
-      console.log(`⚠️ Skipping non-versioned migration: ${file}`);
-      continue;
-    }
-    
-    // Check if already applied
-    const applied = db.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(version);
-    if (applied) {
-      console.log(`✅ Migration ${file} already applied`);
-      continue;
-    }
-    
-    try {
-      // Read and execute migration
-      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      db.exec(sql);
-      
-      // Mark as applied
-      db.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(version);
-      
-      console.log(`✅ Applied migration ${file} (v${version})`);
-      appliedCount++;
-    } catch (error: any) {
-      console.error(`❌ Failed to apply migration ${file}:`, error.message);
-      throw error;
-    }
-  }
-  
-  console.log(`🎉 Completed migrations. Applied ${appliedCount} new migrations.`);
-}
 
-const db = new Database("expense_tracker.db");
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS otps (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      otp VARCHAR(20) NOT NULL,
+      expires_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL,
+      UNIQUE KEY unique_otp_email (email)
+    )
+  `);
 
-// Initialize Database with migrations
-runMigrations();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      type ENUM('expense', 'income') NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      date DATE NOT NULL,
+      payment_mode VARCHAR(100) NOT NULL,
+      description TEXT,
+      bill_url TEXT,
+      CONSTRAINT fk_transactions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS recurring_events (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      amount DECIMAL(12,2) NOT NULL,
+      day_of_month INT NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      type VARCHAR(100) NOT NULL,
+      CONSTRAINT chk_day_of_month CHECK (day_of_month BETWEEN 1 AND 31),
+      CONSTRAINT fk_recurring_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INT PRIMARY KEY
+    )
+  `);
+
+  await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
+  await ensureIndex("transactions", "idx_transactions_category", "category");
+  await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
+  await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
+
+  console.log("MySQL schema is ready.");
+};
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
@@ -313,20 +365,6 @@ Rules:
   return normalizeGeminiStatementTransactions(result);
 };
 
-const retrySqliteBusy = async (operation: () => void, retries = 3) => {
-  while (retries > 0) {
-    try {
-      operation();
-      return;
-    } catch (e: any) {
-      if (e.code !== "SQLITE_BUSY") throw e;
-      retries--;
-      if (retries === 0) throw e;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
-};
-
 const createAuthResponse = (user: any) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name },
@@ -344,7 +382,7 @@ const createAuthResponse = (user: any) => {
   };
 };
 
-const createTransaction = (userId: number, body: any) => {
+const createTransaction = async (userId: number, body: any) => {
   const { amount, type, category, date, payment_mode, description, bill_url } = body;
   const parsedAmount = toNumber(amount);
 
@@ -370,11 +408,10 @@ const createTransaction = (userId: number, body: any) => {
     bill_url: isNonEmptyString(bill_url) ? bill_url.trim() : null,
   };
 
-  const stmt = db.prepare(`
+  const info = await execute(`
     INSERT INTO transactions (user_id, amount, type, category, date, payment_mode, description, bill_url)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const info = stmt.run(
+  `, [
     userId,
     transaction.amount,
     transaction.type,
@@ -382,13 +419,13 @@ const createTransaction = (userId: number, body: any) => {
     transaction.date,
     transaction.payment_mode,
     transaction.description,
-    transaction.bill_url
-  );
+    transaction.bill_url,
+  ]);
 
   return {
     status: 201,
     body: {
-      id: info.lastInsertRowid,
+      id: info.insertId,
       user_id: userId,
       ...transaction,
     },
@@ -396,7 +433,7 @@ const createTransaction = (userId: number, body: any) => {
 };
 
 const findTransactionById = (id: number, userId: number) =>
-  db.prepare("SELECT * FROM transactions WHERE id = ? AND user_id = ?").get(id, userId);
+  queryOne("SELECT * FROM transactions WHERE id = ? AND user_id = ?", [id, userId]);
 
 const getTransactionFilters = (query: any, userId: number) => {
   const conditions = ["user_id = ?"];
@@ -439,8 +476,8 @@ const getTransactionFilters = (query: any, userId: number) => {
   return { where: conditions.join(" AND "), params };
 };
 
-const updateTransaction = (id: number, userId: number, body: any) => {
-  const existing: any = findTransactionById(id, userId);
+const updateTransaction = async (id: number, userId: number, body: any) => {
+  const existing: any = await findTransactionById(id, userId);
   if (!existing) {
     return { status: 404, body: { error: "Transaction not found" } };
   }
@@ -477,11 +514,11 @@ const updateTransaction = (id: number, userId: number, body: any) => {
     bill_url: isNonEmptyString(next.bill_url) ? next.bill_url.trim() : null,
   };
 
-  db.prepare(`
+  await execute(`
     UPDATE transactions
     SET amount = ?, type = ?, category = ?, date = ?, payment_mode = ?, description = ?, bill_url = ?
     WHERE id = ? AND user_id = ?
-  `).run(
+  `, [
     transaction.amount,
     transaction.type,
     transaction.category,
@@ -490,8 +527,8 @@ const updateTransaction = (id: number, userId: number, body: any) => {
     transaction.description,
     transaction.bill_url,
     id,
-    userId
-  );
+    userId,
+  ]);
 
   return {
     status: 200,
@@ -504,10 +541,10 @@ const updateTransaction = (id: number, userId: number, body: any) => {
 };
 
 const findRecurringEventById = (id: number, userId: number) =>
-  db.prepare("SELECT * FROM recurring_events WHERE id = ? AND user_id = ?").get(id, userId);
+  queryOne("SELECT * FROM recurring_events WHERE id = ? AND user_id = ?", [id, userId]);
 
-const updateRecurringEvent = (id: number, userId: number, body: any) => {
-  const existing: any = findRecurringEventById(id, userId);
+const updateRecurringEvent = async (id: number, userId: number, body: any) => {
+  const existing: any = await findRecurringEventById(id, userId);
   if (!existing) {
     return { status: 404, body: { error: "Recurring event not found" } };
   }
@@ -540,19 +577,19 @@ const updateRecurringEvent = (id: number, userId: number, body: any) => {
     type: next.type.trim(),
   };
 
-  db.prepare(`
+  await execute(`
     UPDATE recurring_events
     SET name = ?, amount = ?, day_of_month = ?, category = ?, type = ?
     WHERE id = ? AND user_id = ?
-  `).run(
+  `, [
     event.name,
     event.amount,
     event.day_of_month,
     event.category,
     event.type,
     id,
-    userId
-  );
+    userId,
+  ]);
 
   return {
     status: 200,
@@ -573,7 +610,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendOtpEmail = async (email: string) => {
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  const user = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
   if (!user) {
     return { status: 404, body: { error: "User not found" } };
   }
@@ -581,12 +618,8 @@ const sendOtpEmail = async (email: string) => {
   const otp = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
 
-  await retrySqliteBusy(() => {
-    db.prepare("DELETE FROM otps WHERE email = ?").run(email);
-  });
-
-  db.prepare("INSERT INTO otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)")
-    .run(email, otp, expiresAt, Date.now());
+  await execute("DELETE FROM otps WHERE email = ?", [email]);
+  await execute("INSERT INTO otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)", [email, otp, expiresAt, Date.now()]);
 
   try {
     await transporter.sendMail({
@@ -639,14 +672,13 @@ app.post("/api/auth/register", async (req, res) => {
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const stmt = db.prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)");
-    const info = stmt.run(email, hashedPassword, name.trim());
+    const info = await execute("INSERT INTO users (email, password, name) VALUES (?, ?, ?)", [email, hashedPassword, name.trim()]);
     res.status(201).json({
       message: "Account created successfully. Please login with OTP.",
-      user: { id: info.lastInsertRowid, email, name: name.trim() },
+      user: { id: info.insertId, email, name: name.trim() },
     });
   } catch (e: any) {
-    if (e?.code !== "SQLITE_CONSTRAINT_UNIQUE") {
+    if (e?.code !== "ER_DUP_ENTRY") {
       console.error("Register error:", e);
     }
     res.status(400).json({ error: "Email already exists" });
@@ -663,7 +695,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
   res.status(result.status).json(result.body);
 });
 
-app.get("/api/auth/debug-otp", (req, res) => {
+app.get("/api/auth/debug-otp", async (req, res) => {
   if (IS_PRODUCTION) {
     return res.status(404).json({ error: "Not found" });
   }
@@ -673,13 +705,13 @@ app.get("/api/auth/debug-otp", (req, res) => {
     return res.status(400).json({ error: "Email query parameter is required" });
   }
 
-  const otpRecord: any = db.prepare(`
+  const otpRecord: any = await queryOne(`
     SELECT email, otp, expires_at, created_at
     FROM otps
     WHERE email = ?
     ORDER BY created_at DESC
     LIMIT 1
-  `).get(email);
+  `, [email]);
 
   if (!otpRecord) {
     return res.status(404).json({ error: "No OTP found for this email" });
@@ -706,19 +738,17 @@ app.post("/api/auth/verify-otp", async (req, res) => {
     return res.status(400).json({ error: "Email and OTP are required" });
   }
   
-  const otpRecord: any = db.prepare(`
+  const otpRecord: any = await queryOne(`
     SELECT * FROM otps WHERE email = ? AND otp = ? AND expires_at > ?
-  `).get(email, otp, Date.now());
+  `, [email, otp, Date.now()]);
   
   if (!otpRecord) {
     return res.status(400).json({ error: "Invalid or expired OTP" });
   }
 
-  const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
 
-  await retrySqliteBusy(() => {
-    db.prepare("DELETE FROM otps WHERE email = ?").run(email);
-  });
+  await execute("DELETE FROM otps WHERE email = ?", [email]);
 
   res.json(createAuthResponse(user));
 });
@@ -734,7 +764,7 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // --- Transaction Routes ---
-app.get("/api/transactions", authenticateToken, (req: any, res) => {
+app.get("/api/transactions", authenticateToken, async (req: any, res) => {
   const filters = getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
     return res.status(400).json({ error: filters.error });
@@ -747,36 +777,36 @@ app.get("/api/transactions", authenticateToken, (req: any, res) => {
     return res.status(400).json({ error: "Limit must be positive and offset must be zero or greater" });
   }
 
-  const transactions = db.prepare(`
+  const transactions = await queryAll(`
     SELECT *
     FROM transactions
     WHERE ${filters.where}
     ORDER BY date DESC, id DESC
-    LIMIT ? OFFSET ?
-  `).all(...filters.params, limit, offset);
+    LIMIT ${limit} OFFSET ${offset}
+  `, filters.params);
 
   res.json(transactions);
 });
 
-app.post("/api/transactions", authenticateToken, (req: any, res) => {
-  const result = createTransaction(req.user.id, req.body);
+app.post("/api/transactions", authenticateToken, async (req: any, res) => {
+  const result = await createTransaction(req.user.id, req.body);
   res.status(result.status).json(result.body);
 });
 
-app.get("/api/transactions/summary", authenticateToken, (req: any, res) => {
+app.get("/api/transactions/summary", authenticateToken, async (req: any, res) => {
   const filters = getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
     return res.status(400).json({ error: filters.error });
   }
 
-  const summary: any = db.prepare(`
+  const summary: any = await queryOne(`
     SELECT
       COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
       COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense,
       COUNT(*) AS transaction_count
     FROM transactions
     WHERE ${filters.where}
-  `).get(...filters.params);
+  `, filters.params);
 
   res.json({
     total_income: summary.total_income,
@@ -786,30 +816,30 @@ app.get("/api/transactions/summary", authenticateToken, (req: any, res) => {
   });
 });
 
-app.get("/api/transactions/categories", authenticateToken, (req: any, res) => {
+app.get("/api/transactions/categories", authenticateToken, async (req: any, res) => {
   const filters = getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
     return res.status(400).json({ error: filters.error });
   }
 
-  const categories = db.prepare(`
+  const categories = await queryAll(`
     SELECT category, type, COUNT(*) AS transaction_count, SUM(amount) AS total_amount
     FROM transactions
     WHERE ${filters.where}
     GROUP BY category, type
     ORDER BY total_amount DESC
-  `).all(...filters.params);
+  `, filters.params);
 
   res.json(categories);
 });
 
-app.get("/api/transactions/:id", authenticateToken, (req: any, res) => {
+app.get("/api/transactions/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid transaction id is required" });
   }
 
-  const transaction = findTransactionById(id, req.user.id);
+  const transaction = await findTransactionById(id, req.user.id);
 
   if (!transaction) {
     return res.status(404).json({ error: "Transaction not found" });
@@ -818,34 +848,34 @@ app.get("/api/transactions/:id", authenticateToken, (req: any, res) => {
   res.json(transaction);
 });
 
-app.patch("/api/transactions/:id", authenticateToken, (req: any, res) => {
+app.patch("/api/transactions/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid transaction id is required" });
   }
 
-  const result = updateTransaction(id, req.user.id, req.body);
+  const result = await updateTransaction(id, req.user.id, req.body);
   res.status(result.status).json(result.body);
 });
 
-app.put("/api/transactions/:id", authenticateToken, (req: any, res) => {
+app.put("/api/transactions/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid transaction id is required" });
   }
 
-  const result = updateTransaction(id, req.user.id, req.body);
+  const result = await updateTransaction(id, req.user.id, req.body);
   res.status(result.status).json(result.body);
 });
 
-app.delete("/api/transactions/:id", authenticateToken, (req: any, res) => {
+app.delete("/api/transactions/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid transaction id is required" });
   }
 
-  const info = db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?").run(id, req.user.id);
-  if (info.changes === 0) {
+  const info = await execute("DELETE FROM transactions WHERE id = ? AND user_id = ?", [id, req.user.id]);
+  if (info.affectedRows === 0) {
     return res.status(404).json({ error: "Transaction not found" });
   }
 
@@ -853,17 +883,17 @@ app.delete("/api/transactions/:id", authenticateToken, (req: any, res) => {
 });
 
 // --- User Settings ---
-app.patch("/api/user/threshold", authenticateToken, (req: any, res) => {
+app.patch("/api/user/threshold", authenticateToken, async (req: any, res) => {
   const threshold = toNumber(req.body.threshold);
   if (threshold === null || threshold < 0) {
     return res.status(400).json({ error: "Threshold must be a non-negative number" });
   }
 
-  db.prepare("UPDATE users SET daily_threshold = ? WHERE id = ?").run(threshold, req.user.id);
+  await execute("UPDATE users SET daily_threshold = ? WHERE id = ?", [threshold, req.user.id]);
   res.sendStatus(204);
 });
 
-app.get("/api/users/:id", authenticateToken, (req: any, res) => {
+app.get("/api/users/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid user id is required" });
@@ -873,11 +903,11 @@ app.get("/api/users/:id", authenticateToken, (req: any, res) => {
     return res.status(403).json({ error: "You can only access your own user record" });
   }
 
-  const user = db.prepare(`
+  const user = await queryOne(`
     SELECT id, email, name, daily_threshold
     FROM users
     WHERE id = ?
-  `).get(id);
+  `, [id]);
 
   if (!user) {
     return res.status(404).json({ error: "User not found" });
@@ -886,7 +916,7 @@ app.get("/api/users/:id", authenticateToken, (req: any, res) => {
   res.json(user);
 });
 
-app.get("/api/users/:userId/transactions", authenticateToken, (req: any, res) => {
+app.get("/api/users/:userId/transactions", authenticateToken, async (req: any, res) => {
   const userId = toPositiveInteger(req.params.userId);
   if (!userId) {
     return res.status(400).json({ error: "Valid user id is required" });
@@ -896,14 +926,15 @@ app.get("/api/users/:userId/transactions", authenticateToken, (req: any, res) =>
     return res.status(403).json({ error: "You can only access your own transactions" });
   }
 
-  const transactions = db.prepare(
-    "SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC"
-  ).all(userId);
+  const transactions = await queryAll(
+    "SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC",
+    [userId]
+  );
 
   res.json(transactions);
 });
 
-app.post("/api/users/:userId/transactions", authenticateToken, (req: any, res) => {
+app.post("/api/users/:userId/transactions", authenticateToken, async (req: any, res) => {
   const userId = toPositiveInteger(req.params.userId);
   if (!userId) {
     return res.status(400).json({ error: "Valid user id is required" });
@@ -913,17 +944,17 @@ app.post("/api/users/:userId/transactions", authenticateToken, (req: any, res) =
     return res.status(403).json({ error: "You can only create transactions for yourself" });
   }
 
-  const result = createTransaction(userId, req.body);
+  const result = await createTransaction(userId, req.body);
   res.status(result.status).json(result.body);
 });
 
 // --- Recurring Events ---
-app.get("/api/recurring", authenticateToken, (req: any, res) => {
-  const events = db.prepare("SELECT * FROM recurring_events WHERE user_id = ?").all(req.user.id);
+app.get("/api/recurring", authenticateToken, async (req: any, res) => {
+  const events = await queryAll("SELECT * FROM recurring_events WHERE user_id = ?", [req.user.id]);
   res.json(events);
 });
 
-app.post("/api/recurring", authenticateToken, (req: any, res) => {
+app.post("/api/recurring", authenticateToken, async (req: any, res) => {
   const { name, amount, day_of_month, category, type } = req.body;
   const parsedAmount = toNumber(amount);
   const parsedDay = Number(day_of_month);
@@ -940,21 +971,20 @@ app.post("/api/recurring", authenticateToken, (req: any, res) => {
     return res.status(400).json({ error: "Day of month must be between 1 and 31" });
   }
 
-  const stmt = db.prepare(`
+  const info = await execute(`
     INSERT INTO recurring_events (user_id, name, amount, day_of_month, category, type)
     VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  const info = stmt.run(
+  `, [
     req.user.id,
     name.trim(),
     parsedAmount,
     parsedDay,
     category.trim(),
-    type.trim()
-  );
+    type.trim(),
+  ]);
 
   res.status(201).json({
-    id: info.lastInsertRowid,
+    id: info.insertId,
     name: name.trim(),
     amount: parsedAmount,
     day_of_month: parsedDay,
@@ -963,13 +993,13 @@ app.post("/api/recurring", authenticateToken, (req: any, res) => {
   });
 });
 
-app.get("/api/recurring/:id", authenticateToken, (req: any, res) => {
+app.get("/api/recurring/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid recurring event id is required" });
   }
 
-  const event = findRecurringEventById(id, req.user.id);
+  const event = await findRecurringEventById(id, req.user.id);
   if (!event) {
     return res.status(404).json({ error: "Recurring event not found" });
   }
@@ -977,24 +1007,24 @@ app.get("/api/recurring/:id", authenticateToken, (req: any, res) => {
   res.json(event);
 });
 
-app.patch("/api/recurring/:id", authenticateToken, (req: any, res) => {
+app.patch("/api/recurring/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid recurring event id is required" });
   }
 
-  const result = updateRecurringEvent(id, req.user.id, req.body);
+  const result = await updateRecurringEvent(id, req.user.id, req.body);
   res.status(result.status).json(result.body);
 });
 
-app.delete("/api/recurring/:id", authenticateToken, (req: any, res) => {
+app.delete("/api/recurring/:id", authenticateToken, async (req: any, res) => {
   const id = toPositiveInteger(req.params.id);
   if (!id) {
     return res.status(400).json({ error: "Valid recurring event id is required" });
   }
 
-  const info = db.prepare("DELETE FROM recurring_events WHERE id = ? AND user_id = ?").run(id, req.user.id);
-  if (info.changes === 0) {
+  const info = await execute("DELETE FROM recurring_events WHERE id = ? AND user_id = ?", [id, req.user.id]);
+  if (info.affectedRows === 0) {
     return res.status(404).json({ error: "Recurring event not found" });
   }
 
@@ -1065,7 +1095,7 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
     const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
 
     for (const transaction of transactions) {
-      const result = createTransaction(req.user.id, {
+      const result = await createTransaction(req.user.id, {
         amount: transaction.amount,
         type: transaction.type,
         category: transaction.category,
@@ -1152,7 +1182,7 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
     const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
 
     for (const transaction of transactions) {
-      const result = createTransaction(req.user.id, {
+      const result = await createTransaction(req.user.id, {
         amount: transaction.amount,
         type: transaction.type,
         category: transaction.category,
@@ -1201,6 +1231,8 @@ app.use('/uploads', express.static('uploads'));
 
 // Vite Integration
 async function startServer() {
+  await runMigrations();
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
