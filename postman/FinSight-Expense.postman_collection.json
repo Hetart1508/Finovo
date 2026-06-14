@@ -13,7 +13,11 @@
     { "key": "recurringId", "value": "1", "type": "string" },
     { "key": "name", "value": "Hetarth", "type": "string" },
     { "key": "email", "value": "hetarth150804@gmail.com", "type": "string" },
-    { "key": "password", "value": "Hetarth@1508", "type": "string" }
+    { "key": "password", "value": "Hetarth@1508", "type": "string" },
+    { "key": "statementMimeType", "value": "application/pdf", "type": "string" },
+    { "key": "statementBase64", "value": "", "type": "string" },
+    { "key": "billMimeType", "value": "image/jpeg", "type": "string" },
+    { "key": "billBase64", "value": "", "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -390,6 +394,65 @@
             "header": [],
             "url": "{{baseUrl}}/recurring/{{recurringId}}",
             "description": "Deletes one recurring event by id for the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI - Gemini",
+      "item": [
+        {
+          "name": "Import Statement File (PDF/Image)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [] }
+              ]
+            },
+            "url": "{{baseUrl}}/ai/import-statement-file",
+            "description": "Upload a PDF/JPG/PNG bank, UPI, PhonePe, GPay, Paytm, wallet, or card statement. The server extracts income/expense rows with Gemini and saves valid rows into transactions automatically. Choose a file for form-data key 'file' before sending. Requires bearer token."
+          }
+        },
+        {
+          "name": "Import Statement JSON Base64",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/import-statement",
+            "description": "Same statement import flow as the app. Put the base64-only file content in collection variable statementBase64 and set statementMimeType to application/pdf, image/jpeg, or image/png. Valid rows are saved into transactions automatically."
+          }
+        },
+        {
+          "name": "Extract Bill JSON Base64",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mimeType\": \"{{billMimeType}}\",\n  \"base64Data\": \"{{billBase64}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/extract-bill",
+            "description": "Extracts merchant, amount, date, and category from a bill image. Put base64-only image content in billBase64. This does not save a transaction by itself."
+          }
+        },
+        {
+          "name": "Generate Financial Insights",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactions\": [\n    {\n      \"amount\": 250,\n      \"type\": \"expense\",\n      \"category\": \"Food\",\n      \"date\": \"2026-06-13\",\n      \"payment_mode\": \"UPI\",\n      \"description\": \"Lunch\"\n    },\n    {\n      \"amount\": 50000,\n      \"type\": \"income\",\n      \"category\": \"Salary\",\n      \"date\": \"2026-06-01\",\n      \"payment_mode\": \"Bank Transfer\",\n      \"description\": \"Monthly salary\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/ai/insights",
+            "description": "Generates Gemini financial insights from supplied transaction rows. The app usually sends current transactions from the database."
           }
         }
       ]

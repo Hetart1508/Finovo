@@ -40,10 +40,11 @@ export default function Insights() {
   const [loading, setLoading] = useState(true);
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementLoading, setStatementLoading] = useState(false);
-  const [statementImporting, setStatementImporting] = useState(false);
   const [statementResult, setStatementResult] = useState<{
     transactions: ImportedStatementTransaction[];
     model?: string;
+    savedCount?: number;
+    skippedCount?: number;
   } | null>(null);
   const statementInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -126,49 +127,31 @@ export default function Insights() {
         mimeType: selectedFile.type,
       });
 
+      const importedTransactions: ImportedStatementTransaction[] = data.transactions || [];
+
       setStatementResult({
-        transactions: data.transactions || [],
+        transactions: importedTransactions,
         model: data.model,
+        savedCount: data.savedCount || 0,
+        skippedCount: data.skippedCount || 0,
       });
 
-      if (data.transactions?.length) {
-        toast.success(`Found ${data.transactions.length} statement transactions.`);
+      if (data.savedCount > 0) {
+        toast.success(`Imported ${data.savedCount} statement transactions.`);
+        if (data.skippedCount > 0) {
+          toast.warning(`${data.skippedCount} extracted rows were skipped.`);
+        }
+        await fetchInsights();
       } else {
-        toast.warning('No transactions found in this statement.');
+        toast.warning(importedTransactions.length ? 'Transactions were found but could not be saved.' : 'No transactions found in this statement.');
       }
     } catch (error: any) {
       console.error(error);
-      toast.error(error.response?.data?.error || 'Failed to import statement.');
+      const detail = error.response?.data?.detail;
+      const message = error.response?.data?.error || error.response?.data?.message || 'Failed to import statement.';
+      toast.error(detail ? `${message}: ${detail}` : message);
     } finally {
       setStatementLoading(false);
-    }
-  };
-
-  const saveStatementTransactions = async () => {
-    if (!statementResult?.transactions.length) return;
-
-    setStatementImporting(true);
-    try {
-      for (const transaction of statementResult.transactions) {
-        await api.post('/transactions', {
-          amount: transaction.amount,
-          type: transaction.type,
-          category: transaction.category,
-          date: transaction.date,
-          payment_mode: transaction.payment_mode || 'Bank Statement',
-          description: `Statement Import: ${transaction.description}`,
-        });
-      }
-
-      toast.success(`Imported ${statementResult.transactions.length} transactions.`);
-      setStatementFile(null);
-      setStatementResult(null);
-      await fetchInsights();
-    } catch (error: any) {
-      console.error(error);
-      toast.error(error.response?.data?.error || 'Failed to save imported transactions.');
-    } finally {
-      setStatementImporting(false);
     }
   };
 
@@ -293,10 +276,10 @@ export default function Insights() {
                 className="w-full gap-2"
                 variant="secondary"
                 onClick={() => statementInputRef.current?.click()}
-                disabled={statementLoading || statementImporting}
+                disabled={statementLoading}
               >
                 <Upload className="w-4 h-4" />
-                {statementLoading ? 'Reading statement...' : 'Select Statement File'}
+                {statementLoading ? 'Reading and saving...' : 'Select Statement File'}
               </Button>
 
               {statementResult ? (
@@ -311,6 +294,12 @@ export default function Insights() {
                   </div>
 
                   <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                    {statementResult.savedCount !== undefined ? (
+                      <p className="rounded-md bg-emerald-50 p-2 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                        Saved {statementResult.savedCount} transactions automatically
+                        {statementResult.skippedCount ? `, skipped ${statementResult.skippedCount}` : ''}.
+                      </p>
+                    ) : null}
                     {statementResult.transactions.slice(0, 8).map((transaction, index) => (
                       <div key={`${transaction.date}-${transaction.amount}-${index}`} className="text-xs">
                         <div className="flex items-center justify-between gap-2">
@@ -327,20 +316,13 @@ export default function Insights() {
                     ) : null}
                   </div>
 
-                  <Button
-                    className="w-full"
-                    onClick={saveStatementTransactions}
-                    disabled={!statementResult.transactions.length || statementImporting}
-                  >
-                    {statementImporting ? 'Importing...' : `Import ${statementResult.transactions.length} Transactions`}
-                  </Button>
                 </div>
               ) : null}
 
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
                 <p className="text-[10px] text-amber-700 dark:text-amber-400">
-                  Ensure the statement is readable and not password protected. Review extracted entries before importing.
+                  The uploaded file is not stored permanently. Extracted income and expense rows are saved automatically as transactions.
                 </p>
               </div>
             </CardContent>

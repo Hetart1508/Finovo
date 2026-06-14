@@ -1061,22 +1061,140 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
 
   try {
     const transactions = await importStatementWithGemini(base64Data, mimeType);
-    res.json({ transactions, provider: "gemini", model: GEMINI_MODEL });
+    const savedTransactions: any[] = [];
+    const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
+
+    for (const transaction of transactions) {
+      const result = createTransaction(req.user.id, {
+        amount: transaction.amount,
+        type: transaction.type,
+        category: transaction.category,
+        date: transaction.date,
+        payment_mode: transaction.payment_mode || "Bank Statement",
+        description: `Statement Import: ${transaction.description}`,
+      });
+
+      if (result.status >= 200 && result.status < 300) {
+        savedTransactions.push(result.body);
+      } else {
+        skipped.push({
+          transaction,
+          error: String((result.body as any).error || "Transaction validation failed"),
+        });
+      }
+    }
+
+    res.json({
+      transactions,
+      savedTransactions,
+      savedCount: savedTransactions.length,
+      skippedCount: skipped.length,
+      skipped,
+      provider: "gemini",
+      model: GEMINI_MODEL,
+    });
   } catch (error: any) {
     console.error("Gemini statement import error:", error);
+    const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
       error: "Gemini statement import failed",
-      detail: IS_PRODUCTION ? undefined : error.message,
+      detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
+      model: GEMINI_MODEL,
     });
   }
 });
 
 // --- File Upload (for bills) ---
 const upload = multer({ dest: 'uploads/' });
+
+const getGeminiImportHint = (message: string) => {
+  if (/API key|permission|403|401/i.test(message)) {
+    return "Check GEMINI_API_KEY in .env and restart npm run dev.";
+  }
+
+  if (/quota|rate|429/i.test(message)) {
+    return "Gemini quota or rate limit was reached. Try again later or check AI Studio quota.";
+  }
+
+  if (/model|404|not found/i.test(message)) {
+    return `The configured Gemini model (${GEMINI_MODEL}) may not be available for this API key. Try GEMINI_MODEL=gemini-2.5-flash-lite or gemini-2.0-flash-lite, then restart.`;
+  }
+
+  if (/JSON|parse|transactions/i.test(message)) {
+    return "Gemini could not return clean transaction JSON. Try a clearer, non-password-protected statement.";
+  }
+
+  return "Make sure the file is a readable, non-password-protected PDF/JPG/PNG and Gemini billing/quota is available.";
+};
+
 app.post("/api/upload", authenticateToken, upload.single('file'), (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   // In a real app, we'd upload to S3/Cloudinary. Here we just return the local path.
   res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file'), async (req: any, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded. Use form-data key 'file'." });
+  }
+
+  const mimeType = req.file.mimetype || "";
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, or PNG statement." });
+  }
+
+  try {
+    const base64Data = fs.readFileSync(req.file.path).toString("base64");
+    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    const savedTransactions: any[] = [];
+    const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
+
+    for (const transaction of transactions) {
+      const result = createTransaction(req.user.id, {
+        amount: transaction.amount,
+        type: transaction.type,
+        category: transaction.category,
+        date: transaction.date,
+        payment_mode: transaction.payment_mode || "Bank Statement",
+        description: `Statement Import: ${transaction.description}`,
+      });
+
+      if (result.status >= 200 && result.status < 300) {
+        savedTransactions.push(result.body);
+      } else {
+        skipped.push({
+          transaction,
+          error: String((result.body as any).error || "Transaction validation failed"),
+        });
+      }
+    }
+
+    res.json({
+      transactions,
+      savedTransactions,
+      savedCount: savedTransactions.length,
+      skippedCount: skipped.length,
+      skipped,
+      provider: "gemini",
+      model: GEMINI_MODEL,
+      fileStored: false,
+    });
+  } catch (error: any) {
+    console.error("Gemini statement file import error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(502).json({
+      error: "Gemini statement import failed",
+      detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
+      model: GEMINI_MODEL,
+    });
+  } finally {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+  }
 });
 
 app.use('/uploads', express.static('uploads'));
