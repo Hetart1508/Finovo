@@ -127,176 +127,171 @@ if (message.toLowerCase().includes('otp')) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 relative">
-        {/* Background */}
+    <div className="min-h-screen bg-slate-950 p-4 text-slate-950 lg:p-8">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl bg-white shadow-[0_30px_90px_rgba(2,6,23,0.35)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
-          className="absolute inset-0 -z-10 overflow-hidden rounded-3xl"
+          className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
           style={{
             backgroundImage:
-              "linear-gradient(135deg, rgba(99,102,241,0.35), rgba(16,185,129,0.18)), url(/src/assets/auth-bg.jpg)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+              "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(20,83,45,0.7)), url(/src/assets/auth-bg.jpg)",
           }}
-        />
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400 text-xl font-black text-slate-950">F</div>
+            <div>
+              <h1 className="text-2xl font-black">FinSight AI</h1>
+              <p className="text-sm text-emerald-100">Financial clarity, faster.</p>
+            </div>
+          </div>
 
-        {/* Subtle overlay for better contrast */}
-        <div className="absolute inset-0 -z-9 rounded-3xl bg-gradient-to-b from-white/70 to-white/30 dark:from-slate-950/70 dark:to-slate-950/40 backdrop-blur-md" />
-
-
-        <div className="text-center">
-          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-indigo-600 to-emerald-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl mb-4 shadow-lg shadow-indigo-500/20">F</div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">FinSight AI</h1>
-          <p className="text-slate-600 dark:text-slate-300 mt-2">Intelligent expense tracking for the modern era.</p>
+          <div className="max-w-lg space-y-5">
+            <p className="text-sm font-semibold uppercase text-emerald-200">Expense command center</p>
+            <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
+            <div className="grid grid-cols-3 gap-3 pt-4">
+              {[
+                ['bi-receipt-cutoff', 'Bills'],
+                ['bi-graph-up-arrow', 'Insights'],
+                ['bi-shield-check', 'Secure'],
+              ].map(([icon, label]) => (
+                <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
+                  <i className={`bi ${icon} text-xl text-emerald-200`} />
+                  <p className="mt-2 text-sm font-semibold">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
+        <div className="flex items-center justify-center p-6 lg:p-12">
+          <div className="w-full max-w-md space-y-7">
+            <div>
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-lg font-black text-emerald-300 lg:hidden">F</div>
+              <p className="text-sm font-semibold uppercase text-emerald-600">Welcome</p>
+              <h1 className="mt-2 text-3xl font-black text-slate-950">FinSight AI</h1>
+              <p className="mt-2 text-slate-500">Login with OTP or create a new account to continue.</p>
+            </div>
 
-        <Tabs
-          value={currentTab}
-          onValueChange={(value) => {
-            setCurrentTab(value as 'login' | 'register');
-            clearLoginError();
-          }}
-          className="w-full"
-        >
-          <TabsList className="grid w-full grid-cols-2 mb-8">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="register">Register</TabsTrigger>
-          </TabsList>
+            <Tabs
+              value={currentTab}
+              onValueChange={(value) => {
+                setCurrentTab(value as 'login' | 'register');
+                clearLoginError();
+              }}
+              className="w-full"
+            >
+              <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-slate-100 p-1">
+                <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="login">
-            <Card className="glass border-white/20">
+              <TabsContent value="login">
+                <Card className="border-slate-200 shadow-none">
+                  {otpStep === 'email' ? (
+                    <form onSubmit={handleSendOTP}>
+                      <CardHeader>
+                        <CardTitle className="text-xl font-bold">Welcome back</CardTitle>
+                        <CardDescription>Enter your email to receive OTP.</CardDescription>
+                      </CardHeader>
 
-              {otpStep === 'email' ? (
-                <form onSubmit={handleSendOTP}>
-                  <CardHeader>
-                    <CardTitle>Welcome Back</CardTitle>
-                    <CardDescription>Enter your email to receive OTP.</CardDescription>
-                  </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="email">Email</Label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="name@example.com"
+                            value={otpEmail}
+                            onChange={(e) => setOtpEmail(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </CardContent>
 
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="name@example.com"
-                        value={otpEmail}
-                        onChange={(e) => setOtpEmail(e.target.value)}
-                        required
-                      />
-                    </div> {/* Added missing closing div here */}
-                  </CardContent>
+                      <CardFooter>
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || !otpEmail}>
+                          {loading ? 'Sending...' : 'Send OTP'}
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyOTP}>
+                      <CardHeader>
+                        <CardTitle className="text-xl font-bold">Verify OTP</CardTitle>
+                        <CardDescription>Enter the 6-digit code sent to {otpEmail}</CardDescription>
+                      </CardHeader>
 
-                  <CardFooter>
-                    <Button className="w-full" type="submit" disabled={loading || !otpEmail}>
-                      {loading ? 'Sending...' : 'Send OTP'}
-                    </Button>
-                  </CardFooter>
-                </form>
-              ) : (
-                <form onSubmit={handleVerifyOTP}>
-                  <CardHeader>
-                    <CardTitle>Verify OTP</CardTitle>
-                    <CardDescription>
-                      Enter the 6-digit code sent to {otpEmail}
-                    </CardDescription>
-                  </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="otp">OTP Code</Label>
+                          <Input
+                            id="otp"
+                            type="text"
+                            maxLength={6}
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="123456"
+                            required
+                          />
+                        </div>
 
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="otp">OTP Code</Label>
-                      <Input
-                        id="otp"
-                        type="text"
-                        maxLength={6}
-                        value={otpCode}
-                        onChange={(e) =>
-                          setOtpCode(e.target.value.replace(/\D/g, ''))
-                        }
-                        placeholder="123456"
-                        required
-                      />
-                    </div>
+                        <div className="text-center text-sm text-slate-500">
+                          Didn't receive?{' '}
+                          {resendTimer > 0 ? (
+                            `Resend in ${resendTimer}s`
+                          ) : (
+                            <button type="button" onClick={handleResendOTP} className="font-semibold text-emerald-700 hover:text-emerald-600 underline">
+                              Resend OTP
+                            </button>
+                          )}
+                        </div>
+                      </CardContent>
 
-                    <div className="text-center text-sm text-slate-500">
-                      Didn't receive?{' '}
-                      {resendTimer > 0 ? (
-                        `Resend in ${resendTimer}s`
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleResendOTP}
-                          className="text-indigo-600 hover:text-indigo-500 underline"
-                        >
-                          Resend OTP
-                        </button>
-                      )}
-                    </div>
-                  </CardContent>
+                      <CardFooter>
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || otpCode.length !== 6}>
+                          {loading ? 'Verifying...' : 'Verify & Login'}
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  )}
+                </Card>
+              </TabsContent>
 
-                  <CardFooter>
-                    <Button
-                      className="w-full"
-                      type="submit"
-                      disabled={loading || otpCode.length !== 6}
-                    >
-                      {loading ? 'Verifying...' : 'Verify & Login'}
-                    </Button>
-                  </CardFooter>
-                </form>
-              )}
-            </Card>
-          </TabsContent>
+              <TabsContent value="register">
+                <Card className="border-slate-200 shadow-none">
+                  <form onSubmit={handleRegister}>
+                    <CardHeader>
+                      <CardTitle className="text-xl font-bold">Create account</CardTitle>
+                      <CardDescription>Start your journey to better financial health.</CardDescription>
+                    </CardHeader>
 
-          <TabsContent value="register">
-            <Card className="glass border-white/20">
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-name">Full Name</Label>
+                        <Input id="reg-name" name="name" placeholder="John Doe" required minLength={2} />
+                      </div>
 
-              <form onSubmit={handleRegister}>
-                <CardHeader>
-                  <CardTitle>Create Account</CardTitle>
-                  <CardDescription>
-                    Start your journey to better financial health.
-                  </CardDescription>
-                </CardHeader>
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-email">Email</Label>
+                        <Input id="reg-email" name="email" type="email" placeholder="name@example.com" required />
+                      </div>
 
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-name">Full Name</Label>
-                    <Input id="reg-name" name="name" placeholder="John Doe" required minLength={2} />
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reg-password">Password</Label>
+                        <Input id="reg-password" name="password" type="password" required />
+                      </div>
+                    </CardContent>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-email">Email</Label>
-                    <Input
-                      id="reg-email"
-                      name="email"
-                      type="email"
-                      placeholder="name@example.com"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-password">Password</Label>
-                    <Input
-                      id="reg-password"
-                      name="password"
-                      type="password"
-                      required
-                    />
-                  </div>
-                </CardContent>
-
-                <CardFooter>
-                  <Button className="w-full" type="submit" disabled={loading}>
-                    {loading ? 'Creating account...' : 'Create Account'}
-                  </Button>
-                </CardFooter>
-              </form>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    <CardFooter>
+                      <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                        {loading ? 'Creating account...' : 'Create Account'}
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </div>
     </div>
   );

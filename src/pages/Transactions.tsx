@@ -27,12 +27,16 @@ import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [transactionDate, setTransactionDate] = useState<Date | null>(new Date());
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -69,8 +73,10 @@ export default function Transactions() {
       const response = await api.post('/transactions', {
         ...data,
         amount: parseFloat(data.amount as string),
+        date: transactionDate ? format(transactionDate, 'yyyy-MM-dd') : '',
       });
       toast.success(getApiSuccessMessage(response.data, "Transaction added successfully"));
+      setTransactionDate(new Date());
       fetchTransactions();
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to add transaction."));
@@ -155,7 +161,34 @@ export default function Transactions() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
-                  <Input id="date" name="date" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} required />
+                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                    <DatePicker
+                      value={transactionDate}
+                      onChange={setTransactionDate}
+                      format="dd MMM yyyy"
+                      slotProps={{
+                        textField: {
+                          id: 'date',
+                          name: 'date',
+                          required: true,
+                          fullWidth: true,
+                          size: 'small',
+                          sx: {
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: '8px',
+                              backgroundColor: 'white',
+                              fontFamily: 'inherit',
+                            },
+                            '& .MuiInputBase-input': {
+                              fontSize: '0.875rem',
+                              paddingTop: '8.5px',
+                              paddingBottom: '8.5px',
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </LocalizationProvider>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="payment_mode">Payment Mode</Label>

@@ -3,13 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Wallet, 
-  Calendar as CalendarIcon,
-  AlertCircle
-} from 'lucide-react';
-import { 
   BarChart, 
   Bar, 
   XAxis, 
@@ -29,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'react-toastify';
 import { getApiMessage } from '@/src/lib/toastMessages';
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
+const COLORS = ['#2563eb', '#059669', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#475569'];
 
 export default function Dashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -91,17 +84,30 @@ export default function Dashboard() {
       }, {})
   ).map(([name, amount]) => ({ name, amount })).reverse();
 
-  if (loading) return <div className="flex items-center justify-center h-full">Loading dashboard...</div>;
+  if (loading) return <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">Loading dashboard...</div>;
 
   return (
     <div className="space-y-8">
-      {/* Summary Cards */}
+      <div className="surface-panel rounded-lg p-6">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase text-emerald-600">Financial overview</p>
+            <h1 className="mt-2 text-3xl font-black text-slate-950">This month's money movement</h1>
+            <p className="mt-2 text-slate-500">Live data from your MySQL-backed expense tracker.</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-right">
+            <p className="text-xs font-semibold uppercase text-slate-400">Transactions</p>
+            <p className="text-2xl font-black text-slate-950">{monthTransactions.length}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-white dark:bg-slate-900 border-none shadow-sm">
+        <Card className="metric-card">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <ArrowUpRight className="w-5 h-5 text-emerald-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                <i className="bi bi-arrow-up-right text-lg" />
               </div>
               <Badge variant="outline" className="text-emerald-600 border-emerald-200">Monthly</Badge>
             </div>
@@ -110,11 +116,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border-none shadow-sm">
+        <Card className="metric-card">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-lg">
-                <ArrowDownRight className="w-5 h-5 text-rose-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                <i className="bi bi-arrow-down-left text-lg" />
               </div>
               <Badge variant="outline" className="text-rose-600 border-rose-200">Monthly</Badge>
             </div>
@@ -123,15 +129,15 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-indigo-600 text-white border-none shadow-lg">
+        <Card className="border-none bg-slate-950 text-white shadow-[0_18px_45px_rgba(15,23,42,0.22)]">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Wallet className="w-5 h-5 text-white" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-400 text-slate-950">
+                <i className="bi bi-wallet2 text-lg" />
               </div>
               <Badge variant="outline" className="text-white border-white/30">Current</Badge>
             </div>
-            <p className="text-sm text-indigo-100 font-medium">Net Balance</p>
+            <p className="text-sm text-slate-300 font-medium">Net Balance</p>
             <h3 className="text-2xl font-bold mt-1">₹{balance.toLocaleString()}</h3>
           </CardContent>
         </Card>
@@ -139,7 +145,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Spending Trend */}
-        <Card className="border-none shadow-sm">
+        <Card className="surface-panel rounded-lg">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Spending Trend</CardTitle>
           </CardHeader>
@@ -160,7 +166,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Category Breakdown */}
-        <Card className="border-none shadow-sm">
+        <Card className="surface-panel rounded-lg">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Spending by Category</CardTitle>
           </CardHeader>
@@ -200,7 +206,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Transactions */}
-        <Card className="lg:col-span-2 border-none shadow-sm">
+        <Card className="surface-panel rounded-lg lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-semibold">Recent Transactions</CardTitle>
             <Button variant="ghost" size="sm" className="text-indigo-600">View All</Button>
@@ -214,7 +220,7 @@ export default function Dashboard() {
                       "w-10 h-10 rounded-full flex items-center justify-center",
                       t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
                     )}>
-                      {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                      <i className={cn("bi text-lg", t.type === 'income' ? "bi-arrow-up-right" : "bi-arrow-down-left")} />
                     </div>
                     <div>
                       <p className="font-medium">{t.description || t.category}</p>
@@ -235,7 +241,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Recurring Reminders */}
-        <Card className="border-none shadow-sm">
+        <Card className="surface-panel rounded-lg">
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Upcoming Payments</CardTitle>
           </CardHeader>
@@ -244,7 +250,7 @@ export default function Dashboard() {
               {recurring.map((r) => (
                 <div key={r.id} className="flex items-start gap-4 p-3 border border-slate-100 dark:border-slate-800 rounded-xl">
                   <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                    <CalendarIcon className="w-4 h-4 text-indigo-600" />
+                    <i className="bi bi-calendar2-week text-indigo-600" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{r.name}</p>
@@ -255,7 +261,7 @@ export default function Dashboard() {
               ))}
               {recurring.length === 0 && (
                 <div className="text-center py-8">
-                  <AlertCircle className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <i className="bi bi-info-circle mx-auto mb-2 block text-3xl text-slate-300" />
                   <p className="text-sm text-slate-500">No recurring payments set.</p>
                 </div>
               )}

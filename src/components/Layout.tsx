@@ -1,15 +1,5 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  Calendar as CalendarIcon, 
-  TrendingUp, 
-  LogOut, 
-  PlusCircle,
-  Bell,
-  User as UserIcon
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'react-toastify';
@@ -31,76 +21,77 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Transactions', path: '/transactions', icon: Receipt },
-    { name: 'Smart Upload', path: '/upload', icon: PlusCircle },
-    { name: 'Calendar', path: '/calendar', icon: CalendarIcon },
-    { name: 'AI Insights', path: '/insights', icon: TrendingUp },
+    { name: 'Dashboard', path: '/', icon: 'bi-grid-1x2-fill' },
+    { name: 'Transactions', path: '/transactions', icon: 'bi-receipt-cutoff' },
+    { name: 'Smart Upload', path: '/upload', icon: 'bi-cloud-arrow-up-fill' },
+    { name: 'Calendar', path: '/calendar', icon: 'bi-calendar2-week-fill' },
+    { name: 'AI Insights', path: '/insights', icon: 'bi-stars' },
   ];
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">F</div>
-          <h1 className="text-xl font-bold tracking-tight">FinSight AI</h1>
+    <div className="app-shell flex h-screen overflow-hidden">
+      <aside className="hidden w-72 flex-col border-r border-white/10 bg-slate-950 text-white lg:flex">
+        <div className="p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-400 text-lg font-black text-slate-950 shadow-lg shadow-emerald-500/20">F</div>
+            <div>
+              <h1 className="text-xl font-bold">FinSight AI</h1>
+              <p className="text-xs font-medium text-slate-400">Expense intelligence</p>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 space-y-1 px-4">
           {navItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-all",
                 location.pathname === item.path
-                  ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  ? "bg-white text-slate-950 shadow-lg shadow-black/10"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
               )}
             >
-              <item.icon className="w-4 h-4" />
+              <i className={cn("bi text-base", item.icon)} />
               {item.name}
             </Link>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3 px-3 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-              <UserIcon className="w-4 h-4 text-slate-500" />
+        <div className="border-t border-white/10 p-4">
+          <div className="mb-3 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
+              <i className="bi bi-person-fill text-slate-200" />
             </div>
-            <div className="flex-1 overflow-hidden">
-              <p className="text-sm font-medium truncate">{user.name || 'User'}</p>
-              <p className="text-xs text-slate-500 truncate">{user.email}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
+              <p className="truncate text-xs text-slate-400">{user.email}</p>
             </div>
           </div>
           <Button 
             variant="ghost" 
-            className="w-full justify-start text-slate-600 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+            className="h-10 w-full justify-start text-slate-300 hover:bg-red-500/10 hover:text-red-200"
             onClick={handleLogout}
           >
-            <LogOut className="w-4 h-4 mr-2" />
+            <i className="bi bi-box-arrow-right mr-2" />
             Logout
           </Button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-bottom border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-8">
-          <h2 className="text-lg font-semibold">
-            {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
-          </h2>
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
-            </Button>
+        <header className="surface-panel m-4 mb-0 flex h-16 items-center justify-between rounded-lg px-5">
+          <div>
+            <p className="text-xs font-semibold uppercase text-slate-400">Workspace</p>
+            <h2 className="text-lg font-bold text-slate-950">
+              {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
+            </h2>
           </div>
+          
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
           {children}
         </div>
       </main>
