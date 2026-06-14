@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import path from "path";
+import cors from "cors";
 
 import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
@@ -10,6 +11,20 @@ import multer from "multer";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import winston from "winston";
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
+      const extra = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
+      return `${timestamp} ${level}: ${stack || message}${extra}`;
+    })
+  ),
+  transports: [new winston.transports.Console()],
+});
 
 const db = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
@@ -57,7 +72,7 @@ const ensureIndex = async (tableName: string, indexName: string, columns: string
 };
 
 const runMigrations = async () => {
-  console.log("Running MySQL schema check...");
+  logger.info("Running MySQL schema check...");
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -124,11 +139,32 @@ const runMigrations = async () => {
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
-  console.log("MySQL schema is ready.");
+  logger.info("MySQL schema is ready.");
 };
 
 const app = express();
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: allowedOrigins.length ? allowedOrigins : true,
+  credentials: true,
+}));
 app.use(express.json({ limit: "25mb" }));
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on("finish", () => {
+    logger.info("request", {
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    });
+  });
+  next();
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const EMAIL_USER = process.env.EMAIL_USER || '';
@@ -642,7 +678,7 @@ const sendOtpEmail = async (email: string) => {
 
     return { status: 200, body: { message: "OTP sent successfully" } };
   } catch (error) {
-    console.error("Email error:", error);
+    logger.error("Email error", { error });
     return { status: 500, body: { error: "Failed to send OTP" } };
   }
 };
@@ -679,7 +715,7 @@ app.post("/api/auth/register", async (req, res) => {
     });
   } catch (e: any) {
     if (e?.code !== "ER_DUP_ENTRY") {
-      console.error("Register error:", e);
+      logger.error("Register error", { error: e });
     }
     res.status(400).json({ error: "Email already exists" });
   }
@@ -1051,7 +1087,7 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
     const data = await extractBillDataWithGemini(base64Data, mimeType);
     res.json({ ...data, provider: "gemini", model: GEMINI_MODEL });
   } catch (error: any) {
-    console.error("Gemini bill extraction error:", error);
+    logger.error("Gemini bill extraction error", { error });
     res.status(502).json({
       error: "Gemini bill extraction failed",
       detail: IS_PRODUCTION ? undefined : error.message,
@@ -1070,7 +1106,7 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
     const insights = await getFinancialInsightsWithGemini(transactions);
     res.json({ ...insights, provider: "gemini", model: GEMINI_MODEL });
   } catch (error: any) {
-    console.error("Gemini insights error:", error);
+    logger.error("Gemini insights error", { error });
     res.status(502).json({
       error: "Gemini insights generation failed",
       detail: IS_PRODUCTION ? undefined : error.message,
@@ -1124,7 +1160,7 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       model: GEMINI_MODEL,
     });
   } catch (error: any) {
-    console.error("Gemini statement import error:", error);
+    logger.error("Gemini statement import error", { error });
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
       error: "Gemini statement import failed",
@@ -1212,7 +1248,7 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
       fileStored: false,
     });
   } catch (error: any) {
-    console.error("Gemini statement file import error:", error);
+    logger.error("Gemini statement file import error", { error });
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
       error: "Gemini statement import failed",
@@ -1249,7 +1285,7 @@ async function startServer() {
 
   const PORT = 3000;
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    logger.info(`Server running on http://localhost:${PORT}`);
   });
 }
 
