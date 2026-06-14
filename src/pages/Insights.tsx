@@ -21,7 +21,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import api from '@/src/lib/api';
-import { toast } from 'sonner';
+import { toast } from 'react-toastify';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
@@ -140,11 +140,11 @@ export default function Insights() {
       if (data.savedCount > 0) {
         toast.success(getApiSuccessMessage(data, `Imported ${data.savedCount} statement transactions.`));
         if (data.skippedCount > 0) {
-          toast.warning(`${data.skippedCount} extracted rows were skipped.`);
+          toast.warn(`${data.skippedCount} extracted rows were skipped.`);
         }
         await fetchInsights();
       } else {
-        toast.warning(importedTransactions.length ? 'Transactions were found but could not be saved.' : 'No transactions found in this statement.');
+        toast.warn(importedTransactions.length ? 'Transactions were found but could not be saved.' : 'No transactions found in this statement.');
       }
     } catch (error: any) {
       console.error(error);

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { toast } from 'react-toastify';
 
 interface LayoutProps {
   children: React.ReactNode;

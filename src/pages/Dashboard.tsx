@@ -26,7 +26,7 @@ import {
 import api from '@/src/lib/api';
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { toast } from 'react-toastify';
 import { getApiMessage } from '@/src/lib/toastMessages';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4'];
