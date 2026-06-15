@@ -240,6 +240,10 @@ export default function CalendarView() {
                     const hasTransactions = dailySummary.income > 0 || dailySummary.expense > 0;
                     const balanceColorStyle = getBalanceColorStyle(dailySummary.net, maxAbsVisibleBalance, isSelected);
                     const hasBalanceColor = Boolean(balanceColorStyle);
+                    const columnIndex = index % 7;
+                    const rowIndex = Math.floor(index / 7);
+                    const totalRows = totalSlots / 7;
+                    const shouldOpenUp = rowIndex >= totalRows - 2;
 
                     return (
                       <button
@@ -248,7 +252,7 @@ export default function CalendarView() {
                         onClick={() => setDate(day)}
                         style={balanceColorStyle}
                         className={cn(
-                          "group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition sm:text-lg lg:text-xl",
+                          "group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl",
                           !hasBalanceColor && (isWeekend ? "text-red-600" : "text-slate-950"),
                           isToday && !isSelected && !hasBalanceColor && "border-slate-300",
                           isOverLimit && !isSelected && dailySummary.net < 0 && "ring-2 ring-rose-500",
@@ -271,7 +275,15 @@ export default function CalendarView() {
                             )}
                           />
                         )}
-                        <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-44 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-medium text-slate-700 opacity-0 shadow-lg shadow-slate-900/10 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <span
+                          className={cn(
+                            "pointer-events-none absolute z-50 w-44 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-medium text-slate-700 opacity-0 shadow-xl shadow-slate-900/15 transition group-hover:opacity-100 group-focus-visible:opacity-100",
+                            columnIndex === 0 && "left-0",
+                            columnIndex === 6 && "right-0",
+                            columnIndex > 0 && columnIndex < 6 && "left-1/2 -translate-x-1/2",
+                            shouldOpenUp ? "bottom-full mb-2" : "top-full mt-2"
+                          )}
+                        >
                           <span className="block text-sm font-bold text-slate-950">{format(day, 'dd MMM yyyy')}</span>
                           <span className="mt-2 flex items-center justify-between">
                             <span className="text-slate-500">Income</span>
