@@ -44,7 +44,11 @@ export default function SmartUpload() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': [] },
+    accept: {
+      'application/pdf': ['.pdf'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+    },
     multiple: false
   });
 
@@ -106,7 +110,7 @@ export default function SmartUpload() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Smart Bill Upload</h1>
-        <p className="text-slate-500">Upload a receipt or invoice image, and Gemini will extract the details for you.</p>
+        <p className="text-slate-500">Upload a receipt or invoice PDF/image, and Gemini will extract the details for you.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -126,7 +130,7 @@ export default function SmartUpload() {
                   <Upload className="w-8 h-8 text-indigo-600" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
-                <p className="text-sm text-slate-500 mt-2">Supports JPG and PNG</p>
+                <p className="text-sm text-slate-500 mt-2">Supports PDF, JPG, JPEG, and PNG</p>
               </div>
             ) : (
               <div className="relative h-[400px] group">

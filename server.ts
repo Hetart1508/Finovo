@@ -376,7 +376,7 @@ const generateGemini = async (
 
 const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
   const today = new Date().toISOString().split("T")[0];
-  const prompt = `Extract expense transaction data from this Indian receipt or invoice image.
+  const prompt = `Extract expense transaction data from this Indian receipt or invoice file.
 Return ONLY valid JSON with this exact shape:
 {"merchant":"string","amount":number,"date":"YYYY-MM-DD","category":"Food|Transport|Shopping|Utilities|Entertainment|Health|Other","rawText":"short OCR text you used"}
 
@@ -1316,12 +1316,8 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
     return res.status(400).json({ error: "base64Data and mimeType are required" });
   }
 
-  if (mimeType === "application/pdf") {
-    return res.status(400).json({ error: "PDF extraction is not supported yet. Please upload a JPG or PNG invoice." });
-  }
-
-  if (!mimeType.startsWith("image/")) {
-    return res.status(400).json({ error: "Unsupported file type. Please upload a JPG or PNG invoice." });
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG invoice." });
   }
 
   try {
