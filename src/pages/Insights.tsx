@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Sparkles, 
   RefreshCw, 
@@ -19,8 +23,37 @@ import api from '@/src/lib/api';
 import { toast } from 'react-toastify';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { endOfMonth, format, isAfter, isWithinInterval, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { getApiMessage } from '@/src/lib/toastMessages';
+
+type RangeMode = 'currentMonth' | 'last30Days' | 'last4Months' | 'selectedMonth' | 'custom';
+
+const clampToToday = (date: Date, today: Date) => (isAfter(date, today) ? today : date);
+
+const getPresetRange = (mode: RangeMode, selectedMonth: Date, customStartDate: Date | null, customEndDate: Date | null) => {
+  const today = new Date();
+
+  if (mode === 'last30Days') {
+    return { start: subDays(today, 29), end: today };
+  }
+
+  if (mode === 'last4Months') {
+    return { start: startOfMonth(subMonths(today, 3)), end: today };
+  }
+
+  if (mode === 'selectedMonth') {
+    return { start: startOfMonth(selectedMonth), end: clampToToday(endOfMonth(selectedMonth), today) };
+  }
+
+  if (mode === 'custom') {
+    return {
+      start: clampToToday(customStartDate || today, today),
+      end: clampToToday(customEndDate || customStartDate || today, today),
+    };
+  }
+
+  return { start: startOfMonth(today), end: today };
+};
 
 export default function Insights() {
   const [insights, setInsights] = useState<any>(null);
@@ -28,15 +61,28 @@ export default function Insights() {
   const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [rangeMode, setRangeMode] = useState<RangeMode>('currentMonth');
+  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(startOfMonth(new Date()));
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(new Date());
+  const today = new Date();
+  const currentMonthStart = startOfMonth(today);
   
-  const monthTransactions = useMemo(() => {
-    const currentMonth = startOfMonth(new Date());
-    const monthEnd = endOfMonth(new Date());
-    return transactions.filter(t => isWithinInterval(parseISO(t.date), { start: currentMonth, end: monthEnd }));
-  }, [transactions]);
+  const selectedRange = useMemo(
+    () => getPresetRange(rangeMode, selectedMonth, customStartDate, customEndDate),
+    [customEndDate, customStartDate, rangeMode, selectedMonth]
+  );
+
+  const rangeLabel = `${format(selectedRange.start, 'dd MMM yyyy')} - ${format(selectedRange.end, 'dd MMM yyyy')}`;
+
+  const filteredTransactions = useMemo(() => {
+    const start = selectedRange.start <= selectedRange.end ? selectedRange.start : selectedRange.end;
+    const end = selectedRange.start <= selectedRange.end ? selectedRange.end : selectedRange.start;
+    return transactions.filter(t => isWithinInterval(parseISO(t.date), { start, end }));
+  }, [selectedRange, transactions]);
 
   const categoryDataMemo = useMemo(() => {
-    const expenses = monthTransactions.filter(t => t.type === 'expense');
+    const expenses = filteredTransactions.filter(t => t.type === 'expense');
     const catMap = expenses.reduce((acc: any, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
       return acc;
@@ -45,11 +91,29 @@ export default function Insights() {
       .map(([name, value]: any) => ({ name, value: Number(value) }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
-  }, [monthTransactions]);
+  }, [filteredTransactions]);
 
   useEffect(() => {
     setCategoryData(categoryDataMemo);
   }, [categoryDataMemo]);
+
+  useEffect(() => {
+    setInsights(null);
+  }, [rangeMode, selectedMonth, customStartDate, customEndDate]);
+
+  useEffect(() => {
+    if (isAfter(selectedMonth, currentMonthStart)) {
+      setSelectedMonth(currentMonthStart);
+    }
+
+    if (customStartDate && isAfter(customStartDate, today)) {
+      setCustomStartDate(today);
+    }
+
+    if (customEndDate && isAfter(customEndDate, today)) {
+      setCustomEndDate(today);
+    }
+  });
 
   const fetchTransactions = async () => {
     setTransactionsLoading(true);
@@ -70,13 +134,19 @@ export default function Insights() {
     setInsightsLoading(true);
     try {
       const data = await fetchTransactions();
-      if (!data.length) {
+      const start = selectedRange.start <= selectedRange.end ? selectedRange.start : selectedRange.end;
+      const end = selectedRange.start <= selectedRange.end ? selectedRange.end : selectedRange.start;
+      const transactionsInRange = data.filter((transaction: any) =>
+        isWithinInterval(parseISO(transaction.date), { start, end })
+      );
+
+      if (!transactionsInRange.length) {
         setInsights(null);
-        toast.info('Add transactions before generating AI insights.');
+        toast.info('No transactions found in the selected date range.');
         return;
       }
 
-      const aiInsights = await getFinancialInsights(data);
+      const aiInsights = await getFinancialInsights(transactionsInRange);
       setInsights(aiInsights);
       toast.success('AI suggestions generated!');
     } catch (error: any) {
@@ -104,6 +174,78 @@ export default function Insights() {
         </Button>
       </div>
 
+      <Card className="border-none shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg">Insight Date Range</CardTitle>
+          <CardDescription>{rangeLabel} • {filteredTransactions.length} transactions selected</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Range</Label>
+              <Select value={rangeMode} onValueChange={(value) => setRangeMode(value as RangeMode)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="currentMonth">Current Month</SelectItem>
+                  <SelectItem value="last30Days">Last 30 Days</SelectItem>
+                  <SelectItem value="last4Months">Last 4 Months</SelectItem>
+                  <SelectItem value="selectedMonth">Pick Month</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {rangeMode === 'selectedMonth' && (
+              <div className="space-y-2">
+                <Label>Month</Label>
+                <DatePicker
+                  selected={selectedMonth}
+                  onChange={(date) => date && setSelectedMonth(startOfMonth(clampToToday(date, today)))}
+                  showMonthYearPicker
+                  maxDate={currentMonthStart}
+                  dateFormat="MMMM yyyy"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                />
+              </div>
+            )}
+
+            {rangeMode === 'custom' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <DatePicker
+                    selected={customStartDate}
+                    onChange={(date) => setCustomStartDate(date)}
+                    selectsStart
+                    startDate={customStartDate}
+                    endDate={customEndDate}
+                    maxDate={customEndDate && !isAfter(customEndDate, today) ? customEndDate : today}
+                    dateFormat="dd MMM yyyy"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>End Date</Label>
+                  <DatePicker
+                    selected={customEndDate}
+                    onChange={(date) => setCustomEndDate(date)}
+                    selectsEnd
+                    startDate={customStartDate}
+                    endDate={customEndDate}
+                    minDate={customStartDate || undefined}
+                    maxDate={today}
+                    dateFormat="dd MMM yyyy"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main AI Insights */}
         <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/10 dark:to-slate-900">
@@ -113,7 +255,7 @@ export default function Insights() {
 <CardTitle className="text-xl">AI Analysis</CardTitle>
             </div>
             <CardDescription>
-              Based on your spending patterns from the last 30 days
+              Based on transactions from {rangeLabel}
               {insights?.model ? ` using ${insights.model}.` : '.'}
             </CardDescription>
           </CardHeader>
