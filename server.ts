@@ -468,6 +468,35 @@ const createTransaction = async (userId: number, body: any) => {
   };
 };
 
+const saveStatementTransactions = async (userId: number, transactions: any[]) => {
+  const savedTransactions: any[] = [];
+  const skipped: Array<{ transaction: any; error: string }> = [];
+
+  for (const transaction of transactions) {
+    const result = await createTransaction(userId, {
+      amount: transaction.amount,
+      type: transaction.type,
+      category: transaction.category,
+      date: transaction.date,
+      payment_mode: transaction.payment_mode || "Bank Statement",
+      description: isNonEmptyString(transaction.description)
+        ? `Statement Import: ${transaction.description.trim()}`
+        : "Statement Import",
+    });
+
+    if (result.status >= 200 && result.status < 300) {
+      savedTransactions.push(result.body);
+    } else {
+      skipped.push({
+        transaction,
+        error: String((result.body as any).error || "Transaction validation failed"),
+      });
+    }
+  }
+
+  return { savedTransactions, skipped };
+};
+
 const findTransactionById = (id: number, userId: number) =>
   queryOne("SELECT * FROM transactions WHERE id = ? AND user_id = ?", [id, userId]);
 
@@ -1127,35 +1156,11 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
 
   try {
     const transactions = await importStatementWithGemini(base64Data, mimeType);
-    const savedTransactions: any[] = [];
-    const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
-
-    for (const transaction of transactions) {
-      const result = await createTransaction(req.user.id, {
-        amount: transaction.amount,
-        type: transaction.type,
-        category: transaction.category,
-        date: transaction.date,
-        payment_mode: transaction.payment_mode || "Bank Statement",
-        description: `Statement Import: ${transaction.description}`,
-      });
-
-      if (result.status >= 200 && result.status < 300) {
-        savedTransactions.push(result.body);
-      } else {
-        skipped.push({
-          transaction,
-          error: String((result.body as any).error || "Transaction validation failed"),
-        });
-      }
-    }
-
     res.json({
       transactions,
-      savedTransactions,
-      savedCount: savedTransactions.length,
-      skippedCount: skipped.length,
-      skipped,
+      savedCount: 0,
+      skippedCount: 0,
+      pendingApproval: true,
       provider: "gemini",
       model: GEMINI_MODEL,
     });
@@ -1169,6 +1174,62 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       model: GEMINI_MODEL,
     });
   }
+});
+
+app.post("/api/statement-import/preview", authenticateToken, async (req: any, res) => {
+  const { base64Data, mimeType } = req.body || {};
+
+  if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
+    return res.status(400).json({ error: "base64Data and mimeType are required" });
+  }
+
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, or PNG statement." });
+  }
+
+  try {
+    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    res.json({
+      transactions,
+      provider: "gemini",
+      model: GEMINI_MODEL,
+    });
+  } catch (error: any) {
+    logger.error("Gemini statement preview error", { error });
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(502).json({
+      error: "Gemini statement import failed",
+      detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
+      model: GEMINI_MODEL,
+    });
+  }
+});
+
+app.post("/api/statement-import/approve", authenticateToken, async (req: any, res) => {
+  const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+
+  if (!transactions) {
+    return res.status(400).json({ error: "transactions must be an array" });
+  }
+
+  if (transactions.length === 0) {
+    return res.status(400).json({ error: "No transactions to approve" });
+  }
+
+  if (transactions.length > 200) {
+    return res.status(400).json({ error: "A maximum of 200 transactions can be approved at once" });
+  }
+
+  const { savedTransactions, skipped } = await saveStatementTransactions(req.user.id, transactions);
+
+  res.json({
+    message: `Saved ${savedTransactions.length} statement transactions`,
+    savedTransactions,
+    savedCount: savedTransactions.length,
+    skippedCount: skipped.length,
+    skipped,
+  });
 });
 
 // --- File Upload (for bills) ---
@@ -1214,35 +1275,12 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
   try {
     const base64Data = fs.readFileSync(req.file.path).toString("base64");
     const transactions = await importStatementWithGemini(base64Data, mimeType);
-    const savedTransactions: any[] = [];
-    const skipped: Array<{ transaction: GeminiStatementTransaction; error: string }> = [];
-
-    for (const transaction of transactions) {
-      const result = await createTransaction(req.user.id, {
-        amount: transaction.amount,
-        type: transaction.type,
-        category: transaction.category,
-        date: transaction.date,
-        payment_mode: transaction.payment_mode || "Bank Statement",
-        description: `Statement Import: ${transaction.description}`,
-      });
-
-      if (result.status >= 200 && result.status < 300) {
-        savedTransactions.push(result.body);
-      } else {
-        skipped.push({
-          transaction,
-          error: String((result.body as any).error || "Transaction validation failed"),
-        });
-      }
-    }
 
     res.json({
       transactions,
-      savedTransactions,
-      savedCount: savedTransactions.length,
-      skippedCount: skipped.length,
-      skipped,
+      savedCount: 0,
+      skippedCount: 0,
+      pendingApproval: true,
       provider: "gemini",
       model: GEMINI_MODEL,
       fileStored: false,

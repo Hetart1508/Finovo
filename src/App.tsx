@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import SmartUpload from './pages/SmartUpload';
+import StatementImport from './pages/StatementImport';
 import CalendarView from './pages/Calendar';
 import Insights from './pages/Insights';
 import Auth from './pages/Auth';
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
         <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
+        <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
       </Routes>

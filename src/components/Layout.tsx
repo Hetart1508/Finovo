@@ -24,6 +24,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Dashboard', path: '/', icon: 'bi-grid-1x2-fill' },
     { name: 'Transactions', path: '/transactions', icon: 'bi-receipt-cutoff' },
     { name: 'Smart Upload', path: '/upload', icon: 'bi-cloud-arrow-up-fill' },
+    { name: 'Statement Import', path: '/statement-import', icon: 'bi-file-earmark-spreadsheet-fill' },
     { name: 'Calendar', path: '/calendar', icon: 'bi-calendar2-week-fill' },
     { name: 'AI Insights', path: '/insights', icon: 'bi-stars' },
   ];

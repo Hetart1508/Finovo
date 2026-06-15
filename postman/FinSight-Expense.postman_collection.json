@@ -5,24 +5,90 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:3000/api", "type": "string" },
-    { "key": "token", "value": "", "type": "string" },
-    { "key": "otp", "value": "", "type": "string" },
-    { "key": "userId", "value": "3", "type": "string" },
-    { "key": "transactionId", "value": "6", "type": "string" },
-    { "key": "recurringId", "value": "1", "type": "string" },
-    { "key": "name", "value": "Hetarth", "type": "string" },
-    { "key": "email", "value": "hetarth150804@gmail.com", "type": "string" },
-    { "key": "password", "value": "Hetarth@1508", "type": "string" },
-    { "key": "statementMimeType", "value": "application/pdf", "type": "string" },
-    { "key": "statementBase64", "value": "", "type": "string" },
-    { "key": "billMimeType", "value": "image/jpeg", "type": "string" },
-    { "key": "billBase64", "value": "", "type": "string" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "3",
+      "type": "string"
+    },
+    {
+      "key": "transactionId",
+      "value": "6",
+      "type": "string"
+    },
+    {
+      "key": "recurringId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "name",
+      "value": "Hetarth",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "hetarth150804@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "Hetarth@1508",
+      "type": "string"
+    },
+    {
+      "key": "statementMimeType",
+      "value": "application/pdf",
+      "type": "string"
+    },
+    {
+      "key": "statementBase64",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "billMimeType",
+      "value": "image/jpeg",
+      "type": "string"
+    },
+    {
+      "key": "billBase64",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "statementPreviewTransactions",
+      "value": "[]",
+      "type": "string"
+    },
+    {
+      "key": "importedTransactionId",
+      "value": "",
+      "type": "string"
+    }
   ],
   "auth": {
     "type": "bearer",
     "bearer": [
-      { "key": "token", "value": "{{token}}", "type": "string" }
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
     ]
   },
   "item": [
@@ -32,9 +98,16 @@
         {
           "name": "Register User",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
@@ -46,9 +119,16 @@
         {
           "name": "Send OTP",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\"\n}"
@@ -74,14 +154,26 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/auth/debug-otp?email={{email}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "debug-otp"],
-              "query": [{ "key": "email", "value": "{{email}}" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "debug-otp"
+              ],
+              "query": [
+                {
+                  "key": "email",
+                  "value": "{{email}}"
+                }
+              ]
             },
             "description": "Development-only helper. Reads the latest OTP for the email and saves it into the otp collection variable."
           }
@@ -104,9 +196,16 @@
             }
           ],
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
@@ -118,9 +217,16 @@
         {
           "name": "Login - Send OTP",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\"\n}"
@@ -141,16 +247,46 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/transactions?limit=100&offset=0",
-              "host": ["{{baseUrl}}"],
-              "path": ["transactions"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ],
               "query": [
-                { "key": "limit", "value": "100" },
-                { "key": "offset", "value": "0" },
-                { "key": "type", "value": "expense", "disabled": true },
-                { "key": "category", "value": "Food", "disabled": true },
-                { "key": "payment_mode", "value": "UPI", "disabled": true },
-                { "key": "from", "value": "2026-01-01", "disabled": true },
-                { "key": "to", "value": "2026-12-31", "disabled": true }
+                {
+                  "key": "limit",
+                  "value": "100"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "type",
+                  "value": "expense",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "Food",
+                  "disabled": true
+                },
+                {
+                  "key": "payment_mode",
+                  "value": "UPI",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-01-01",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31",
+                  "disabled": true
+                }
               ]
             },
             "description": "Lists authenticated user's transactions with optional filters and pagination."
@@ -192,7 +328,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 250,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Lunch\",\n  \"bill_url\": null\n}"
@@ -218,7 +359,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 1500,\n  \"type\": \"income\",\n  \"category\": \"Salary\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"Bank Transfer\",\n  \"description\": \"Freelance payout\",\n  \"bill_url\": null\n}"
@@ -231,7 +377,12 @@
           "name": "Update Transaction Partial",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 275,\n  \"description\": \"Lunch with tip\"\n}"
@@ -244,7 +395,12 @@
           "name": "Replace Transaction",
           "request": {
             "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 300,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Dinner\",\n  \"bill_url\": null\n}"
@@ -260,14 +416,37 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/transactions/summary?from=2026-01-01&to=2026-12-31",
-              "host": ["{{baseUrl}}"],
-              "path": ["transactions", "summary"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "summary"
+              ],
               "query": [
-                { "key": "from", "value": "2026-01-01" },
-                { "key": "to", "value": "2026-12-31" },
-                { "key": "type", "value": "expense", "disabled": true },
-                { "key": "category", "value": "Food", "disabled": true },
-                { "key": "payment_mode", "value": "UPI", "disabled": true }
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "type",
+                  "value": "expense",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "Food",
+                  "disabled": true
+                },
+                {
+                  "key": "payment_mode",
+                  "value": "UPI",
+                  "disabled": true
+                }
               ]
             },
             "description": "Returns total income, total expense, balance, and transaction count."
@@ -280,15 +459,39 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/transactions/categories?from=2026-01-01&to=2026-12-31",
-              "host": ["{{baseUrl}}"],
-              "path": ["transactions", "categories"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions",
+                "categories"
+              ],
               "query": [
-                { "key": "from", "value": "2026-01-01" },
-                { "key": "to", "value": "2026-12-31" },
-                { "key": "type", "value": "expense", "disabled": true }
+                {
+                  "key": "from",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "type",
+                  "value": "expense",
+                  "disabled": true
+                }
               ]
             },
             "description": "Groups transactions by category and type with count and total amount."
+          }
+        },
+        {
+          "name": "Get Imported Transaction By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions/{{importedTransactionId}}",
+            "description": "Gets the first transaction inserted by Statement Import approval."
           }
         },
         {
@@ -318,7 +521,12 @@
           "name": "Update Daily Threshold",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"threshold\": 1000\n}"
@@ -357,7 +565,12 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Rent\",\n  \"amount\": 12000,\n  \"day_of_month\": 1,\n  \"category\": \"Rent\",\n  \"type\": \"expense\"\n}"
@@ -378,7 +591,12 @@
           "name": "Update Recurring Event",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 12500,\n  \"day_of_month\": 2\n}"
@@ -399,41 +617,198 @@
       ]
     },
     {
-      "name": "AI - Gemini",
+      "name": "Statement Import",
       "item": [
         {
-          "name": "Import Statement File (PDF/Image)",
+          "name": "Preview Statement JSON Base64",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/preview",
+            "description": "Extracts income and expense rows from a statement without saving them. Put base64-only file content in statementBase64. The test script saves extracted rows into statementPreviewTransactions for the approve request."
+          }
+        },
+        {
+          "name": "Approve Previewed Statement Transactions",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const rows = pm.collectionVariables.get('statementPreviewTransactions') || '[]';",
+                  "pm.variables.set('statementPreviewTransactionsBody', rows);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const first = (json.savedTransactions || [])[0];",
+                  "  if (first?.id) pm.collectionVariables.set('importedTransactionId', String(first.id));",
+                  "  if (first?.id) pm.collectionVariables.set('transactionId', String(first.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactions\": {{statementPreviewTransactionsBody}}\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/approve",
+            "description": "Saves the rows from statementPreviewTransactions into the authenticated user's transaction table. Run Preview Statement JSON Base64 first, review the saved variable, then send this request."
+          }
+        },
+        {
+          "name": "Approve Statement Transactions - Manual Sample",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  const first = (json.savedTransactions || [])[0];",
+                  "  if (first?.id) pm.collectionVariables.set('importedTransactionId', String(first.id));",
+                  "  if (first?.id) pm.collectionVariables.set('transactionId', String(first.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactions\": [\n    {\n      \"date\": \"2026-06-01\",\n      \"description\": \"Salary credit\",\n      \"amount\": 50000,\n      \"type\": \"income\",\n      \"category\": \"Salary\",\n      \"payment_mode\": \"Bank Statement\"\n    },\n    {\n      \"date\": \"2026-06-02\",\n      \"description\": \"UPI grocery payment\",\n      \"amount\": 1250,\n      \"type\": \"expense\",\n      \"category\": \"Shopping\",\n      \"payment_mode\": \"UPI\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/approve",
+            "description": "Manual approve test that does not call Gemini. Useful for confirming approved statement rows are inserted into the transactions table."
+          }
+        },
+        {
+          "name": "Legacy Preview Statement JSON Base64",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/import-statement",
+            "description": "Backward-compatible statement extraction endpoint. It now returns pendingApproval=true and does not save rows automatically."
+          }
+        },
+        {
+          "name": "Legacy Preview Statement File (PDF/Image)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [],
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "src": [] }
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
               ]
             },
             "url": "{{baseUrl}}/ai/import-statement-file",
-            "description": "Upload a PDF/JPG/PNG bank, UPI, PhonePe, GPay, Paytm, wallet, or card statement. The server extracts income/expense rows with Gemini and saves valid rows into transactions automatically. Choose a file for form-data key 'file' before sending. Requires bearer token."
+            "description": "Upload a PDF/JPG/PNG statement using form-data key file. This endpoint now previews extracted rows only; approve separately with /statement-import/approve."
           }
-        },
-        {
-          "name": "Import Statement JSON Base64",
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
-            },
-            "url": "{{baseUrl}}/ai/import-statement",
-            "description": "Same statement import flow as the app. Put the base64-only file content in collection variable statementBase64 and set statementMimeType to application/pdf, image/jpeg, or image/png. Valid rows are saved into transactions automatically."
-          }
-        },
+        }
+      ]
+    },
+    {
+      "name": "AI - Gemini",
+      "item": [
         {
           "name": "Extract Bill JSON Base64",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"mimeType\": \"{{billMimeType}}\",\n  \"base64Data\": \"{{billBase64}}\"\n}"
@@ -446,7 +821,12 @@
           "name": "Generate Financial Insights",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"transactions\": [\n    {\n      \"amount\": 250,\n      \"type\": \"expense\",\n      \"category\": \"Food\",\n      \"date\": \"2026-06-13\",\n      \"payment_mode\": \"UPI\",\n      \"description\": \"Lunch\"\n    },\n    {\n      \"amount\": 50000,\n      \"type\": \"income\",\n      \"category\": \"Salary\",\n      \"date\": \"2026-06-01\",\n      \"payment_mode\": \"Bank Transfer\",\n      \"description\": \"Monthly salary\"\n    }\n  ]\n}"
@@ -468,7 +848,11 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "src": [] }
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
               ]
             },
             "url": "{{baseUrl}}/upload",
@@ -483,9 +867,16 @@
         {
           "name": "Generate",
           "request": {
-            "auth": { "type": "noauth" },
+            "auth": {
+              "type": "noauth"
+            },
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"model\": \"llama3.2:1b\",\n  \"prompt\": \"Give one saving tip for monthly expenses.\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0,\n    \"top_p\": 0.95,\n    \"top_k\": 40,\n    \"num_predict\": 256,\n    \"seed\": 42\n  }\n}"

@@ -91,7 +91,7 @@ export default function Dashboard() {
           <div>
             <p className="text-sm font-semibold uppercase text-emerald-600">Financial overview</p>
             <h1 className="mt-2 text-3xl font-black text-slate-950">This month's money movement</h1>
-            <p className="mt-2 text-slate-500">Live data from your MySQL-backed expense tracker.</p>
+          
           </div>
           <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase text-slate-400">Transactions</p>
