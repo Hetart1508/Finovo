@@ -28,7 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 
 export default function Transactions() {
