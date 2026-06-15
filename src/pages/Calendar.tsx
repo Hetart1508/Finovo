@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,25 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Settings } from 'lucide-react
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+
+const getBalanceColorStyle = (netBalance: number, maxAbsBalance: number, isSelected: boolean): CSSProperties | undefined => {
+  if (isSelected || netBalance === 0 || maxAbsBalance === 0) return undefined;
+
+  const intensity = Math.min(Math.abs(netBalance) / maxAbsBalance, 1);
+  const easedIntensity = Math.pow(intensity, 0.8);
+  const hue = netBalance > 0 ? 151 : 350;
+  const saturation = netBalance > 0 ? 66 : 76;
+  const lightness = 96 - easedIntensity * 48;
+  const borderLightness = Math.max(lightness - 15, 34);
+  const textColor = easedIntensity > 0.55 ? "#ffffff" : netBalance > 0 ? "#064e3b" : "#7f1d1d";
+
+  return {
+    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}%)`,
+    borderColor: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
+    boxShadow: easedIntensity > 0.6 ? `0 8px 18px hsl(${hue} ${saturation}% ${borderLightness}% / 0.22)` : undefined,
+    color: textColor,
+  };
+};
 
 export default function CalendarView() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -50,8 +69,23 @@ export default function CalendarView() {
       .reduce((acc, t) => acc + t.amount, 0);
   };
 
+  const getDailySummary = (d: Date) => {
+    return transactions
+      .filter(t => isSameDay(parseISO(t.date), d))
+      .reduce(
+        (acc, transaction) => {
+          if (transaction.type === 'income') acc.income += transaction.amount;
+          if (transaction.type === 'expense') acc.expense += transaction.amount;
+          acc.net = acc.income - acc.expense;
+          return acc;
+        },
+        { income: 0, expense: 0, net: 0 }
+      );
+  };
+
   const selectedDayTransactions = transactions.filter(t => date && isSameDay(parseISO(t.date), date));
   const selectedDayTotal = date ? getDailyTotal(date) : 0;
+  const selectedDaySummary = date ? getDailySummary(date) : { income: 0, expense: 0, net: 0 };
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const monthOptions = Array.from({ length: 12 }, (_, month) => ({
     value: format(new Date(visibleMonth.getFullYear(), month, 1), 'MMMM'),
@@ -68,6 +102,12 @@ export default function CalendarView() {
     if (dayNumber < 1 || dayNumber > daysInMonth) return null;
     return new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), dayNumber);
   });
+  const maxAbsVisibleBalance = Math.max(
+    ...calendarDays
+      .filter((day): day is Date => day !== null)
+      .map((day) => Math.abs(getDailySummary(day).net)),
+    0
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -104,8 +144,8 @@ export default function CalendarView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 border-none shadow-sm overflow-visible">
           <CardContent className="p-0">
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <div className="flex items-center justify-between bg-red-600 px-4 py-3 text-white sm:px-6">
+            <div className="overflow-visible rounded-lg border border-slate-200 bg-white">
+              <div className="flex items-center justify-between rounded-t-lg bg-red-600 px-4 py-3 text-white sm:px-6">
                 <Button
                   type="button"
                   variant="ghost"
@@ -192,37 +232,69 @@ export default function CalendarView() {
                     }
 
                     const dailyTotal = getDailyTotal(day);
+                    const dailySummary = getDailySummary(day);
                     const isSelected = date ? isSameDay(day, date) : false;
                     const isToday = isSameDay(day, new Date());
                     const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                     const isOverLimit = dailyTotal > threshold;
-                    const hasSpending = dailyTotal > 0;
+                    const hasTransactions = dailySummary.income > 0 || dailySummary.expense > 0;
+                    const balanceColorStyle = getBalanceColorStyle(dailySummary.net, maxAbsVisibleBalance, isSelected);
+                    const hasBalanceColor = Boolean(balanceColorStyle);
 
                     return (
                       <button
                         key={day.toISOString()}
                         type="button"
                         onClick={() => setDate(day)}
+                        style={balanceColorStyle}
                         className={cn(
-                          "relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition sm:text-lg lg:text-xl",
-                          isWeekend ? "text-red-600" : "text-slate-950",
-                          isToday && !isSelected && "border-slate-300",
-                          hasSpending && !isSelected && "bg-indigo-50",
-                          isOverLimit && !isSelected && "bg-red-50 ring-2 ring-red-300",
+                          "group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition sm:text-lg lg:text-xl",
+                          !hasBalanceColor && (isWeekend ? "text-red-600" : "text-slate-950"),
+                          isToday && !isSelected && !hasBalanceColor && "border-slate-300",
+                          isOverLimit && !isSelected && dailySummary.net < 0 && "ring-2 ring-rose-500",
                           isSelected && "bg-red-600 text-white shadow-md shadow-red-600/20",
-                          "hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                          !hasBalanceColor && "hover:border-red-300 hover:bg-red-50 hover:text-red-700",
+                          hasBalanceColor && "hover:brightness-95"
                         )}
-                        aria-label={format(day, 'dd MMMM yyyy')}
+                        aria-label={`${format(day, 'dd MMMM yyyy')}: income ₹${dailySummary.income}, expense ₹${dailySummary.expense}, balance ₹${dailySummary.net}`}
                       >
                         {format(day, 'd')}
-                        {hasSpending && (
+                        {hasTransactions && (
                           <span
                             className={cn(
                               "absolute bottom-2 h-1.5 w-1.5 rounded-full",
-                              isSelected ? "bg-white" : isOverLimit ? "bg-red-600" : "bg-indigo-500"
+                              isSelected
+                                ? "bg-white"
+                                : dailySummary.net >= 0
+                                  ? "bg-emerald-700"
+                                  : "bg-rose-700"
                             )}
                           />
                         )}
+                        <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-44 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-medium text-slate-700 opacity-0 shadow-lg shadow-slate-900/10 transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                          <span className="block text-sm font-bold text-slate-950">{format(day, 'dd MMM yyyy')}</span>
+                          <span className="mt-2 flex items-center justify-between">
+                            <span className="text-slate-500">Income</span>
+                            <span className="font-bold text-emerald-600">₹{dailySummary.income.toLocaleString()}</span>
+                          </span>
+                          <span className="mt-1 flex items-center justify-between">
+                            <span className="text-slate-500">Expense</span>
+                            <span className="font-bold text-rose-600">₹{dailySummary.expense.toLocaleString()}</span>
+                          </span>
+                          <span className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1">
+                            <span className="text-slate-500">Balance</span>
+                            <span
+                              className={cn(
+                                "font-bold",
+                                dailySummary.net > 0 && "text-emerald-600",
+                                dailySummary.net < 0 && "text-rose-600",
+                                dailySummary.net === 0 && "text-slate-700"
+                              )}
+                            >
+                              {dailySummary.net >= 0 ? '+' : '-'}₹{Math.abs(dailySummary.net).toLocaleString()}
+                            </span>
+                          </span>
+                        </span>
                       </button>
                     );
                   })}
@@ -240,16 +312,36 @@ export default function CalendarView() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl">
-                <p className="text-sm text-slate-500">Total Spending</p>
-                <div className="flex items-center justify-between mt-1">
-                  <h3 className="text-2xl font-bold">₹{selectedDayTotal.toLocaleString()}</h3>
+              <div className="space-y-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-500">Net Balance</p>
+                    <h3
+                      className={cn(
+                        "mt-1 text-2xl font-bold",
+                        selectedDaySummary.net > 0 && "text-emerald-600",
+                        selectedDaySummary.net < 0 && "text-rose-600"
+                      )}
+                    >
+                      {selectedDaySummary.net >= 0 ? '+' : '-'}₹{Math.abs(selectedDaySummary.net).toLocaleString()}
+                    </h3>
+                  </div>
                   {selectedDayTotal > threshold && (
                     <Badge variant="destructive" className="gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       Over Limit
                     </Badge>
                   )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-white p-3 dark:bg-slate-950">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Income</p>
+                    <p className="mt-1 text-base font-bold text-emerald-600">₹{selectedDaySummary.income.toLocaleString()}</p>
+                  </div>
+                  <div className="rounded-lg bg-white p-3 dark:bg-slate-950">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expense</p>
+                    <p className="mt-1 text-base font-bold text-rose-600">₹{selectedDaySummary.expense.toLocaleString()}</p>
+                  </div>
                 </div>
               </div>
 
