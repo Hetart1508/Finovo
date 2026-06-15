@@ -27,6 +27,7 @@ export default function App() {
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
       </Routes>
       <ToastContainer
+        aria-label="Notifications"
         position="top-right"
         autoClose={3500}
         hideProgressBar={false}

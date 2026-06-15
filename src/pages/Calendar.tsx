@@ -54,8 +54,9 @@ export default function CalendarView() {
   const selectedDayTotal = date ? getDailyTotal(date) : 0;
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const monthOptions = Array.from({ length: 12 }, (_, month) => ({
-    value: String(month),
+    value: format(new Date(visibleMonth.getFullYear(), month, 1), 'MMMM'),
     label: format(new Date(visibleMonth.getFullYear(), month, 1), 'MMMM'),
+    month,
   }));
   const selectedYear = visibleMonth.getFullYear();
   const yearOptions = Array.from({ length: 21 }, (_, index) => selectedYear - 10 + index);
@@ -119,9 +120,10 @@ export default function CalendarView() {
                   <p className="text-xl font-extrabold tracking-tight">Calendar</p>
                   <div className="mt-2 flex items-center justify-center gap-2">
                     <Select
-                      value={String(visibleMonth.getMonth())}
-                      onValueChange={(month) => {
-                        setVisibleMonth(new Date(visibleMonth.getFullYear(), Number(month), 1));
+                      value={format(visibleMonth, 'MMMM')}
+                      onValueChange={(monthName) => {
+                        const nextMonth = monthOptions.find((month) => month.value === monthName)?.month ?? visibleMonth.getMonth();
+                        setVisibleMonth(new Date(visibleMonth.getFullYear(), nextMonth, 1));
                       }}
                     >
                       <SelectTrigger className="h-8 w-32 border-white/30 bg-white/15 text-white shadow-none hover:bg-white/20 [&_svg]:text-white">
@@ -154,6 +156,9 @@ export default function CalendarView() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <p className="mt-2 text-sm font-semibold text-red-100">
+                    Showing {format(visibleMonth, 'MMMM yyyy')}
+                  </p>
                 </div>
                 <Button
                   type="button"

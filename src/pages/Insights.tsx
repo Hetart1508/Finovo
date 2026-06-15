@@ -38,7 +38,8 @@ type ImportedStatementTransaction = {
 
 export default function Insights() {
   const [insights, setInsights] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [statementLoading, setStatementLoading] = useState(false);
   const [statementResult, setStatementResult] = useState<{
@@ -74,25 +75,44 @@ export default function Insights() {
     setCategoryData(categoryDataMemo);
   }, [categoryDataMemo]);
 
-  const fetchInsights = async () => {
-    setLoading(true);
+  const fetchTransactions = async () => {
+    setTransactionsLoading(true);
     try {
       const { data } = await api.get('/transactions');
       setTransactions(data);
+      return data;
+    } catch (error: any) {
+      console.error(error);
+      toast.error(getApiMessage(error, "Failed to load transactions."));
+      throw error;
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const generateInsights = async () => {
+    setInsightsLoading(true);
+    try {
+      const data = await fetchTransactions();
+      if (!data.length) {
+        setInsights(null);
+        toast.info('Add transactions before generating AI insights.');
+        return;
+      }
+
       const aiInsights = await getFinancialInsights(data);
       setInsights(aiInsights);
-      console.log('AI Insights:', aiInsights); // Debug log
       toast.success('AI suggestions generated!');
     } catch (error: any) {
       console.error(error);
       toast.error(getApiMessage(error, "Failed to generate AI insights."));
     } finally {
-      setLoading(false);
+      setInsightsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchInsights();
+    fetchTransactions().catch(() => undefined);
   }, []);
 
   const readFileAsBase64 = (file: File) =>
@@ -142,7 +162,7 @@ export default function Insights() {
         if (data.skippedCount > 0) {
           toast.warn(`${data.skippedCount} extracted rows were skipped.`);
         }
-        await fetchInsights();
+        await fetchTransactions();
       } else {
         toast.warn(importedTransactions.length ? 'Transactions were found but could not be saved.' : 'No transactions found in this statement.');
       }
@@ -175,9 +195,9 @@ export default function Insights() {
           <h1 className="text-3xl font-bold tracking-tight">AI Financial Insights</h1>
           <p className="text-sm text-slate-500">Powered by Gemini, with local AI fallback.</p>
         </div>
-        <Button variant="outline" onClick={fetchInsights} disabled={loading} className="gap-2">
-          <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
-          Refresh Insights
+        <Button variant="outline" onClick={generateInsights} disabled={insightsLoading || transactionsLoading} className="gap-2">
+          <RefreshCw className={cn("w-4 h-4", insightsLoading && "animate-spin")} />
+          {insights ? 'Regenerate AI Insights' : 'Generate AI Insights'}
         </Button>
       </div>
 
@@ -195,7 +215,7 @@ export default function Insights() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {insightsLoading ? (
               <div className="space-y-4">
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-[90%]" />
@@ -213,7 +233,10 @@ export default function Insights() {
 
               </>
             ) : (
-              <p className="text-slate-500 text-center py-12">No insights available. Add some transactions to get started.</p>
+              <div className="py-12 text-center">
+                <p className="text-slate-500">AI insights have not been generated yet.</p>
+                <p className="mt-2 text-sm text-slate-400">Click Generate AI Insights when you want to use AI tokens.</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -225,7 +248,9 @@ export default function Insights() {
               <CardTitle className="text-lg">Top Categories</CardTitle>
             </CardHeader>
             <CardContent className="h-[250px]">
-              {categoryData.length === 0 ? (
+              {transactionsLoading ? (
+                <div className="h-full flex items-center justify-center text-slate-500">Loading data...</div>
+              ) : categoryData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-500">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
