@@ -12,7 +12,7 @@ build/
 *.log
 
 # Uploaded bills
-server/uploads/
+uploads/
 
 # OS files
 .DS_Store

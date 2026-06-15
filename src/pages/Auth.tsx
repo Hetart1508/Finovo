@@ -12,13 +12,10 @@ import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState<'login' | 'register'>('login');
-  const [loginError, setLoginError] = useState('');
   const [otpStep, setOtpStep] = useState<'email' | 'verify'>('email');
   const [otpCode, setOtpCode] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
-
-  const clearLoginError = () => setLoginError('');
 
   // OTP resend timer
   useEffect(() => {
@@ -133,7 +130,7 @@ if (message.toLowerCase().includes('otp')) {
           className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
           style={{
             backgroundImage:
-              "linear-gradient(135deg, rgba(15,23,42,0.9), rgba(20,83,45,0.7)), url(/src/assets/auth-bg.jpg)",
+              "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(20,83,45,0.78))",
           }}
         >
           <div className="flex items-center gap-3">
@@ -175,7 +172,6 @@ if (message.toLowerCase().includes('otp')) {
               value={currentTab}
               onValueChange={(value) => {
                 setCurrentTab(value as 'login' | 'register');
-                clearLoginError();
               }}
               className="w-full"
             >

@@ -10,10 +10,9 @@ import { Upload, FileText, Loader2, CheckCircle2, X } from 'lucide-react';
 import { extractBillData } from '@/src/lib/ai';
 import api from '@/src/lib/api';
 import { toast } from 'react-toastify';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
-// Add this at the top of your file, after your imports
 interface Extracted {
   data: {
     merchant: string;
