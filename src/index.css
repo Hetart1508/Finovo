@@ -2,7 +2,6 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
@@ -11,16 +10,6 @@
   }
 }
 
-@layer components {
-  .glass {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
-  }
-  
-  .fintech-grid {
-    background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-    background-size: 24px 24px;
-  }
-}
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
