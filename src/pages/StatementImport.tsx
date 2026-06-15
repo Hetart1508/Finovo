@@ -31,6 +31,8 @@ export default function StatementImport() {
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [transactions, setTransactions] = useState<StatementTransaction[]>([]);
   const [model, setModel] = useState('');
+  const [statementHash, setStatementHash] = useState('');
+  const [alreadyImported, setAlreadyImported] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [approveLoading, setApproveLoading] = useState(false);
   const [approvedCount, setApprovedCount] = useState(0);
@@ -71,6 +73,8 @@ export default function StatementImport() {
     setStatementFile(selectedFile);
     setTransactions([]);
     setModel('');
+    setStatementHash('');
+    setAlreadyImported(false);
     setApprovedCount(0);
     setPreviewLoading(true);
 
@@ -84,8 +88,12 @@ export default function StatementImport() {
       const importedTransactions: StatementTransaction[] = data.transactions || [];
       setTransactions(importedTransactions);
       setModel(data.model || '');
+      setStatementHash(data.statementHash || '');
+      setAlreadyImported(Boolean(data.alreadyImported));
 
-      if (importedTransactions.length) {
+      if (data.alreadyImported) {
+        toast.warn('This statement was already imported. No transactions will be added again.');
+      } else if (importedTransactions.length) {
         toast.success(`Found ${importedTransactions.length} statement transactions. Review and approve to save.`);
       } else {
         toast.warn('No transactions found in this statement.');
@@ -110,16 +118,18 @@ export default function StatementImport() {
 
     setApproveLoading(true);
     try {
-      const response = await api.post('/statement-import/approve', { transactions });
+      const response = await api.post('/statement-import/approve', { transactions, statementHash });
       const savedCount = response.data.savedCount || 0;
       const skippedCount = response.data.skippedCount || 0;
 
       setApprovedCount(savedCount);
       setTransactions([]);
+      setStatementHash('');
+      setAlreadyImported(false);
       toast.success(getApiSuccessMessage(response.data, `Saved ${savedCount} statement transactions.`));
 
       if (skippedCount > 0) {
-        toast.warn(`${skippedCount} rows were skipped because they failed validation.`);
+        toast.warn(`${skippedCount} rows were skipped because they were duplicates or failed validation.`);
       }
     } catch (error: any) {
       console.error(error);
@@ -187,7 +197,7 @@ export default function StatementImport() {
           <Button
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
             onClick={handleApproveAll}
-            disabled={!transactions.length || previewLoading || approveLoading}
+            disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
           >
             <CheckCircle2 className="h-4 w-4" />
             {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}

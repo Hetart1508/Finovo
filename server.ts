@@ -53,6 +53,25 @@ const execute = async (sql: string, params: any[] = []) => {
   return result;
 };
 
+const tableColumnExists = async (tableName: string, columnName: string) =>
+  Boolean(await queryOne(
+    `
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = DATABASE()
+        AND table_name = ?
+        AND column_name = ?
+      LIMIT 1
+    `,
+    [tableName, columnName]
+  ));
+
+const ensureColumn = async (tableName: string, columnName: string, definition: string) => {
+  if (!(await tableColumnExists(tableName, columnName))) {
+    await db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+};
+
 const ensureIndex = async (tableName: string, indexName: string, columns: string) => {
   const existing = await queryOne(
     `
@@ -113,6 +132,20 @@ const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS statement_imports (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      file_hash CHAR(64) NOT NULL,
+      transaction_count INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_statement_import_user_file (user_id, file_hash),
+      CONSTRAINT fk_statement_imports_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS recurring_events (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -134,8 +167,11 @@ const runMigrations = async () => {
     )
   `);
 
+  await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
+  await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_category", "category");
+  await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
@@ -184,6 +220,17 @@ type GeminiStatementTransaction = {
   category: string;
   payment_mode: string;
 };
+type NormalizedTransaction = {
+  amount: number;
+  type: "expense" | "income";
+  category: string;
+  date: string;
+  payment_mode: string;
+  description: string | null;
+  bill_url: string | null;
+  source_statement_hash: string | null;
+  import_fingerprint: string | null;
+};
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -203,6 +250,12 @@ const toPositiveInteger = (value: unknown) => {
 
 const isValidDateString = (value: unknown) =>
   isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const sha256 = (value: string | Buffer) =>
+  crypto.createHash("sha256").update(value).digest("hex");
+
+const hashBase64File = (base64Data: string) =>
+  sha256(Buffer.from(base64Data, "base64"));
 
 const extractJsonObject = (text: string) => {
   const match = text.match(/\{[\s\S]*\}/);
@@ -418,8 +471,8 @@ const createAuthResponse = (user: any) => {
   };
 };
 
-const createTransaction = async (userId: number, body: any) => {
-  const { amount, type, category, date, payment_mode, description, bill_url } = body;
+const normalizeTransactionBody = (body: any) => {
+  const { amount, type, category, date, payment_mode, description, bill_url, source_statement_hash, import_fingerprint } = body;
   const parsedAmount = toNumber(amount);
 
   if (parsedAmount === null || parsedAmount <= 0) {
@@ -442,11 +495,38 @@ const createTransaction = async (userId: number, body: any) => {
     payment_mode: payment_mode.trim(),
     description: isNonEmptyString(description) ? description.trim() : null,
     bill_url: isNonEmptyString(bill_url) ? bill_url.trim() : null,
+    source_statement_hash: isNonEmptyString(source_statement_hash) ? source_statement_hash.trim() : null,
+    import_fingerprint: isNonEmptyString(import_fingerprint) ? import_fingerprint.trim() : null,
   };
 
+  return { transaction };
+};
+
+const createTransaction = async (userId: number, body: any) => {
+  const normalized = normalizeTransactionBody(body);
+
+  if ("status" in normalized) {
+    return normalized;
+  }
+
+  return insertTransaction(userId, normalized.transaction);
+};
+
+const insertTransaction = async (userId: number, transaction: NormalizedTransaction) => {
   const info = await execute(`
-    INSERT INTO transactions (user_id, amount, type, category, date, payment_mode, description, bill_url)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO transactions (
+      user_id,
+      amount,
+      type,
+      category,
+      date,
+      payment_mode,
+      description,
+      bill_url,
+      source_statement_hash,
+      import_fingerprint
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     userId,
     transaction.amount,
@@ -456,6 +536,8 @@ const createTransaction = async (userId: number, body: any) => {
     transaction.payment_mode,
     transaction.description,
     transaction.bill_url,
+    transaction.source_statement_hash,
+    transaction.import_fingerprint,
   ]);
 
   return {
@@ -468,12 +550,112 @@ const createTransaction = async (userId: number, body: any) => {
   };
 };
 
-const saveStatementTransactions = async (userId: number, transactions: any[]) => {
+const getStatementTransactionKey = (transaction: NormalizedTransaction) =>
+  JSON.stringify([
+    transaction.date,
+    transaction.type,
+    transaction.amount.toFixed(2),
+    transaction.category.toLowerCase(),
+    transaction.payment_mode.toLowerCase(),
+    (transaction.description || "").toLowerCase(),
+  ]);
+
+const getStatementImportFingerprint = (
+  statementHash: string,
+  transaction: NormalizedTransaction,
+  index: number
+) =>
+  sha256(JSON.stringify([
+    statementHash,
+    index,
+    transaction.date,
+    transaction.type,
+    transaction.amount.toFixed(2),
+    transaction.category.toLowerCase(),
+    transaction.payment_mode.toLowerCase(),
+  ]));
+
+const findDuplicateStatementTransaction = (userId: number, transaction: NormalizedTransaction) =>
+  transaction.import_fingerprint
+    ? queryOne(
+      `
+        SELECT id
+        FROM transactions
+        WHERE user_id = ?
+          AND import_fingerprint = ?
+        LIMIT 1
+      `,
+      [userId, transaction.import_fingerprint]
+    )
+    : queryOne(
+      `
+      SELECT id
+      FROM transactions
+      WHERE user_id = ?
+        AND amount = ?
+        AND type = ?
+        AND category = ?
+        AND date = ?
+        AND payment_mode = ?
+        AND description <=> ?
+      LIMIT 1
+    `,
+      [
+        userId,
+        transaction.amount,
+        transaction.type,
+        transaction.category,
+        transaction.date,
+        transaction.payment_mode,
+        transaction.description,
+      ]
+    );
+
+const findStatementImport = (userId: number, fileHash: string) =>
+  queryOne(
+    "SELECT id, transaction_count FROM statement_imports WHERE user_id = ? AND file_hash = ? LIMIT 1",
+    [userId, fileHash]
+  );
+
+const recordStatementImport = async (userId: number, fileHash: string, transactionCount: number) => {
+  try {
+    await execute(
+      "INSERT INTO statement_imports (user_id, file_hash, transaction_count) VALUES (?, ?, ?)",
+      [userId, fileHash, transactionCount]
+    );
+  } catch (error: any) {
+    if (error?.code !== "ER_DUP_ENTRY") {
+      throw error;
+    }
+  }
+};
+
+const skipAllStatementTransactions = (transactions: any[], error: string) =>
+  transactions.map((transaction) => ({ transaction, error }));
+
+const saveStatementTransactions = async (
+  userId: number,
+  transactions: any[],
+  options: { fileHash?: string } = {}
+) => {
   const savedTransactions: any[] = [];
   const skipped: Array<{ transaction: any; error: string }> = [];
+  const seenStatementRows = new Set<string>();
 
-  for (const transaction of transactions) {
-    const result = await createTransaction(userId, {
+  if (options.fileHash) {
+    const existingImport = await findStatementImport(userId, options.fileHash);
+    if (existingImport) {
+      return {
+        savedTransactions,
+        skipped: skipAllStatementTransactions(transactions, "This statement file was already imported"),
+        duplicateStatement: true,
+      };
+    }
+  }
+
+  for (const [index, transaction] of transactions.entries()) {
+    const sourceStatementHash = options.fileHash || null;
+    const normalized = normalizeTransactionBody({
       amount: transaction.amount,
       type: transaction.type,
       category: transaction.category,
@@ -482,19 +664,49 @@ const saveStatementTransactions = async (userId: number, transactions: any[]) =>
       description: isNonEmptyString(transaction.description)
         ? `Statement Import: ${transaction.description.trim()}`
         : "Statement Import",
+      source_statement_hash: sourceStatementHash,
     });
 
-    if (result.status >= 200 && result.status < 300) {
-      savedTransactions.push(result.body);
-    } else {
+    if ("status" in normalized) {
       skipped.push({
         transaction,
-        error: String((result.body as any).error || "Transaction validation failed"),
+        error: String((normalized.body as any).error || "Transaction validation failed"),
       });
+      continue;
     }
+
+    if (sourceStatementHash) {
+      normalized.transaction.import_fingerprint = getStatementImportFingerprint(
+        sourceStatementHash,
+        normalized.transaction,
+        index
+      );
+    }
+
+    const key = getStatementTransactionKey(normalized.transaction);
+    const existing = seenStatementRows.has(key)
+      ? { id: null }
+      : await findDuplicateStatementTransaction(userId, normalized.transaction);
+
+    if (existing) {
+      skipped.push({
+        transaction,
+        error: "Duplicate statement transaction already exists",
+      });
+      continue;
+    }
+
+    const result = await insertTransaction(userId, normalized.transaction);
+    seenStatementRows.add(key);
+    savedTransactions.push(result.body);
   }
 
-  return { savedTransactions, skipped };
+  const duplicateSkips = skipped.filter((row) => /duplicate|already imported/i.test(row.error)).length;
+  if (options.fileHash && (savedTransactions.length > 0 || duplicateSkips > 0)) {
+    await recordStatementImport(userId, options.fileHash, savedTransactions.length);
+  }
+
+  return { savedTransactions, skipped, duplicateStatement: false };
 };
 
 const findTransactionById = (id: number, userId: number) =>
@@ -1155,9 +1367,27 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
   }
 
   try {
+    const statementHash = hashBase64File(base64Data);
+    const alreadyImported = Boolean(await findStatementImport(req.user.id, statementHash));
+    if (alreadyImported) {
+      return res.json({
+        transactions: [],
+        statementHash,
+        alreadyImported,
+        savedCount: 0,
+        skippedCount: 0,
+        pendingApproval: false,
+        provider: "gemini",
+        model: GEMINI_MODEL,
+        message: "This statement file was already imported.",
+      });
+    }
+
     const transactions = await importStatementWithGemini(base64Data, mimeType);
     res.json({
       transactions,
+      statementHash,
+      alreadyImported,
       savedCount: 0,
       skippedCount: 0,
       pendingApproval: true,
@@ -1188,9 +1418,24 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
   }
 
   try {
+    const statementHash = hashBase64File(base64Data);
+    const alreadyImported = Boolean(await findStatementImport(req.user.id, statementHash));
+    if (alreadyImported) {
+      return res.json({
+        transactions: [],
+        statementHash,
+        alreadyImported,
+        provider: "gemini",
+        model: GEMINI_MODEL,
+        message: "This statement file was already imported.",
+      });
+    }
+
     const transactions = await importStatementWithGemini(base64Data, mimeType);
     res.json({
       transactions,
+      statementHash,
+      alreadyImported,
       provider: "gemini",
       model: GEMINI_MODEL,
     });
@@ -1208,6 +1453,7 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
 
 app.post("/api/statement-import/approve", authenticateToken, async (req: any, res) => {
   const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+  const statementHash = isNonEmptyString(req.body?.statementHash) ? req.body.statementHash.trim() : undefined;
 
   if (!transactions) {
     return res.status(400).json({ error: "transactions must be an array" });
@@ -1221,10 +1467,16 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
     return res.status(400).json({ error: "A maximum of 200 transactions can be approved at once" });
   }
 
-  const { savedTransactions, skipped } = await saveStatementTransactions(req.user.id, transactions);
+  const { savedTransactions, skipped, duplicateStatement } = await saveStatementTransactions(req.user.id, transactions, {
+    fileHash: statementHash,
+  });
 
   res.json({
-    message: `Saved ${savedTransactions.length} statement transactions`,
+    message: duplicateStatement
+      ? "This statement file was already imported. No transactions were added."
+      : skipped.length
+      ? `Saved ${savedTransactions.length} statement transactions, skipped ${skipped.length} duplicate or invalid rows`
+      : `Saved ${savedTransactions.length} statement transactions`,
     savedTransactions,
     savedCount: savedTransactions.length,
     skippedCount: skipped.length,
@@ -1274,10 +1526,29 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
 
   try {
     const base64Data = fs.readFileSync(req.file.path).toString("base64");
+    const statementHash = hashBase64File(base64Data);
+    const alreadyImported = Boolean(await findStatementImport(req.user.id, statementHash));
+    if (alreadyImported) {
+      return res.json({
+        transactions: [],
+        statementHash,
+        alreadyImported,
+        savedCount: 0,
+        skippedCount: 0,
+        pendingApproval: false,
+        provider: "gemini",
+        model: GEMINI_MODEL,
+        fileStored: false,
+        message: "This statement file was already imported.",
+      });
+    }
+
     const transactions = await importStatementWithGemini(base64Data, mimeType);
 
     res.json({
       transactions,
+      statementHash,
+      alreadyImported,
       savedCount: 0,
       skippedCount: 0,
       pendingApproval: true,
