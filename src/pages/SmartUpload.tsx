@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, Loader2, CheckCircle2, X } from 'lucide-react';
 
 import { extractBillData } from '@/src/lib/ai';
 import api from '@/src/lib/api';
@@ -127,7 +126,7 @@ export default function SmartUpload() {
               >
                 <input {...getInputProps()} />
                 <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
-                  <Upload className="w-8 h-8 text-indigo-600" />
+                  <i className="ki-outline ki-cloud-add text-3xl text-indigo-600" aria-hidden="true" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
                 <p className="text-sm text-slate-500 mt-2">Supports PDF, JPG, JPEG, and PNG</p>
@@ -136,7 +135,7 @@ export default function SmartUpload() {
               <div className="relative h-[400px] group">
                 {file?.type === 'application/pdf' ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg">
-                    <FileText className="w-16 h-16 text-slate-400 mb-2" />
+                    <i className="ki-outline ki-document mb-2 text-5xl text-slate-400" aria-hidden="true" />
                     <p className="font-medium">{file.name}</p>
                   </div>
                 ) : (
@@ -148,7 +147,7 @@ export default function SmartUpload() {
                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => { setFile(null); setPreview(null); setExtractedData(null); }}
                 >
-                  <X className="w-4 h-4" />
+                  <i className="ki-solid ki-cross text-base" aria-hidden="true" />
                 </Button>
               </div>
             )}
@@ -159,14 +158,14 @@ export default function SmartUpload() {
         <div className="space-y-6">
           {extractionError ? (
             <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-dashed border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/20">
-              <X className="w-12 h-12 text-red-500 mb-4" />
+              <i className="ki-solid ki-cross mb-4 text-4xl text-red-500" aria-hidden="true" />
               <h3 className="font-semibold text-red-700 dark:text-red-300">Extraction Failed</h3>
               <p className="text-sm text-red-600 dark:text-red-400 mt-2 max-w-md">{extractionError}</p>
               <div className="space-y-2 mt-6">
                 <Button className="w-full" onClick={handleExtract} disabled={loading}>
                   {loading ? (
   <>
-    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+    <i className="ki-solid ki-refresh mr-2 text-base animate-spin" aria-hidden="true" />
     Retry
   </>
 ) : (
@@ -181,7 +180,7 @@ export default function SmartUpload() {
           ) : !extractedData ? (
             <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-slate-50 dark:bg-slate-900">
               <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-4">
-                <Loader2 className={cn("w-6 h-6 text-indigo-600", loading && "animate-spin")} />
+                <i className={cn("ki-solid ki-refresh text-2xl text-indigo-600", loading && "animate-spin")} aria-hidden="true" />
               </div>
               <h3 className="font-semibold">Gemini Extraction Ready</h3>
               <p className="text-sm text-slate-500 mt-2">Upload complete. Click to analyze.</p>
@@ -190,7 +189,7 @@ export default function SmartUpload() {
                 onClick={handleExtract} 
                 disabled={!file || loading}
               >
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</> : "Extract with Gemini"}
+                {loading ? <><i className="ki-solid ki-refresh mr-2 text-base animate-spin" aria-hidden="true" /> Analyzing...</> : "Extract with Gemini"}
               </Button>
             </Card>
           ) : (
@@ -215,7 +214,7 @@ export default function SmartUpload() {
                         </p>
                       ) : null}
                     </div>
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                    <i className="ki-solid ki-check text-2xl text-emerald-500" aria-hidden="true" />
                   </div>
                   <CardDescription>Review and edit if needed before saving.</CardDescription>
                 </CardHeader>

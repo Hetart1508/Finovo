@@ -5,6 +5,7 @@ import cors from "cors";
 
 import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
+import type { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import multer from "multer";
@@ -115,6 +116,28 @@ const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS pending_registrations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      otp VARCHAR(20) NOT NULL,
+      expires_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      otp VARCHAR(20) NOT NULL,
+      expires_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -203,6 +226,7 @@ app.use((req, res, next) => {
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
+const SESSION_EXPIRES_IN = (process.env.SESSION_EXPIRES_IN || "2h") as SignOptions["expiresIn"];
 const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
@@ -457,11 +481,14 @@ Rules:
 const createAuthResponse = (user: any) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name },
-    JWT_SECRET
+    JWT_SECRET,
+    { expiresIn: SESSION_EXPIRES_IN }
   );
+  const decoded = jwt.decode(token) as { exp?: number } | null;
 
   return {
     token,
+    expiresAt: decoded?.exp ? decoded.exp * 1000 : null,
     user: {
       id: user.id,
       email: user.email,
@@ -886,26 +913,16 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const sendOtpEmail = async (email: string) => {
-  const user = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
-  if (!user) {
-    return { status: 404, body: { error: "User not found" } };
-  }
-
-  const otp = crypto.randomInt(100000, 999999).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
-
-  await execute("DELETE FROM otps WHERE email = ?", [email]);
-  await execute("INSERT INTO otps (email, otp, expires_at, created_at) VALUES (?, ?, ?, ?)", [email, otp, expiresAt, Date.now()]);
-
+const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
+  const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
   try {
     await transporter.sendMail({
       from: `"FinSight AI" <${EMAIL_USER}>`,
       to: email,
-      subject: "Your FinSight AI Login OTP",
+      subject: `Your FinSight AI ${label}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-          <h2 style="color: #6366f1;">Your Login OTP</h2>
+          <h2 style="color: #6366f1;">Your ${label}</h2>
           <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-size: 32px; font-weight: bold; padding: 20px; text-align: center; border-radius: 12px; letter-spacing: 4px;">
             ${otp}
           </div>
@@ -932,6 +949,9 @@ const authenticateToken = (req: any, res: any, next: any) => {
   if (!token) return res.sendStatus(401);
 
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    if (err?.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Session expired. Please login again." });
+    }
     if (err) return res.sendStatus(403);
     req.user = user;
     next();
@@ -948,11 +968,34 @@ app.post("/api/auth/register", async (req, res) => {
   }
 
   try {
+    const existingUser = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+    if (existingUser) {
+      return res.status(409).json({ error: "Email already exists" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const info = await execute("INSERT INTO users (email, password, name) VALUES (?, ?, ?)", [email, hashedPassword, name.trim()]);
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    await execute(`
+      INSERT INTO pending_registrations (email, password, name, otp, expires_at, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        password = VALUES(password),
+        name = VALUES(name),
+        otp = VALUES(otp),
+        expires_at = VALUES(expires_at),
+        created_at = VALUES(created_at)
+    `, [email, hashedPassword, name.trim(), otp, expiresAt, Date.now()]);
+
+    const otpResult = await sendOtpEmail(email, otp, "registration");
+    if (otpResult.status !== 200) {
+      return res.status(otpResult.status).json(otpResult.body);
+    }
+
     res.status(201).json({
-      message: "Account created successfully. Please login with OTP.",
-      user: { id: info.insertId, email, name: name.trim() },
+      message: "OTP sent to your email. Verify it to finish registration.",
+      email,
     });
   } catch (e: any) {
     if (e?.code !== "ER_DUP_ENTRY") {
@@ -962,14 +1005,114 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-app.post("/api/auth/send-otp", async (req, res) => {
+app.post("/api/auth/register/verify-otp", async (req, res) => {
   const email = normalizeEmail(req.body.email);
+  const otp = String(req.body.otp || "").trim();
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: "Email and OTP are required" });
+  }
+
+  try {
+    const pending: any = await queryOne(`
+      SELECT * FROM pending_registrations
+      WHERE email = ? AND otp = ? AND expires_at > ?
+    `, [email, otp, Date.now()]);
+
+    if (!pending) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    const existingUser = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+    if (existingUser) {
+      await execute("DELETE FROM pending_registrations WHERE email = ?", [email]);
+      return res.status(409).json({ error: "Email already exists" });
+    }
+
+    const info = await execute("INSERT INTO users (email, password, name) VALUES (?, ?, ?)", [pending.email, pending.password, pending.name]);
+    await execute("DELETE FROM pending_registrations WHERE email = ?", [email]);
+
+    res.status(201).json(createAuthResponse({
+      id: info.insertId,
+      email: pending.email,
+      name: pending.name,
+      daily_threshold: 1000,
+    }));
+  } catch (e) {
+    logger.error("Register OTP verification error", { error: e });
+    res.status(500).json({ error: "Failed to verify registration OTP" });
+  }
+});
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+
   if (!email) {
     return res.status(400).json({ error: "Email is required" });
   }
 
-  const result = await sendOtpEmail(email);
-  res.status(result.status).json(result.body);
+  try {
+    const user = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000;
+
+    await execute(`
+      INSERT INTO password_resets (email, otp, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        otp = VALUES(otp),
+        expires_at = VALUES(expires_at),
+        created_at = VALUES(created_at)
+    `, [email, otp, expiresAt, Date.now()]);
+
+    const otpResult = await sendOtpEmail(email, otp, "password-reset");
+    res.status(otpResult.status).json(otpResult.body);
+  } catch (e) {
+    logger.error("Forgot password error", { error: e });
+    res.status(500).json({ error: "Failed to send password reset OTP" });
+  }
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const otp = String(req.body.otp || "").trim();
+  const password = String(req.body.password || "");
+
+  if (!email || !otp || !password) {
+    return res.status(400).json({ error: "Email, OTP, and new password are required" });
+  }
+
+  try {
+    const resetRecord: any = await queryOne(`
+      SELECT * FROM password_resets
+      WHERE email = ? AND otp = ? AND expires_at > ?
+    `, [email, otp, Date.now()]);
+
+    if (!resetRecord) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await execute("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email]);
+    await execute("DELETE FROM password_resets WHERE email = ?", [email]);
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ message: "Password reset successfully. Please login with your new password." });
+  } catch (e) {
+    logger.error("Reset password error", { error: e });
+    res.status(500).json({ error: "Failed to reset password" });
+  }
+});
+
+app.post("/api/auth/send-otp", async (req, res) => {
+  res.status(410).json({ error: "OTP login is disabled. Please login with email and password." });
 });
 
 app.get("/api/auth/debug-otp", async (req, res) => {
@@ -984,7 +1127,7 @@ app.get("/api/auth/debug-otp", async (req, res) => {
 
   const otpRecord: any = await queryOne(`
     SELECT email, otp, expires_at, created_at
-    FROM otps
+    FROM pending_registrations
     WHERE email = ?
     ORDER BY created_at DESC
     LIMIT 1
@@ -1008,36 +1151,28 @@ app.get("/api/auth/debug-otp", async (req, res) => {
 });
 
 app.post("/api/auth/verify-otp", async (req, res) => {
-  const email = normalizeEmail(req.body.email);
-  const otp = String(req.body.otp || "").trim();
-
-  if (!email || !otp) {
-    return res.status(400).json({ error: "Email and OTP are required" });
-  }
-  
-  const otpRecord: any = await queryOne(`
-    SELECT * FROM otps WHERE email = ? AND otp = ? AND expires_at > ?
-  `, [email, otp, Date.now()]);
-  
-  if (!otpRecord) {
-    return res.status(400).json({ error: "Invalid or expired OTP" });
-  }
-
-  const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
-
-  await execute("DELETE FROM otps WHERE email = ?", [email]);
-
-  res.json(createAuthResponse(user));
+  res.status(410).json({ error: "OTP login is disabled. Please login with email and password." });
 });
 
 app.post("/api/auth/login", async (req, res) => {
   const email = normalizeEmail(req.body.email);
-  if (!email) {
-    return res.status(400).json({ error: "Email is required" });
+  const password = String(req.body.password || "");
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
   }
 
-  const result = await sendOtpEmail(email);
-  res.status(result.status).json(result.body);
+  const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  const isValidPassword = await bcrypt.compare(password, user.password);
+  if (!isValidPassword) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  res.json(createAuthResponse(user));
 });
 
 // --- Transaction Routes ---

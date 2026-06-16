@@ -1,0 +1,12 @@
+.fonticon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  line-height: 1;
+}
+
+.fonticon-finance::before {
+  content: "F";
+  font-weight: 900;
+}

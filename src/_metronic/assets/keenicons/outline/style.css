@@ -1,0 +1,174 @@
+.ki-outline {
+  position: relative;
+  display: inline-flex;
+  width: 1.15em;
+  height: 1.15em;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  vertical-align: -0.14em;
+}
+
+.ki-outline::before {
+  display: block;
+  width: 0.92em;
+  height: 0.92em;
+  content: "";
+  border: 0.14em solid currentColor;
+  border-radius: 0.22em;
+}
+
+.ki-receipt::before {
+  border-radius: 0.08em;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 82% 88%, 64% 100%, 46% 88%, 28% 100%, 10% 88%, 0 100%);
+}
+
+.ki-cloud-add::before {
+  border-radius: 0.48em 0.48em 0.22em 0.22em;
+}
+
+.ki-cloud-add::after {
+  position: absolute;
+  width: 0.46em;
+  height: 0.14em;
+  content: "";
+  background: currentColor;
+  box-shadow: 0 0 0 currentColor, 0 0 0 currentColor;
+}
+
+.ki-file-sheet::before {
+  border-radius: 0.1em;
+  clip-path: polygon(0 0, 74% 0, 100% 26%, 100% 100%, 0 100%);
+}
+
+.ki-calendar::before {
+  border-radius: 0.14em;
+  box-shadow: inset 0 0.28em 0 0 currentColor;
+}
+
+.ki-stars::before {
+  border: 0;
+  background: currentColor;
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 56%, 79% 92%, 50% 70%, 21% 92%, 32% 56%, 2% 35%, 39% 35%);
+}
+
+.ki-user::before {
+  border-radius: 999px 999px 0.3em 0.3em;
+  clip-path: polygon(28% 0, 72% 0, 86% 36%, 66% 58%, 100% 100%, 0 100%, 34% 58%, 14% 36%);
+}
+
+.ki-exit-right::before {
+  border-left-color: transparent;
+}
+
+.ki-search::before {
+  width: 0.72em;
+  height: 0.72em;
+  border-radius: 999px;
+  box-shadow: 0.42em 0.42em 0 -0.3em currentColor;
+}
+
+.ki-filter::before {
+  border: 0;
+  background: currentColor;
+  clip-path: polygon(4% 8%, 96% 8%, 62% 48%, 62% 88%, 38% 88%, 38% 48%);
+}
+
+.ki-plus::before {
+  border: 0;
+  background:
+    linear-gradient(currentColor, currentColor) center / 0.14em 0.9em no-repeat,
+    linear-gradient(currentColor, currentColor) center / 0.9em 0.14em no-repeat;
+}
+
+.ki-trash::before {
+  border-radius: 0.08em 0.08em 0.18em 0.18em;
+  clip-path: polygon(14% 24%, 86% 24%, 78% 100%, 22% 100%);
+}
+
+.ki-trash::after {
+  position: absolute;
+  top: 0.08em;
+  width: 0.72em;
+  height: 0.16em;
+  content: "";
+  background: currentColor;
+  border-radius: 99px;
+}
+
+.ki-setting-2::before {
+  border-radius: 999px;
+  box-shadow:
+    0 -0.36em 0 -0.28em currentColor,
+    0 0.36em 0 -0.28em currentColor,
+    0.36em 0 0 -0.28em currentColor,
+    -0.36em 0 0 -0.28em currentColor;
+}
+
+.ki-left::before {
+  border-top-color: transparent;
+  border-right-color: transparent;
+  transform: rotate(45deg);
+}
+
+.ki-right::before {
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  transform: rotate(45deg);
+}
+
+.ki-warning::before {
+  border-radius: 0.08em;
+  clip-path: polygon(50% 0, 100% 92%, 0 92%);
+}
+
+.ki-document::before {
+  border-radius: 0.1em;
+  clip-path: polygon(0 0, 72% 0, 100% 28%, 100% 100%, 0 100%);
+}
+
+.ki-eye::before {
+  width: 1em;
+  height: 0.62em;
+  border-radius: 999px 999px 999px 999px / 80% 80% 80% 80%;
+}
+
+.ki-eye-slash::before {
+  width: 1em;
+  height: 0.62em;
+  border-radius: 999px 999px 999px 999px / 80% 80% 80% 80%;
+}
+
+.ki-eye-slash::after {
+  position: absolute;
+  width: 1.08em;
+  height: 0.14em;
+  content: "";
+  background: currentColor;
+  border-radius: 99px;
+  transform: rotate(-34deg);
+}
+
+.ki-lock-2::before {
+  border-radius: 0.16em;
+  box-shadow: inset 0 0.34em 0 -0.2em currentColor;
+}
+
+.ki-sms::before {
+  border-radius: 0.12em;
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 64% 78%, 50% 100%, 36% 78%, 0 78%);
+}
+
+.ki-shield-tick::before {
+  border-radius: 0.24em;
+  clip-path: polygon(50% 0, 92% 16%, 82% 78%, 50% 100%, 18% 78%, 8% 16%);
+}
+
+.ki-check-circle::before {
+  border-radius: 999px;
+}
+
+.ki-cross-circle::before {
+  border-radius: 999px;
+}

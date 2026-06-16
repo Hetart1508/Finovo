@@ -8,7 +8,6 @@ import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
 import { addMonths, format, getDaysInMonth, isSameDay, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
@@ -120,7 +119,7 @@ export default function CalendarView() {
         <Popover>
           <PopoverTrigger>
             <Button variant="outline" className="gap-2">
-              <Settings className="w-4 h-4" />
+              <i className="ki-outline ki-setting-2 text-base" aria-hidden="true" />
               Threshold: ₹{threshold}
             </Button>
           </PopoverTrigger>
@@ -154,7 +153,7 @@ export default function CalendarView() {
                   onClick={() => setVisibleMonth(subMonths(visibleMonth, 1))}
                   aria-label="Previous month"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <i className="ki-outline ki-left text-lg" aria-hidden="true" />
                 </Button>
                 <div className="text-center">
                   <p className="text-xl font-extrabold tracking-tight">Calendar</p>
@@ -208,7 +207,7 @@ export default function CalendarView() {
                   onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))}
                   aria-label="Next month"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  <i className="ki-outline ki-right text-lg" aria-hidden="true" />
                 </Button>
               </div>
 
@@ -340,7 +339,7 @@ export default function CalendarView() {
                   </div>
                   {selectedDayTotal > threshold && (
                     <Badge variant="destructive" className="gap-1">
-                      <AlertTriangle className="w-3 h-3" />
+                      <i className="ki-outline ki-warning text-xs" aria-hidden="true" />
                       Over Limit
                     </Badge>
                   )}

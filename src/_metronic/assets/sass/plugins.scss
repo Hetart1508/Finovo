@@ -1,0 +1,26 @@
+.ki-hover-rise {
+  transition:
+    transform var(--kt-transition),
+    color var(--kt-transition),
+    background-color var(--kt-transition);
+}
+
+.ki-hover-rise:hover {
+  transform: translateY(-1px) scale(1.02);
+}
+
+.kt-enter {
+  animation: kt-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes kt-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import api from '@/src/lib/api';
 import { toast } from 'react-toastify';
 import { format, parseISO } from 'date-fns';
-import { AlertCircle, ArrowDownRight, ArrowUpRight, CheckCircle2, FileText, Trash2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 
@@ -156,7 +155,7 @@ export default function StatementImport() {
         />
 
         <Button className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={previewLoading || approveLoading}>
-          <Upload className="h-4 w-4" />
+          <i className="ki-outline ki-cloud-add text-base" aria-hidden="true" />
           {previewLoading ? 'Reading Statement...' : 'Select Statement File'}
         </Button>
       </div>
@@ -166,7 +165,7 @@ export default function StatementImport() {
           <CardContent className="p-5">
             <p className="text-sm text-slate-500">Statement</p>
             <div className="mt-2 flex items-center gap-3">
-              <FileText className="h-5 w-5 text-indigo-600" />
+              <i className="ki-outline ki-document text-lg text-indigo-600" aria-hidden="true" />
               <p className="min-w-0 truncate font-semibold">{statementFile ? statementFile.name : 'No file selected'}</p>
             </div>
             {model ? <p className="mt-2 text-xs text-slate-400">Parsed with {model}</p> : null}
@@ -199,7 +198,7 @@ export default function StatementImport() {
             onClick={handleApproveAll}
             disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
           >
-            <CheckCircle2 className="h-4 w-4" />
+            <i className="ki-solid ki-check text-base" aria-hidden="true" />
             {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}
           </Button>
         </CardHeader>
@@ -235,7 +234,7 @@ export default function StatementImport() {
                         "w-8 h-8 rounded-full flex items-center justify-center",
                         transaction.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
                       )}>
-                        {transaction.type === 'income' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <i className={cn("ki-solid text-base", transaction.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
                       </div>
                     </TableCell>
                     <TableCell className="text-slate-600 dark:text-slate-400">
@@ -259,7 +258,7 @@ export default function StatementImport() {
                         className="text-slate-400 hover:text-red-600"
                         onClick={() => handleRemovePreviewRow(index)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <i className="ki-outline ki-trash text-base" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -271,7 +270,7 @@ export default function StatementImport() {
       </Card>
 
       <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
-        <AlertCircle className="mt-0.5 h-4 w-4 text-amber-600" />
+        <i className="ki-outline ki-warning mt-0.5 text-base text-amber-600" aria-hidden="true" />
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Statement extraction uses AI when you upload the file. Saving approved rows does not call AI again.
         </p>

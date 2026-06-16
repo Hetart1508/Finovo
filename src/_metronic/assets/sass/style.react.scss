@@ -1,0 +1,18 @@
+[data-kt-icon-button] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kt-icon-badge {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+}
+
+.kt-nav-item {
+  will-change: transform;
+}

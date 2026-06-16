@@ -85,8 +85,8 @@ export default function Dashboard() {
   if (loading) return <div className="flex h-full items-center justify-center text-sm font-semibold text-slate-500">Loading dashboard...</div>;
 
   return (
-    <div className="space-y-8">
-      <div className="surface-panel rounded-lg p-6">
+    <div className="kt-enter space-y-8">
+      <div className="surface-panel metronic-surface rounded-lg p-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <p className="text-sm font-semibold uppercase text-emerald-600">Financial overview</p>
@@ -105,7 +105,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                <i className="bi bi-arrow-up-right text-lg" />
+                <i className="ki-solid ki-arrow-up-right text-lg" data-kt-icon-button />
               </div>
               <Badge variant="outline" className="text-emerald-600 border-emerald-200">Monthly</Badge>
             </div>
@@ -118,7 +118,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                <i className="bi bi-arrow-down-left text-lg" />
+                <i className="ki-solid ki-arrow-down-left text-lg" data-kt-icon-button />
               </div>
               <Badge variant="outline" className="text-rose-600 border-rose-200">Monthly</Badge>
             </div>
@@ -131,7 +131,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-400 text-slate-950">
-                <i className="bi bi-wallet2 text-lg" />
+                <i className="ki-duotone ki-wallet text-lg" data-kt-icon-button />
               </div>
               <Badge variant="outline" className="text-white border-white/30">Current</Badge>
             </div>
@@ -218,7 +218,7 @@ export default function Dashboard() {
                       "w-10 h-10 rounded-full flex items-center justify-center",
                       t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
                     )}>
-                      <i className={cn("bi text-lg", t.type === 'income' ? "bi-arrow-up-right" : "bi-arrow-down-left")} />
+                      <i className={cn("ki-solid text-lg", t.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
                     </div>
                     <div>
                       <p className="font-medium">{t.description || t.category}</p>
@@ -248,7 +248,7 @@ export default function Dashboard() {
               {recurring.map((r) => (
                 <div key={r.id} className="flex items-start gap-4 p-3 border border-slate-100 dark:border-slate-800 rounded-xl">
                   <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
-                    <i className="bi bi-calendar2-week text-indigo-600" />
+                    <i className="ki-outline ki-calendar text-indigo-600" aria-hidden="true" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{r.name}</p>
@@ -259,7 +259,7 @@ export default function Dashboard() {
               ))}
               {recurring.length === 0 && (
                 <div className="text-center py-8">
-                  <i className="bi bi-info-circle mx-auto mb-2 block text-3xl text-slate-300" />
+                  <i className="ki-outline ki-warning mx-auto mb-2 text-3xl text-slate-300" aria-hidden="true" />
                   <p className="text-sm text-slate-500">No recurring payments set.</p>
                 </div>
               )}

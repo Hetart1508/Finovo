@@ -5,10 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Sparkles, 
-  RefreshCw, 
-} from 'lucide-react';
 import { getFinancialInsights } from '@/src/lib/ai';
 import { 
   BarChart, 
@@ -169,7 +165,7 @@ export default function Insights() {
           <p className="text-sm text-slate-500">Powered by Gemini, with local AI fallback.</p>
         </div>
         <Button variant="outline" onClick={generateInsights} disabled={insightsLoading || transactionsLoading} className="gap-2">
-          <RefreshCw className={cn("w-4 h-4", insightsLoading && "animate-spin")} />
+          <i className={cn("ki-solid ki-refresh text-base", insightsLoading && "animate-spin")} aria-hidden="true" />
           {insights ? 'Regenerate AI Insights' : 'Generate AI Insights'}
         </Button>
       </div>
@@ -251,7 +247,7 @@ export default function Insights() {
         <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/10 dark:to-slate-900">
           <CardHeader>
             <div className="flex items-center gap-2 text-indigo-600">
-              <Sparkles className="w-5 h-5" />
+              <i className="ki-solid ki-abstract-26 text-lg" aria-hidden="true" />
 <CardTitle className="text-xl">AI Analysis</CardTitle>
             </div>
             <CardDescription>
@@ -271,7 +267,7 @@ export default function Insights() {
               <>
                 {insights.summary && (
                   <div className="space-y-3 mb-8 prose prose-slate dark:prose-invert max-w-none">
-                    <h3 className="font-semibold text-lg flex items-center gap-2"><Sparkles className="w-5 h-5" /> AI Financial Analysis</h3>
+                    <h3 className="font-semibold text-lg flex items-center gap-2"><i className="ki-solid ki-abstract-26 text-lg" aria-hidden="true" /> AI Financial Analysis</h3>
                     <p>{insights.summary}</p>
                   </div>
                 )}

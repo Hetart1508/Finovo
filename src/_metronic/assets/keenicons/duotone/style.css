@@ -1,0 +1,59 @@
+.ki-duotone {
+  --ki-color: currentColor;
+  --ki-muted-color: color-mix(in oklab, currentColor 36%, transparent);
+  position: relative;
+  display: inline-flex;
+  width: 1.15em;
+  height: 1.15em;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--ki-color);
+  vertical-align: -0.14em;
+}
+
+.ki-duotone::before,
+.ki-duotone::after {
+  position: absolute;
+  display: block;
+  content: "";
+  border-radius: 0.18em;
+}
+
+.ki-duotone::before {
+  inset: 0.12em;
+  background: var(--ki-muted-color);
+}
+
+.ki-duotone::after {
+  inset: 0.34em 0.18em 0.18em 0.34em;
+  background: currentColor;
+}
+
+.ki-element-11::before {
+  box-shadow: 0.42em 0 0 var(--ki-muted-color), 0 0.42em 0 var(--ki-muted-color), 0.42em 0.42em 0 var(--ki-muted-color);
+  inset: 0.08em 0.66em 0.66em 0.08em;
+}
+
+.ki-element-11::after {
+  inset: 0.64em 0.08em 0.08em 0.64em;
+}
+
+.ki-wallet::before {
+  inset: 0.2em 0.06em 0.12em 0.08em;
+  border-radius: 0.22em;
+}
+
+.ki-wallet::after {
+  inset: 0.45em 0.08em 0.32em 0.56em;
+  border-radius: 99px 0 0 99px;
+}
+
+.ki-chart-line-up::before {
+  inset: 0.68em 0.12em 0.14em 0.12em;
+}
+
+.ki-chart-line-up::after {
+  inset: 0.18em 0.2em 0.24em 0.22em;
+  clip-path: polygon(0 72%, 34% 48%, 54% 58%, 100% 8%, 100% 30%, 57% 78%, 36% 66%, 0 94%);
+}

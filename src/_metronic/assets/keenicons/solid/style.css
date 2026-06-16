@@ -1,0 +1,45 @@
+.ki-solid {
+  display: inline-flex;
+  width: 1.15em;
+  height: 1.15em;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  vertical-align: -0.14em;
+}
+
+.ki-solid::before {
+  display: block;
+  width: 0.95em;
+  height: 0.95em;
+  content: "";
+  background: currentColor;
+  border-radius: 0.22em;
+}
+
+.ki-arrow-up-right::before {
+  clip-path: polygon(24% 8%, 92% 8%, 92% 76%, 74% 76%, 74% 39%, 21% 92%, 8% 79%, 61% 26%, 24% 26%);
+}
+
+.ki-arrow-down-left::before {
+  clip-path: polygon(76% 92%, 8% 92%, 8% 24%, 26% 24%, 26% 61%, 79% 8%, 92% 21%, 39% 74%, 76% 74%);
+}
+
+.ki-check::before {
+  clip-path: polygon(38% 70%, 84% 18%, 96% 30%, 39% 94%, 8% 62%, 20% 50%);
+}
+
+.ki-cross::before {
+  clip-path: polygon(20% 8%, 50% 38%, 80% 8%, 92% 20%, 62% 50%, 92% 80%, 80% 92%, 50% 62%, 20% 92%, 8% 80%, 38% 50%, 8% 20%);
+}
+
+.ki-abstract-26::before {
+  border-radius: 999px;
+  clip-path: polygon(50% 0, 62% 36%, 100% 36%, 69% 58%, 82% 96%, 50% 72%, 18% 96%, 31% 58%, 0 36%, 38% 36%);
+}
+
+.ki-refresh::before {
+  border-radius: 999px;
+  clip-path: polygon(50% 0, 88% 18%, 100% 52%, 84% 52%, 74% 30%, 50% 18%, 22% 32%, 12% 58%, 22% 82%, 50% 94%, 78% 80%, 88% 60%, 100% 60%, 88% 92%, 50% 100%, 14% 84%, 0 50%, 14% 16%);
+}

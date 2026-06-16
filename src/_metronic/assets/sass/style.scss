@@ -1,0 +1,26 @@
+:root {
+  --kt-app-bg: oklch(0.985 0.012 232);
+  --kt-app-surface: color-mix(in oklab, white 88%, transparent);
+  --kt-app-border: color-mix(in oklab, oklch(0.89 0.025 232) 78%, transparent);
+  --kt-app-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
+  --kt-transition: 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.metronic-surface {
+  border: 1px solid var(--kt-app-border);
+  background: var(--kt-app-surface);
+  box-shadow: var(--kt-app-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.metronic-action {
+  transition:
+    transform var(--kt-transition),
+    background-color var(--kt-transition),
+    color var(--kt-transition),
+    box-shadow var(--kt-transition);
+}
+
+.metronic-action:hover {
+  transform: translateY(-1px);
+}

@@ -8,12 +8,63 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { saveSession } from '@/src/lib/session';
+
+type PasswordInputProps = React.ComponentProps<typeof Input> & {
+  inputId: string;
+};
+
+function PasswordInputWithToggle({ inputId, className = '', ...props }: PasswordInputProps) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        {...props}
+        id={inputId}
+        type={showPassword ? 'text' : 'password'}
+        className={`pr-11 ${className}`}
+      />
+      <button
+        type="button"
+        aria-label={showPassword ? 'Hide password' : 'Show password'}
+        title={showPassword ? 'Hide password' : 'Show password'}
+        onClick={() => setShowPassword((current) => !current)}
+        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
+        <i className={`ki-outline ${showPassword ? 'ki-eye-slash' : 'ki-eye'} text-base`} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+type AuthNoteProps = {
+  icon: string;
+  title: string;
+  description: string;
+};
+
+function AuthNote({ icon, title, description }: AuthNoteProps) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700">
+        <i className={`ki-outline ${icon} text-base`} aria-hidden="true" />
+      </div>
+      <div>
+        <p className="font-semibold text-slate-950">{title}</p>
+        <p className="mt-0.5 text-slate-600">{description}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState<'login' | 'register'>('login');
-  const [otpStep, setOtpStep] = useState<'email' | 'verify'>('email');
+  const [registerStep, setRegisterStep] = useState<'details' | 'verify'>('details');
+  const [loginStep, setLoginStep] = useState<'login' | 'forgot' | 'reset'>('login');
   const [otpCode, setOtpCode] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
   const navigate = useNavigate();
 
@@ -24,13 +75,15 @@ export default function Auth() {
       return () => clearTimeout(timer);
     }
   }, [resendTimer]);
-  const [otpEmail, setOtpEmail] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [lastRegisterForm, setLastRegisterForm] = useState<Record<string, FormDataEntryValue> | null>(null);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    const toastId = toast.loading('Creating account...');
+    const toastId = toast.loading('Sending verification OTP...');
 
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
@@ -38,69 +91,43 @@ export default function Auth() {
     try {
       const response = await api.post('/auth/register', data);
       toast.update(toastId, {
-        render: getApiSuccessMessage(response.data, 'Account created successfully.'),
+        render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
         isLoading: false,
         autoClose: 3500,
       });
-      setCurrentTab('login');
-      setOtpEmail(data.email as string);
-    } catch (error: any) {
-     const message = getApiMessage(error, 'Failed to create account.');
-     toast.update(toastId, {
-       render: message,
-       type: 'error',
-       isLoading: false,
-       autoClose: 3500,
-     });
-} finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const toastId = toast.loading('Sending OTP...');
-    try {
-      const response = await api.post('/auth/send-otp', { email: otpEmail });
-      setOtpStep('verify');
+      setRegisterEmail(data.email as string);
+      setLastRegisterForm(data);
+      setOtpCode('');
+      setRegisterStep('verify');
       setResendTimer(300);
-      toast.update(toastId, {
-        render: getApiSuccessMessage(response.data, 'OTP sent successfully'),
-        type: 'success',
-        isLoading: false,
-        autoClose: 3500,
-      });
     } catch (error: any) {
-      const message = getApiMessage(error, 'Failed to send OTP.');
+      const message = getApiMessage(error, 'Failed to create account.');
       toast.update(toastId, {
         render: message,
         type: 'error',
         isLoading: false,
         autoClose: 3500,
       });
-
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleVerifyRegisterOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const toastId = toast.loading('Verifying OTP...');
+    const toastId = toast.loading('Verifying email...');
     try {
-      const response = await api.post('/auth/verify-otp', { email: otpEmail, otp: otpCode });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      const response = await api.post('/auth/register/verify-otp', { email: registerEmail, otp: otpCode });
+      saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
-        render: `Welcome back, ${response.data.user.name}!`,
+        render: `Welcome, ${response.data.user.name}!`,
         type: 'success',
         isLoading: false,
         autoClose: 3500,
       });
-      navigate('/'); 
+      navigate('/');
     } catch (error: any) {
       const message = getApiMessage(error, 'Failed to verify OTP.');
       toast.update(toastId, {
@@ -110,17 +137,157 @@ export default function Auth() {
         autoClose: 3500,
       });
 
-if (message.toLowerCase().includes('otp')) {
-  setOtpStep('email');
-}
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const toastId = toast.loading('Logging in...');
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const response = await api.post('/auth/login', data);
+      saveSession(response.data.token, response.data.user, response.data.expiresAt);
+      toast.update(toastId, {
+        render: `Welcome back, ${response.data.user.name}!`,
+        type: 'success',
+        isLoading: false,
+        autoClose: 3500,
+      });
+      navigate('/'); 
+    } catch (error: any) {
+      const message = getApiMessage(error, 'Failed to login.');
+      toast.update(toastId, {
+        render: message,
+        type: 'error',
+        isLoading: false,
+        autoClose: 3500,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const toastId = toast.loading('Sending password reset OTP...');
+    const formData = new FormData(e.currentTarget);
+    const email = String(formData.get('email') || '').trim();
+
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      setResetEmail(email);
+      setOtpCode('');
+      setResetPassword('');
+      setLoginStep('reset');
+      setResendTimer(300);
+      e.currentTarget.reset();
+      toast.update(toastId, {
+        render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
+        type: 'success',
+        isLoading: false,
+        autoClose: 3500,
+      });
+    } catch (error: any) {
+      toast.update(toastId, {
+        render: getApiMessage(error, 'Failed to send password reset OTP.'),
+        type: 'error',
+        isLoading: false,
+        autoClose: 3500,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    const toastId = toast.loading('Resetting password...');
+
+    try {
+      const response = await api.post('/auth/reset-password', { email: resetEmail, otp: otpCode, password: resetPassword });
+      toast.update(toastId, {
+        render: getApiSuccessMessage(response.data, 'Password reset successfully.'),
+        type: 'success',
+        isLoading: false,
+        autoClose: 3500,
+      });
+      setOtpCode('');
+      setResetPassword('');
+      setResetEmail('');
+      setResendTimer(0);
+      e.currentTarget.reset();
+      setLoginStep('login');
+    } catch (error: any) {
+      toast.update(toastId, {
+        render: getApiMessage(error, 'Failed to reset password.'),
+        type: 'error',
+        isLoading: false,
+        autoClose: 3500,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOTP = () => {
-    handleSendOTP({ preventDefault: () => {} } as any);
+    if (!lastRegisterForm) return;
+
+    setLoading(true);
+    const toastId = toast.loading('Resending verification OTP...');
+    api.post('/auth/register', lastRegisterForm)
+      .then((response) => {
+        setOtpCode('');
+        setResendTimer(300);
+        toast.update(toastId, {
+          render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
+          type: 'success',
+          isLoading: false,
+          autoClose: 3500,
+        });
+      })
+      .catch((error) => {
+        toast.update(toastId, {
+          render: getApiMessage(error, 'Failed to resend OTP.'),
+          type: 'error',
+          isLoading: false,
+          autoClose: 3500,
+        });
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const handleResendResetOTP = () => {
+    if (!resetEmail) return;
+
+    setLoading(true);
+    const toastId = toast.loading('Resending password reset OTP...');
+    api.post('/auth/forgot-password', { email: resetEmail })
+      .then((response) => {
+        setOtpCode('');
+        setResendTimer(300);
+        toast.update(toastId, {
+          render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
+          type: 'success',
+          isLoading: false,
+          autoClose: 3500,
+        });
+      })
+      .catch((error) => {
+        toast.update(toastId, {
+          render: getApiMessage(error, 'Failed to resend OTP.'),
+          type: 'error',
+          isLoading: false,
+          autoClose: 3500,
+        });
+      })
+      .finally(() => setLoading(false));
   };
 
   return (
@@ -146,12 +313,12 @@ if (message.toLowerCase().includes('otp')) {
             <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
             <div className="grid grid-cols-3 gap-3 pt-4">
               {[
-                ['bi-receipt-cutoff', 'Bills'],
-                ['bi-graph-up-arrow', 'Insights'],
-                ['bi-shield-check', 'Secure'],
+                ['ki-receipt', 'Bills'],
+                ['ki-stars', 'Insights'],
+                ['ki-shield-tick', 'Secure'],
               ].map(([icon, label]) => (
                 <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-                  <i className={`bi ${icon} text-xl text-emerald-200`} />
+                  <i className={`ki-outline ${icon} text-xl text-emerald-200`} aria-hidden="true" />
                   <p className="mt-2 text-sm font-semibold">{label}</p>
                 </div>
               ))}
@@ -165,13 +332,14 @@ if (message.toLowerCase().includes('otp')) {
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-lg font-black text-emerald-300 lg:hidden">F</div>
               <p className="text-sm font-semibold uppercase text-emerald-600">Welcome</p>
               <h1 className="mt-2 text-3xl font-black text-slate-950">FinSight AI</h1>
-              <p className="mt-2 text-slate-500">Login with OTP or create a new account to continue.</p>
+              <p className="mt-2 text-slate-500">Login with your password or verify your email to create a new account.</p>
             </div>
 
             <Tabs
               value={currentTab}
               onValueChange={(value) => {
                 setCurrentTab(value as 'login' | 'register');
+                setOtpCode('');
               }}
               className="w-full"
             >
@@ -182,46 +350,116 @@ if (message.toLowerCase().includes('otp')) {
 
               <TabsContent value="login">
                 <Card className="border-slate-200 shadow-none">
-                  {otpStep === 'email' ? (
-                    <form onSubmit={handleSendOTP}>
+                  {loginStep === 'login' ? (
+                    <form onSubmit={handleLogin}>
                       <CardHeader>
                         <CardTitle className="text-xl font-bold">Welcome back</CardTitle>
-                        <CardDescription>Enter your email to receive OTP.</CardDescription>
+                        <CardDescription>Enter your email and password to continue.</CardDescription>
                       </CardHeader>
 
                       <CardContent className="space-y-4">
+                        <AuthNote
+                          icon="ki-lock-2"
+                          title="Password login"
+                          description="Use the password you created after verifying your email."
+                        />
                         <div className="space-y-2">
-                          <Label htmlFor="email">Email</Label>
+                          <Label htmlFor="login-email">Email</Label>
                           <Input
-                            id="email"
+                            id="login-email"
+                            name="email"
                             type="email"
                             placeholder="name@example.com"
-                            value={otpEmail}
-                            onChange={(e) => setOtpEmail(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="login-password">Password</Label>
+                          <PasswordInputWithToggle
+                            inputId="login-password"
+                            name="password"
+                            required
+                          />
+                        </div>
+                        <div className="text-right text-sm">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoginStep('forgot');
+                              setOtpCode('');
+                            }}
+                            className="font-semibold text-emerald-700 underline hover:text-emerald-600"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
+                      </CardContent>
+
+                      <CardFooter>
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                          {loading ? 'Logging in...' : 'Login'}
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  ) : loginStep === 'forgot' ? (
+                    <form onSubmit={handleForgotPassword}>
+                      <CardHeader>
+                        <CardTitle className="text-xl font-bold">Reset password</CardTitle>
+                        <CardDescription>Enter your registered email to receive an OTP.</CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        <AuthNote
+                          icon="ki-sms"
+                          title="Reset by email"
+                          description="We will send a 6-digit OTP to your registered email."
+                        />
+                        <div className="space-y-2">
+                          <Label htmlFor="reset-email">Email</Label>
+                          <Input
+                            id="reset-email"
+                            name="email"
+                            type="email"
+                            placeholder="name@example.com"
                             required
                           />
                         </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || !otpEmail}>
-                          {loading ? 'Sending...' : 'Send OTP'}
+                      <CardFooter className="grid gap-3">
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                          {loading ? 'Sending OTP...' : 'Send Reset OTP'}
+                        </Button>
+                        <Button
+                          className="w-full"
+                          type="button"
+                          variant="outline"
+                          onClick={() => setLoginStep('login')}
+                          disabled={loading}
+                        >
+                          Back to Login
                         </Button>
                       </CardFooter>
                     </form>
                   ) : (
-                    <form onSubmit={handleVerifyOTP}>
+                    <form onSubmit={handleResetPassword}>
                       <CardHeader>
-                        <CardTitle className="text-xl font-bold">Verify OTP</CardTitle>
-                        <CardDescription>Enter the 6-digit code sent to {otpEmail}</CardDescription>
+                        <CardTitle className="text-xl font-bold">Apply new password</CardTitle>
+                        <CardDescription>Enter the 6-digit code sent to {resetEmail}.</CardDescription>
                       </CardHeader>
 
                       <CardContent className="space-y-4">
+                        <AuthNote
+                          icon="ki-shield-tick"
+                          title="OTP verified reset"
+                          description="Enter the code from your email, then choose a fresh password."
+                        />
                         <div className="space-y-2">
-                          <Label htmlFor="otp">OTP Code</Label>
+                          <Label htmlFor="reset-otp">OTP Code</Label>
                           <Input
-                            id="otp"
+                            id="reset-otp"
                             type="text"
+                            inputMode="numeric"
                             maxLength={6}
                             value={otpCode}
                             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
@@ -229,13 +467,35 @@ if (message.toLowerCase().includes('otp')) {
                             required
                           />
                         </div>
-
-                        <div className="text-center text-sm text-slate-500">
-                          Didn't receive?{' '}
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password">New Password</Label>
+                          <PasswordInputWithToggle
+                            inputId="new-password"
+                            name="password"
+                            value={resetPassword}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                            placeholder="New password"
+                            required
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-slate-500">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoginStep('forgot');
+                              setOtpCode('');
+                              setResetPassword('');
+                              setResetEmail('');
+                            }}
+                            className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-slate-950"
+                          >
+                            <i className="ki-outline ki-left text-sm" aria-hidden="true" />
+                            Edit email
+                          </button>
                           {resendTimer > 0 ? (
-                            `Resend in ${resendTimer}s`
+                            <span>Resend in {resendTimer}s</span>
                           ) : (
-                            <button type="button" onClick={handleResendOTP} className="font-semibold text-emerald-700 hover:text-emerald-600 underline">
+                            <button type="button" onClick={handleResendResetOTP} className="font-semibold text-emerald-700 underline hover:text-emerald-600">
                               Resend OTP
                             </button>
                           )}
@@ -244,7 +504,7 @@ if (message.toLowerCase().includes('otp')) {
 
                       <CardFooter>
                         <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || otpCode.length !== 6}>
-                          {loading ? 'Verifying...' : 'Verify & Login'}
+                          {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
                       </CardFooter>
                     </form>
@@ -254,35 +514,86 @@ if (message.toLowerCase().includes('otp')) {
 
               <TabsContent value="register">
                 <Card className="border-slate-200 shadow-none">
-                  <form onSubmit={handleRegister}>
-                    <CardHeader>
-                      <CardTitle className="text-xl font-bold">Create account</CardTitle>
-                      <CardDescription>Start your journey to better financial health.</CardDescription>
-                    </CardHeader>
+                  {registerStep === 'details' ? (
+                    <form onSubmit={handleRegister}>
+                      <CardHeader>
+                        <CardTitle className="text-xl font-bold">Create account</CardTitle>
+                        <CardDescription>Verify your email, then use this password for login.</CardDescription>
+                      </CardHeader>
 
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-name">Full Name</Label>
-                        <Input id="reg-name" name="name" placeholder="John Doe" required minLength={2} />
-                      </div>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-name">Full Name</Label>
+                          <Input id="reg-name" name="name" placeholder="John Doe" required minLength={2} />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-email">Email</Label>
-                        <Input id="reg-email" name="email" type="email" placeholder="name@example.com" required />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-email">Email</Label>
+                          <Input id="reg-email" name="email" type="email" placeholder="name@example.com" required />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="reg-password">Password</Label>
-                        <Input id="reg-password" name="password" type="password" required />
-                      </div>
-                    </CardContent>
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-password">Password</Label>
+                          <PasswordInputWithToggle inputId="reg-password" name="password" required />
+                        </div>
+                      </CardContent>
 
-                    <CardFooter>
-                      <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
-                        {loading ? 'Creating account...' : 'Create Account'}
-                      </Button>
-                    </CardFooter>
-                  </form>
+                      <CardFooter>
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                          {loading ? 'Sending OTP...' : 'Send Verification OTP'}
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyRegisterOTP}>
+                      <CardHeader>
+                        <CardTitle className="text-xl font-bold">Verify email</CardTitle>
+                        <CardDescription>Enter the 6-digit code sent to {registerEmail}</CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reg-otp">OTP Code</Label>
+                          <Input
+                            id="reg-otp"
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="123456"
+                            required
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-sm text-slate-500">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRegisterStep('details');
+                              setOtpCode('');
+                            }}
+                            className="font-semibold text-slate-700 underline hover:text-slate-950"
+                          >
+                            Edit details
+                          </button>
+                          {resendTimer > 0 ? (
+                            <span>Resend in {resendTimer}s</span>
+                          ) : (
+                            <button type="button" onClick={handleResendOTP} className="font-semibold text-emerald-700 underline hover:text-emerald-600">
+                              Resend OTP
+                            </button>
+                          )}
+                        </div>
+                      </CardContent>
+
+                      <CardFooter>
+                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || otpCode.length !== 6}>
+                          {loading ? 'Verifying...' : 'Verify & Create Account'}
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  )}
                 </Card>
               </TabsContent>
             </Tabs>

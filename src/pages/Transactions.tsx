@@ -20,7 +20,6 @@ import {
   DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog';
-import { Plus, Search, Filter, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import api from '@/src/lib/api';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -94,7 +93,7 @@ export default function Transactions() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <i className="ki-outline ki-search absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400" aria-hidden="true" />
           <Input 
             placeholder="Search transactions..." 
             className="pl-10" 
@@ -106,7 +105,7 @@ export default function Transactions() {
         <div className="flex items-center gap-3">
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-[150px]">
-              <Filter className="w-4 h-4 mr-2" />
+              <i className="ki-outline ki-filter mr-2 text-base" aria-hidden="true" />
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
@@ -119,7 +118,7 @@ export default function Transactions() {
           <Dialog>
             <DialogTrigger>
               <Button className="bg-indigo-600 hover:bg-indigo-700">
-                <Plus className="w-4 h-4 mr-2" />
+                <i className="ki-outline ki-plus mr-2 text-base" aria-hidden="true" />
                 Add Transaction
               </Button>
             </DialogTrigger>
@@ -248,7 +247,7 @@ export default function Transactions() {
                         "w-8 h-8 rounded-full flex items-center justify-center",
                         t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
                       )}>
-                        {t.type === 'income' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                        <i className={cn("ki-solid text-base", t.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
                       </div>
                     </TableCell>
                     <TableCell className="text-slate-600 dark:text-slate-400">
@@ -272,7 +271,7 @@ export default function Transactions() {
                         className="text-slate-400 hover:text-red-600"
                         onClick={() => handleDelete(t.id)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <i className="ki-outline ki-trash text-base" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>

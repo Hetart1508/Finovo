@@ -1,15 +1,4 @@
 @import "tailwindcss";
-
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-}
-
-@layer base {
-  body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-  }
-}
-
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
@@ -18,8 +7,8 @@
 
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -61,93 +50,123 @@
 }
 
 :root {
-    --background: oklch(0.985 0.012 232);
-    --foreground: oklch(0.19 0.035 252);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.19 0.035 252);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.19 0.035 252);
-    --primary: oklch(0.45 0.17 254);
-    --primary-foreground: oklch(0.99 0.004 106);
-    --secondary: oklch(0.94 0.045 186);
-    --secondary-foreground: oklch(0.24 0.05 236);
-    --muted: oklch(0.955 0.018 230);
-    --muted-foreground: oklch(0.49 0.035 250);
-    --accent: oklch(0.92 0.055 154);
-    --accent-foreground: oklch(0.25 0.07 164);
-    --destructive: oklch(0.58 0.21 24);
-    --border: oklch(0.89 0.025 232);
-    --input: oklch(0.9 0.026 232);
-    --ring: oklch(0.62 0.15 254);
-    --chart-1: oklch(0.57 0.18 254);
-    --chart-2: oklch(0.65 0.15 165);
-    --chart-3: oklch(0.72 0.16 76);
-    --chart-4: oklch(0.62 0.2 345);
-    --chart-5: oklch(0.56 0.12 205);
+    --background: #0F172A;
+    --foreground: #F8FAFC;
+    --card: #1E293B;
+    --card-foreground: #F8FAFC;
+    --popover: #1E293B;
+    --popover-foreground: #F8FAFC;
+    --primary: #4F46E5;
+    --primary-foreground: #F8FAFC;
+    --secondary: #7C3AED;
+    --secondary-foreground: #F8FAFC;
+    --muted: #334155;
+    --muted-foreground: #94A3B8;
+    --accent: #7C3AED;
+    --accent-foreground: #F8FAFC;
+    --destructive: #EF4444;
+    --border: #334155;
+    --input: #334155;
+    --ring: #4F46E5;
+    --chart-1: #4F46E5;
+    --chart-2: #10B981;
+    --chart-3: #F59E0B;
+    --chart-4: #EF4444;
+    --chart-5: #7C3AED;
     --radius: 0.55rem;
-    --sidebar: oklch(0.18 0.04 252);
-    --sidebar-foreground: oklch(0.96 0.012 232);
-    --sidebar-primary: oklch(0.67 0.15 165);
-    --sidebar-primary-foreground: oklch(0.14 0.035 252);
-    --sidebar-accent: oklch(0.25 0.06 252);
-    --sidebar-accent-foreground: oklch(0.98 0.006 232);
-    --sidebar-border: oklch(1 0 0 / 12%);
-    --sidebar-ring: oklch(0.67 0.15 165);
+    --sidebar: #0F172A;
+    --sidebar-foreground: #F8FAFC;
+    --sidebar-primary: #4F46E5;
+    --sidebar-primary-foreground: #F8FAFC;
+    --sidebar-accent: #1E293B;
+    --sidebar-accent-foreground: #F8FAFC;
+    --sidebar-border: #334155;
+    --sidebar-ring: #4F46E5;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #0F172A;
+    --foreground: #F8FAFC;
+    --card: #1E293B;
+    --card-foreground: #F8FAFC;
+    --popover: #1E293B;
+    --popover-foreground: #F8FAFC;
+    --primary: #4F46E5;
+    --primary-foreground: #F8FAFC;
+    --secondary: #7C3AED;
+    --secondary-foreground: #F8FAFC;
+    --muted: #334155;
+    --muted-foreground: #94A3B8;
+    --accent: #7C3AED;
+    --accent-foreground: #F8FAFC;
+    --destructive: #EF4444;
+    --border: #334155;
+    --input: #334155;
+    --ring: #4F46E5;
+    --chart-1: #4F46E5;
+    --chart-2: #10B981;
+    --chart-3: #F59E0B;
+    --chart-4: #EF4444;
+    --chart-5: #7C3AED;
+    --sidebar: #0F172A;
+    --sidebar-foreground: #F8FAFC;
+    --sidebar-primary: #4F46E5;
+    --sidebar-primary-foreground: #F8FAFC;
+    --sidebar-accent: #1E293B;
+    --sidebar-accent-foreground: #F8FAFC;
+    --sidebar-border: #334155;
+    --sidebar-ring: #4F46E5;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
     }
+  html {
+    @apply font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    }
   body {
     @apply bg-background text-foreground;
     background:
-      linear-gradient(135deg, rgba(14, 165, 233, 0.08), transparent 30%),
-      linear-gradient(315deg, rgba(16, 185, 129, 0.08), transparent 28%),
+      radial-gradient(circle at top left, rgba(79, 70, 229, 0.16), transparent 32rem),
+      radial-gradient(circle at bottom right, rgba(124, 58, 237, 0.12), transparent 34rem),
       var(--background);
+    font-family: var(--font-sans);
+    letter-spacing: 0;
     }
-  html {
-    @apply font-sans;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    letter-spacing: 0;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  [data-slot="button"],
+  [data-slot="input"],
+  [data-slot="select-trigger"],
+  .MuiTypography-root,
+  .MuiInputBase-root,
+  .MuiButtonBase-root,
+  .react-datepicker {
+    font-family: var(--font-sans) !important;
     }
 }
 
 @layer components {
   [data-slot="card"] {
-    @apply border border-slate-200/70 bg-white/90 shadow-[0_18px_45px_rgba(15,23,42,0.06)] ring-0;
+    @apply border border-[#334155] bg-[#1E293B]/95 text-[#F8FAFC] shadow-[0_18px_45px_rgba(2,6,23,0.22)] ring-0;
   }
 
   [data-slot="button"][data-size="default"] {
@@ -158,16 +177,26 @@
     @apply shadow-sm;
   }
 
+  [data-slot="button"],
+  [data-slot="input"],
+  [data-slot="select-trigger"] {
+    @apply font-semibold;
+  }
+
+  .app-icon {
+    @apply inline-flex shrink-0 items-center justify-center leading-none;
+  }
+
   .app-shell {
-    @apply min-h-screen bg-transparent text-slate-900;
+    @apply min-h-screen bg-transparent text-[#F8FAFC];
   }
 
   .surface-panel {
-    @apply border border-white/70 bg-white/80 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+    @apply border border-[#334155] bg-[#1E293B]/80 shadow-[0_20px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl;
   }
 
   .metric-card {
-    @apply border-none bg-white/90 shadow-[0_16px_45px_rgba(15,23,42,0.07)];
+    @apply border border-[#334155] bg-[#1E293B]/95 shadow-[0_16px_45px_rgba(2,6,23,0.22)];
   }
 
   .Toastify__toast {
@@ -176,15 +205,85 @@
     font-weight: 600;
   }
 
+  .recharts-wrapper,
+  .recharts-tooltip-wrapper {
+    font-family: var(--font-sans) !important;
+  }
+
   .Toastify__toast--success {
-    background: #059669;
+    background: #10B981;
   }
 
   .Toastify__toast--error {
-    background: #dc2626;
+    background: #EF4444;
   }
 
   .Toastify__toast--warning {
-    background: #d97706;
+    background: #F59E0B;
   }
+}
+
+[data-slot="button"].bg-primary,
+[data-slot="button"]:not([class*="bg-"]):not([data-slot="dialog-close"]) {
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.22);
+}
+
+[data-slot="input"],
+[data-slot="select-trigger"],
+.react-datepicker__input-container input {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+  color: #F8FAFC !important;
+}
+
+[data-slot="input"]::placeholder,
+.react-datepicker__input-container input::placeholder {
+  color: #94A3B8 !important;
+}
+
+.recharts-cartesian-axis-tick-value,
+.recharts-legend-item-text {
+  fill: #94A3B8;
+  color: #94A3B8 !important;
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1E293B !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  color: #F8FAFC !important;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.32) !important;
+}
+
+.react-datepicker {
+  border-color: #334155 !important;
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+.react-datepicker__header {
+  border-color: #334155 !important;
+  background-color: #0F172A !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header,
+.react-datepicker__day-name,
+.react-datepicker__day {
+  color: #F8FAFC !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month-text:hover,
+.react-datepicker__quarter-text:hover,
+.react-datepicker__year-text:hover {
+  background-color: #334155 !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__month-text--selected,
+.react-datepicker__quarter-text--selected,
+.react-datepicker__year-text--selected {
+  background-color: #4F46E5 !important;
+  color: #F8FAFC !important;
 }

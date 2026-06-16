@@ -9,9 +9,14 @@ import Insights from './pages/Insights';
 import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { clearSession, isSessionExpired } from './lib/session';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('token');
+  if (token && isSessionExpired()) {
+    clearSession();
+    return <Navigate to="/auth" />;
+  }
   if (!token) return <Navigate to="/auth" />;
   return <Layout>{children}</Layout>;
 };
