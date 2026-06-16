@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -214,7 +215,7 @@ export default function Dashboard() {
         <Card className="surface-panel rounded-lg lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-semibold">Recent Transactions</CardTitle>
-            <Button variant="ghost" size="sm" className="text-[#4F9CF9]">View All</Button>
+            <Button variant="ghost" size="sm" className="text-[#4F9CF9]" render={<Link to="/transactions" />}>View All</Button>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
