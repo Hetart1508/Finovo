@@ -9,6 +9,21 @@ import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
+import {
+  RiArrowLeftLine,
+  RiEyeLine,
+  RiEyeOffLine,
+  RiFileList3Line,
+  RiLock2Line,
+  RiLoginCircleLine,
+  RiMailLine,
+  RiMoonLine,
+  RiShieldKeyholeLine,
+  RiShieldUserLine,
+  RiSparkling2Line,
+  RiSunLine,
+  RiUserAddLine,
+} from 'react-icons/ri';
 
 type PasswordInputProps = React.ComponentProps<typeof Input> & {
   inputId: string;
@@ -32,23 +47,23 @@ function PasswordInputWithToggle({ inputId, className = '', ...props }: Password
         onClick={() => setShowPassword((current) => !current)}
         className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-[#6B7280] transition hover:bg-[#EEF6FF] hover:text-[#1F2937] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9CF9]"
       >
-        <i className={`ki-filled ${showPassword ? 'ki-eye-slash' : 'ki-eye'} text-base`} aria-hidden="true" />
+        {showPassword ? <RiEyeOffLine className="text-base" aria-hidden="true" /> : <RiEyeLine className="text-base" aria-hidden="true" />}
       </button>
     </div>
   );
 }
 
 type AuthNoteProps = {
-  icon: string;
+  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: 'true' }>;
   title: string;
   description: string;
 };
 
-function AuthNote({ icon, title, description }: AuthNoteProps) {
+function AuthNote({ icon: Icon, title, description }: AuthNoteProps) {
   return (
     <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#34C759]">
-        <i className={`ki-filled ${icon} text-base`} aria-hidden="true" />
+        <Icon className="text-base" aria-hidden="true" />
       </div>
       <div>
         <p className="font-semibold text-[#1F2937]">{title}</p>
@@ -308,7 +323,7 @@ export default function Auth() {
         title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
       >
-        <i className={`ki-filled ${theme === 'dark' ? 'ki-sun' : 'ki-moon'} text-base`} aria-hidden="true" />
+        {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
       </Button>
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
@@ -331,12 +346,12 @@ export default function Auth() {
             <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
             <div className="grid grid-cols-3 gap-3 pt-4">
               {[
-                ['ki-note-2', 'Bills'],
-                ['ki-magic-star', 'Insights'],
-                ['ki-security-user', 'Secure'],
-              ].map(([icon, label]) => (
+                { Icon: RiFileList3Line, label: 'Bills' },
+                { Icon: RiSparkling2Line, label: 'Insights' },
+                { Icon: RiShieldKeyholeLine, label: 'Secure' },
+              ].map(({ Icon, label }) => (
                 <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-                  <i className={`ki-filled ${icon} text-xl text-white/85`} aria-hidden="true" />
+                  <Icon className="text-xl text-white/85" aria-hidden="true" />
                   <p className="mt-2 text-sm font-semibold">{label}</p>
                 </div>
               ))}
@@ -387,7 +402,7 @@ export default function Auth() {
 
                       <CardContent className="space-y-4">
                         <AuthNote
-                          icon="ki-lock-2"
+                          icon={RiLock2Line}
                           title="Password login"
                           description="Use the password you created after verifying your email."
                         />
@@ -425,7 +440,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
-                          <i className="ki-filled ki-log-in mr-2 text-base" aria-hidden="true" />
+                          <RiLoginCircleLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Logging in...' : 'Login'}
                         </Button>
                       </CardFooter>
@@ -439,7 +454,7 @@ export default function Auth() {
 
                       <CardContent className="space-y-4">
                         <AuthNote
-                          icon="ki-sms"
+                          icon={RiMailLine}
                           title="Reset by email"
                           description="We will send a 6-digit OTP to your registered email."
                         />
@@ -457,7 +472,7 @@ export default function Auth() {
 
                       <CardFooter className="grid gap-3">
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
-                          <i className="ki-filled ki-sms mr-2 text-base" aria-hidden="true" />
+                          <RiMailLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Reset OTP'}
                         </Button>
                         <Button
@@ -480,7 +495,7 @@ export default function Auth() {
 
                       <CardContent className="space-y-4">
                         <AuthNote
-                          icon="ki-security-user"
+                          icon={RiShieldUserLine}
                           title="OTP verified reset"
                           description="Enter the code from your email, then choose a fresh password."
                         />
@@ -519,7 +534,7 @@ export default function Auth() {
                             }}
                             className="inline-flex items-center gap-1 font-semibold text-[#1F2937] underline hover:text-[#1F2937]"
                           >
-                            <i className="ki-filled ki-left text-sm" aria-hidden="true" />
+                            <RiArrowLeftLine className="text-sm" aria-hidden="true" />
                             Edit email
                           </button>
                           {resendTimer > 0 ? (
@@ -534,7 +549,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
-                          <i className="ki-filled ki-security-user mr-2 text-base" aria-hidden="true" />
+                          <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
                       </CardFooter>
@@ -571,7 +586,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
-                          <i className="ki-filled ki-user-tick mr-2 text-base" aria-hidden="true" />
+                          <RiUserAddLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Verification OTP'}
                         </Button>
                       </CardFooter>
@@ -621,7 +636,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
-                          <i className="ki-filled ki-security-user mr-2 text-base" aria-hidden="true" />
+                          <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Verifying...' : 'Verify & Create Account'}
                         </Button>
                       </CardFooter>

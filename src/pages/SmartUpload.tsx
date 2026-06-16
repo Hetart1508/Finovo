@@ -12,6 +12,13 @@ import { toast } from 'react-toastify';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import {
+  RiCheckboxCircleLine,
+  RiCloseCircleLine,
+  RiFileTextLine,
+  RiRefreshLine,
+  RiUploadCloudLine,
+} from 'react-icons/ri';
 interface Extracted {
   data: {
     merchant: string;
@@ -126,7 +133,7 @@ export default function SmartUpload() {
               >
                 <input {...getInputProps()} />
                 <div className="w-16 h-16 bg-[#EEF6FF] bg-[#EEF6FF] rounded-full flex items-center justify-center mb-4">
-                  <i className="ki-outline ki-cloud-add text-3xl text-[#4F9CF9]" aria-hidden="true" />
+                  <RiUploadCloudLine className="text-3xl text-[#4F9CF9]" aria-hidden="true" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
                 <p className="text-sm text-[#6B7280] mt-2">Supports PDF, JPG, JPEG, and PNG</p>
@@ -135,7 +142,7 @@ export default function SmartUpload() {
               <div className="relative h-[400px] group">
                 {file?.type === 'application/pdf' ? (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-[#EEF6FF] dark:bg-[#EEF6FF] rounded-lg">
-                    <i className="ki-outline ki-document mb-2 text-5xl text-[#6B7280]" aria-hidden="true" />
+                    <RiFileTextLine className="mb-2 text-5xl text-[#6B7280]" aria-hidden="true" />
                     <p className="font-medium">{file.name}</p>
                   </div>
                 ) : (
@@ -147,7 +154,7 @@ export default function SmartUpload() {
                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={() => { setFile(null); setPreview(null); setExtractedData(null); }}
                 >
-                  <i className="ki-solid ki-cross text-base" aria-hidden="true" />
+                  <RiCloseCircleLine className="text-base" aria-hidden="true" />
                 </Button>
               </div>
             )}
@@ -158,14 +165,14 @@ export default function SmartUpload() {
         <div className="space-y-6">
           {extractionError ? (
             <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-dashed border-[#FFF1F1] bg-[#FFF1F1]/50 ">
-              <i className="ki-solid ki-cross mb-4 text-4xl text-[#FF6B6B]" aria-hidden="true" />
+              <RiCloseCircleLine className="mb-4 text-4xl text-[#FF6B6B]" aria-hidden="true" />
               <h3 className="font-semibold text-[#FF6B6B] ">Extraction Failed</h3>
               <p className="text-sm text-[#FF6B6B]  mt-2 max-w-md">{extractionError}</p>
               <div className="space-y-2 mt-6">
                 <Button className="w-full" onClick={handleExtract} disabled={loading}>
                   {loading ? (
   <>
-    <i className="ki-solid ki-refresh mr-2 text-base animate-spin" aria-hidden="true" />
+    <RiRefreshLine className="mr-2 text-base animate-spin" aria-hidden="true" />
     Retry
   </>
 ) : (
@@ -180,7 +187,7 @@ export default function SmartUpload() {
           ) : !extractedData ? (
             <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-[#FAFBFC] dark:bg-[#FAFBFC]">
               <div className="w-12 h-12 bg-white dark:bg-[#EEF6FF] rounded-full flex items-center justify-center shadow-sm mb-4">
-                <i className={cn("ki-solid ki-refresh text-2xl text-[#4F9CF9]", loading && "animate-spin")} aria-hidden="true" />
+                <RiRefreshLine className={cn("text-2xl text-[#4F9CF9]", loading && "animate-spin")} aria-hidden="true" />
               </div>
               <h3 className="font-semibold">Gemini Extraction Ready</h3>
               <p className="text-sm text-[#6B7280] mt-2">Upload complete. Click to analyze.</p>
@@ -189,7 +196,7 @@ export default function SmartUpload() {
                 onClick={handleExtract} 
                 disabled={!file || loading}
               >
-                {loading ? <><i className="ki-solid ki-refresh mr-2 text-base animate-spin" aria-hidden="true" /> Analyzing...</> : "Extract with Gemini"}
+                {loading ? <><RiRefreshLine className="mr-2 text-base animate-spin" aria-hidden="true" /> Analyzing...</> : <><RiUploadCloudLine className="mr-2 text-base" aria-hidden="true" /> Extract with Gemini</>}
               </Button>
             </Card>
           ) : (
@@ -206,15 +213,9 @@ export default function SmartUpload() {
                           extractedData!.confidence === 'medium' ? 'bg-[#FFF7E8] text-[#B87516] ' :
                           'bg-[#FFF1F1] text-[#FF6B6B] '
                         )}>{extractedData!.confidence.toUpperCase()}</span>
-                      </p>
-                      {extractedData.data.provider ? (
-                        <p className="mt-2 text-xs text-[#6B7280]">
-                          {extractedData.data.provider === 'gemini' ? 'Gemini' : extractedData.data.provider}
-                          {extractedData.data.model ? ` (${extractedData.data.model})` : ''}
-                        </p>
-                      ) : null}
+                      </p>                    
                     </div>
-                    <i className="ki-solid ki-check text-2xl text-[#34C759]" aria-hidden="true" />
+                    <RiCheckboxCircleLine className="text-2xl text-[#34C759]" aria-hidden="true" />
                   </div>
                   <CardDescription>Review and edit if needed before saving.</CardDescription>
                 </CardHeader>

@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { endOfMonth, format, isAfter, isWithinInterval, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { getApiMessage } from '@/src/lib/toastMessages';
+import { RiRefreshLine, RiSparkling2Line } from 'react-icons/ri';
 
 type RangeMode = 'currentMonth' | 'last30Days' | 'last4Months' | 'selectedMonth' | 'custom';
 
@@ -165,7 +166,7 @@ export default function Insights() {
           <p className="text-sm text-[#6B7280]">Powered by Gemini, with local AI fallback.</p>
         </div>
         <Button variant="outline" onClick={generateInsights} disabled={insightsLoading || transactionsLoading} className="gap-2">
-          <i className={cn("ki-solid ki-refresh text-base", insightsLoading && "animate-spin")} aria-hidden="true" />
+          <RiRefreshLine className={cn("text-base", insightsLoading && "animate-spin")} aria-hidden="true" />
           {insights ? 'Regenerate AI Insights' : 'Generate AI Insights'}
         </Button>
       </div>
@@ -247,7 +248,7 @@ export default function Insights() {
         <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-[#EEF6FF]/70 to-white  ">
           <CardHeader>
             <div className="flex items-center gap-2 text-[#4F9CF9]">
-              <i className="ki-solid ki-abstract-26 text-lg" aria-hidden="true" />
+              <RiSparkling2Line className="text-lg" aria-hidden="true" />
 <CardTitle className="text-xl">AI Analysis</CardTitle>
             </div>
             <CardDescription>
@@ -267,7 +268,7 @@ export default function Insights() {
               <>
                 {insights.summary && (
                   <div className="space-y-3 mb-8 prose prose-slate dark:prose-invert max-w-none">
-                    <h3 className="font-semibold text-lg flex items-center gap-2"><i className="ki-solid ki-abstract-26 text-lg" aria-hidden="true" /> AI Financial Analysis</h3>
+                    <h3 className="font-semibold text-lg flex items-center gap-2"><RiSparkling2Line className="text-lg" aria-hidden="true" /> AI Financial Analysis</h3>
                     <p>{insights.summary}</p>
                   </div>
                 )}

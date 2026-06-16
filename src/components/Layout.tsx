@@ -4,6 +4,19 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
+import {
+  RiDashboard2Line,
+  RiFileUploadLine,
+  RiHistoryLine,
+  RiLogoutCircleRLine,
+  RiMoonLine,
+  RiScanLine,
+  RiSparkling2Line,
+  RiSunLine,
+  RiUser3Line,
+  RiWallet3Line,
+  RiCalendarEventLine,
+} from 'react-icons/ri';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -53,12 +66,12 @@ export default function Layout({ children }: LayoutProps) {
   }, [theme]);
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: 'ki-filled ki-element-11' },
-    { name: 'Transactions', path: '/transactions', icon: 'ki-filled ki-note-2' },
-    { name: 'Smart Upload', path: '/upload', icon: 'ki-filled ki-scan-barcode' },
-    { name: 'Statement Import', path: '/statement-import', icon: 'ki-filled ki-file-up' },
-    { name: 'Calendar', path: '/calendar', icon: 'ki-filled ki-calendar' },
-    { name: 'AI Insights', path: '/insights', icon: 'ki-filled ki-magic-star' },
+    { name: 'Dashboard', path: '/', icon: RiDashboard2Line },
+    { name: 'Transactions', path: '/transactions', icon: RiHistoryLine },
+    { name: 'Smart Upload', path: '/upload', icon: RiScanLine },
+    { name: 'Statement Import', path: '/statement-import', icon: RiFileUploadLine },
+    { name: 'Calendar', path: '/calendar', icon: RiCalendarEventLine },
+    { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
   ];
 
   return (
@@ -67,7 +80,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
-              <i className="ki-filled ki-wallet" />
+              <RiWallet3Line aria-hidden="true" />
             </div>
             <div>
               <h1 className="text-xl font-bold">FinSight AI</h1>
@@ -77,27 +90,30 @@ export default function Layout({ children }: LayoutProps) {
         </div>
 
         <nav className="flex-1 space-y-1 px-4">
-          {navItems.map((item) => (
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
-                "kt-nav-item metronic-action flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-all",
+                "group/nav kt-nav-item metronic-action flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-all",
                 location.pathname === item.path
                   ? "bg-[#EEF6FF] text-[#4F9CF9] shadow-sm"
                   : "text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]"
               )}
             >
-              <i className={cn("ki-hover-rise text-lg", item.icon)} data-kt-icon-button />
+              <Icon className="text-lg transition-transform group-hover/nav:scale-110" aria-hidden="true" />
               {item.name}
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="border-t border-[#E5E7EB] p-4">
           <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
-              <i className="ki-filled ki-profile-circle text-[#4F9CF9]" data-kt-icon-button />
+              <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
@@ -109,7 +125,7 @@ export default function Layout({ children }: LayoutProps) {
             className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"
             onClick={handleLogout}
           >
-            <i className="ki-filled ki-exit-right mr-2" data-kt-icon-button />
+            <RiLogoutCircleRLine className="mr-2 text-base" aria-hidden="true" />
             Logout
           </Button>
         </div>
@@ -130,7 +146,7 @@ export default function Layout({ children }: LayoutProps) {
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
           >
-            <i className={cn("ki-filled text-base", theme === 'dark' ? "ki-sun" : "ki-moon")} aria-hidden="true" />
+            {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
           </Button>
         </header>
 

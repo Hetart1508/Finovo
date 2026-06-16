@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
+import { RiArrowDownSLine, RiArrowUpSLine, RiCheckLine } from "react-icons/ri"
 
 import { cn } from "@/lib/utils"
 
@@ -46,7 +47,7 @@ function SelectTrigger({
       {children}
       <SelectPrimitive.Icon
         render={
-          <i className="ki-outline ki-right pointer-events-none size-4 rotate-90 text-muted-foreground" aria-hidden="true" />
+          <RiArrowDownSLine className="pointer-events-none size-4 text-muted-foreground" aria-hidden="true" />
         }
       />
     </SelectPrimitive.Trigger>
@@ -127,7 +128,7 @@ function SelectItem({
           <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />
         }
       >
-        <i className="ki-solid ki-check pointer-events-none text-base" aria-hidden="true" />
+        <RiCheckLine className="pointer-events-none text-base" aria-hidden="true" />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
@@ -159,7 +160,7 @@ function SelectScrollUpButton({
       )}
       {...props}
     >
-      <i className="ki-outline ki-left rotate-90 text-base" aria-hidden="true" />
+      <RiArrowUpSLine className="text-base" aria-hidden="true" />
     </SelectPrimitive.ScrollUpArrow>
   )
 }
@@ -177,7 +178,7 @@ function SelectScrollDownButton({
       )}
       {...props}
     >
-      <i className="ki-outline ki-right rotate-90 text-base" aria-hidden="true" />
+      <RiArrowDownSLine className="text-base" aria-hidden="true" />
     </SelectPrimitive.ScrollDownArrow>
   )
 }

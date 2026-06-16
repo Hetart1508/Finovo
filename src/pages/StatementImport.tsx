@@ -15,6 +15,15 @@ import { toast } from 'react-toastify';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import {
+  RiArrowLeftDownLine,
+  RiArrowRightUpLine,
+  RiCheckboxCircleLine,
+  RiDeleteBin6Line,
+  RiErrorWarningLine,
+  RiFileTextLine,
+  RiUploadCloudLine,
+} from 'react-icons/ri';
 
 type StatementTransaction = {
   date: string;
@@ -155,7 +164,7 @@ export default function StatementImport() {
         />
 
         <Button className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={previewLoading || approveLoading}>
-          <i className="ki-outline ki-cloud-add text-base" aria-hidden="true" />
+          <RiUploadCloudLine className="text-base" aria-hidden="true" />
           {previewLoading ? 'Reading Statement...' : 'Select Statement File'}
         </Button>
       </div>
@@ -165,7 +174,7 @@ export default function StatementImport() {
           <CardContent className="p-5">
             <p className="text-sm text-[#6B7280]">Statement</p>
             <div className="mt-2 flex items-center gap-3">
-              <i className="ki-outline ki-document text-lg text-[#4F9CF9]" aria-hidden="true" />
+              <RiFileTextLine className="text-lg text-[#4F9CF9]" aria-hidden="true" />
               <p className="min-w-0 truncate font-semibold">{statementFile ? statementFile.name : 'No file selected'}</p>
             </div>
             {model ? <p className="mt-2 text-xs text-[#6B7280]">Parsed with {model}</p> : null}
@@ -198,7 +207,7 @@ export default function StatementImport() {
             onClick={handleApproveAll}
             disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
           >
-            <i className="ki-solid ki-check text-base" aria-hidden="true" />
+            <RiCheckboxCircleLine className="text-base" aria-hidden="true" />
             {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}
           </Button>
         </CardHeader>
@@ -234,7 +243,7 @@ export default function StatementImport() {
                         "w-8 h-8 rounded-full flex items-center justify-center",
                         transaction.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
                       )}>
-                        <i className={cn("ki-solid text-base", transaction.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
+                        {transaction.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
                       </div>
                     </TableCell>
                     <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
@@ -258,7 +267,7 @@ export default function StatementImport() {
                         className="text-[#6B7280] hover:text-[#FF6B6B]"
                         onClick={() => handleRemovePreviewRow(index)}
                       >
-                        <i className="ki-outline ki-trash text-base" aria-hidden="true" />
+                        <RiDeleteBin6Line className="text-base" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -270,7 +279,7 @@ export default function StatementImport() {
       </Card>
 
       <div className="flex items-start gap-2 rounded-lg bg-[#FFF7E8] p-3 ">
-        <i className="ki-outline ki-warning mt-0.5 text-base text-[#FFB84D]" aria-hidden="true" />
+        <RiErrorWarningLine className="mt-0.5 text-base text-[#FFB84D]" aria-hidden="true" />
         <p className="text-xs text-[#B87516] ">
           Statement extraction uses AI when you upload the file. Saving approved rows does not call AI again.
         </p>

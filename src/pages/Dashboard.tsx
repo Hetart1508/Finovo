@@ -19,6 +19,13 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'da
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'react-toastify';
 import { getApiMessage } from '@/src/lib/toastMessages';
+import {
+  RiArrowLeftDownLine,
+  RiArrowRightUpLine,
+  RiCalendarCheckLine,
+  RiErrorWarningLine,
+  RiWallet3Line,
+} from 'react-icons/ri';
 
 const COLORS = ['#4F9CF9', '#34C759', '#FFB84D', '#FF6B6B', '#6B7280', '#EEF6FF', '#E5E7EB'];
 
@@ -105,7 +112,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-income">
-                <i className="ki-solid ki-arrow-up-right text-lg" data-kt-icon-button />
+                <RiArrowRightUpLine className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="border-[#EAFBF0] text-[#34C759]">Monthly</Badge>
             </div>
@@ -118,7 +125,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-expense">
-                <i className="ki-solid ki-arrow-down-left text-lg" data-kt-icon-button />
+                <RiArrowLeftDownLine className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="border-[#FFF1F1] text-[#FF6B6B]">Monthly</Badge>
             </div>
@@ -131,7 +138,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/20 text-white">
-                <i className="ki-duotone ki-wallet text-lg" data-kt-icon-button />
+                <RiWallet3Line className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="text-white border-white/30">Current</Badge>
             </div>
@@ -218,7 +225,7 @@ export default function Dashboard() {
                       "w-10 h-10 rounded-full flex items-center justify-center",
                       t.type === 'income' ? "icon-income" : "icon-expense"
                     )}>
-                      <i className={cn("ki-solid text-lg", t.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
+                      {t.type === 'income' ? <RiArrowRightUpLine className="text-lg" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-lg" aria-hidden="true" />}
                     </div>
                     <div>
                       <p className="font-medium">{t.description || t.category}</p>
@@ -248,7 +255,7 @@ export default function Dashboard() {
               {recurring.map((r) => (
                 <div key={r.id} className="flex items-start gap-4 p-3 border border-[#E5E7EB] rounded-xl">
                   <div className="p-2 icon-upcoming rounded-lg">
-                    <i className="ki-outline ki-calendar" aria-hidden="true" />
+                    <RiCalendarCheckLine aria-hidden="true" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium">{r.name}</p>
@@ -259,7 +266,7 @@ export default function Dashboard() {
               ))}
               {recurring.length === 0 && (
                 <div className="text-center py-8">
-                  <i className="ki-outline ki-warning mx-auto mb-2 text-3xl text-[#FFB84D]" aria-hidden="true" />
+                  <RiErrorWarningLine className="mx-auto mb-2 text-3xl text-[#FFB84D]" aria-hidden="true" />
                   <p className="text-sm text-[#6B7280]">No recurring payments set.</p>
                 </div>
               )}

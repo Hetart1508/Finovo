@@ -29,6 +29,14 @@ import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import {
+  RiAddCircleLine,
+  RiArrowLeftDownLine,
+  RiArrowRightUpLine,
+  RiDeleteBin6Line,
+  RiFilter3Line,
+  RiSearchLine,
+} from 'react-icons/ri';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -93,7 +101,7 @@ export default function Transactions() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
-          <i className="ki-outline ki-search absolute left-3 top-1/2 -translate-y-1/2 text-base text-[#6B7280]" aria-hidden="true" />
+          <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-[#6B7280]" aria-hidden="true" />
           <Input 
             placeholder="Search transactions..." 
             className="pl-10" 
@@ -105,7 +113,7 @@ export default function Transactions() {
         <div className="flex items-center gap-3">
           <Select value={filter} onValueChange={setFilter}>
             <SelectTrigger className="w-[150px]">
-              <i className="ki-outline ki-filter mr-2 text-base" aria-hidden="true" />
+              <RiFilter3Line className="mr-2 text-base" aria-hidden="true" />
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
@@ -118,7 +126,7 @@ export default function Transactions() {
           <Dialog>
             <DialogTrigger>
               <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]">
-                <i className="ki-outline ki-plus mr-2 text-base" aria-hidden="true" />
+                <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
                 Add Transaction
               </Button>
             </DialogTrigger>
@@ -247,7 +255,7 @@ export default function Transactions() {
                         "w-8 h-8 rounded-full flex items-center justify-center",
                         t.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
                       )}>
-                        <i className={cn("ki-solid text-base", t.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
+                        {t.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
                       </div>
                     </TableCell>
                     <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
@@ -271,7 +279,7 @@ export default function Transactions() {
                         className="text-[#6B7280] hover:text-[#FF6B6B]"
                         onClick={() => handleDelete(t.id)}
                       >
-                        <i className="ki-outline ki-trash text-base" aria-hidden="true" />
+                        <RiDeleteBin6Line className="text-base" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>

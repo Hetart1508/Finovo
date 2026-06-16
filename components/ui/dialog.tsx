@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
+import { RiCloseCircleLine } from "react-icons/ri"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -67,7 +68,7 @@ function DialogContent({
               />
             }
           >
-            <i className="ki-solid ki-cross text-base" aria-hidden="true" />
+            <RiCloseCircleLine className="text-base" aria-hidden="true" />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
