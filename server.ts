@@ -7,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import mysql, { PoolOptions, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import multer from "multer";
 import fs from "fs";
 import nodemailer from "nodemailer";
@@ -27,12 +27,28 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 });
 
+const getDbConfig = (): PoolOptions => {
+  const baseConfig: PoolOptions = process.env.MYSQL_URL
+    ? { uri: process.env.MYSQL_URL }
+    : {
+        host: process.env.DB_HOST || process.env.MYSQLHOST || "localhost",
+        port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
+        user: process.env.DB_USER || process.env.MYSQLUSER || "root",
+        password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || "",
+        database: process.env.DB_NAME || process.env.MYSQLDATABASE || "expense_tracker",
+      };
+
+  if (process.env.DB_SSL === "true") {
+    baseConfig.ssl = process.env.DB_CA_CERT
+      ? { ca: process.env.DB_CA_CERT.replace(/\\n/g, "\n") }
+      : { rejectUnauthorized: true };
+  }
+
+  return baseConfig;
+};
+
 const db = mysql.createPool({
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "expense_tracker",
+  ...getDbConfig(),
   waitForConnections: true,
   connectionLimit: 10,
   decimalNumbers: true,
@@ -202,7 +218,7 @@ const runMigrations = async () => {
 };
 
 const app = express();
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
+const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -223,6 +239,14 @@ app.use((req, res, next) => {
     });
   });
   next();
+});
+
+app.get("/api/health", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "finsight-api",
+    environment: process.env.NODE_ENV || "development",
+  });
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
@@ -1723,7 +1747,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
   app.listen(PORT, "0.0.0.0", () => {
     logger.info(`Server running on http://localhost:${PORT}`);
   });
