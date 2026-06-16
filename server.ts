@@ -931,6 +931,9 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 10000),
+  greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 10000),
+  socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 10000),
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
@@ -939,6 +942,11 @@ const transporter = nodemailer.createTransport({
 
 const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
   const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    logger.error("Email is not configured");
+    return { status: 500, body: { error: "Email service is not configured" } };
+  }
+
   try {
     await transporter.sendMail({
       from: `"FinSight AI" <${EMAIL_USER}>`,
