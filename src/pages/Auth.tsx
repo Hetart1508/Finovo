@@ -344,8 +344,18 @@ export default function Auth() {
               className="w-full"
             >
               <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-slate-100 p-1">
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="register">Register</TabsTrigger>
+                <TabsTrigger
+                  value="login"
+                  className="h-9 text-slate-600 hover:text-slate-950 data-active:bg-slate-950 data-active:text-white"
+                >
+                  Login
+                </TabsTrigger>
+                <TabsTrigger
+                  value="register"
+                  className="h-9 text-slate-600 hover:text-slate-950 data-active:bg-slate-950 data-active:text-white"
+                >
+                  Register
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
