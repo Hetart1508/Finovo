@@ -253,6 +253,10 @@ const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const SESSION_EXPIRES_IN = (process.env.SESSION_EXPIRES_IN || "2h") as SignOptions["expiresIn"];
 const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = process.env.SMTP_SECURE === "true";
+const EMAIL_FROM = process.env.EMAIL_FROM || EMAIL_USER;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
@@ -930,7 +934,13 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
 };
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  ...(SMTP_HOST
+    ? {
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        secure: SMTP_SECURE,
+      }
+    : { service: 'gmail' }),
   connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 10000),
   greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 10000),
   socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 10000),
@@ -951,7 +961,7 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
     const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 10000);
     await Promise.race([
       transporter.sendMail({
-      from: `"FinSight AI" <${EMAIL_USER}>`,
+      from: `"FinSight AI" <${EMAIL_FROM}>`,
       to: email,
       subject: `Your FinSight AI ${label}`,
       html: `
