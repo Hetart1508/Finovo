@@ -30,7 +30,7 @@ function PasswordInputWithToggle({ inputId, className = '', ...props }: Password
         aria-label={showPassword ? 'Hide password' : 'Show password'}
         title={showPassword ? 'Hide password' : 'Show password'}
         onClick={() => setShowPassword((current) => !current)}
-        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-[#6B7280] transition hover:bg-[#EEF6FF] hover:text-[#1F2937] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9CF9]"
       >
         <i className={`ki-outline ${showPassword ? 'ki-eye-slash' : 'ki-eye'} text-base`} aria-hidden="true" />
       </button>
@@ -46,13 +46,13 @@ type AuthNoteProps = {
 
 function AuthNote({ icon, title, description }: AuthNoteProps) {
   return (
-    <div className="flex gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-emerald-700">
+    <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#34C759]">
         <i className={`ki-outline ${icon} text-base`} aria-hidden="true" />
       </div>
       <div>
-        <p className="font-semibold text-slate-950">{title}</p>
-        <p className="mt-0.5 text-slate-600">{description}</p>
+        <p className="font-semibold text-[#1F2937]">{title}</p>
+        <p className="mt-0.5 text-[#6B7280]">{description}</p>
       </div>
     </div>
   );
@@ -291,25 +291,25 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 text-slate-950 lg:p-8">
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl bg-white shadow-[0_30px_90px_rgba(2,6,23,0.35)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
+    <div className="min-h-screen bg-[#FAFBFC] p-4 text-[#1F2937] lg:p-8">
+      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
           className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
           style={{
             backgroundImage:
-              "linear-gradient(135deg, rgba(15,23,42,0.95), rgba(20,83,45,0.78))",
+              "linear-gradient(135deg, #4F9CF9, #34C759)",
           }}
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-400 text-xl font-black text-slate-950">F</div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-xl font-black text-[#4F9CF9]">F</div>
             <div>
               <h1 className="text-2xl font-black">FinSight AI</h1>
-              <p className="text-sm text-emerald-100">Financial clarity, faster.</p>
+              <p className="text-sm text-white/85">Financial clarity, faster.</p>
             </div>
           </div>
 
           <div className="max-w-lg space-y-5">
-            <p className="text-sm font-semibold uppercase text-emerald-200">Expense command center</p>
+            <p className="text-sm font-semibold uppercase text-white/85">Expense command center</p>
             <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
             <div className="grid grid-cols-3 gap-3 pt-4">
               {[
@@ -318,7 +318,7 @@ export default function Auth() {
                 ['ki-shield-tick', 'Secure'],
               ].map(([icon, label]) => (
                 <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-                  <i className={`ki-outline ${icon} text-xl text-emerald-200`} aria-hidden="true" />
+                  <i className={`ki-outline ${icon} text-xl text-white/85`} aria-hidden="true" />
                   <p className="mt-2 text-sm font-semibold">{label}</p>
                 </div>
               ))}
@@ -329,10 +329,10 @@ export default function Auth() {
         <div className="flex items-center justify-center p-6 lg:p-12">
           <div className="w-full max-w-md space-y-7">
             <div>
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-slate-950 text-lg font-black text-emerald-300 lg:hidden">F</div>
-              <p className="text-sm font-semibold uppercase text-emerald-600">Welcome</p>
-              <h1 className="mt-2 text-3xl font-black text-slate-950">FinSight AI</h1>
-              <p className="mt-2 text-slate-500">Login with your password or verify your email to create a new account.</p>
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#4F9CF9] text-lg font-black text-white lg:hidden">F</div>
+              <p className="text-sm font-semibold uppercase text-[#34C759]">Welcome</p>
+              <h1 className="mt-2 text-3xl font-black text-[#1F2937]">FinSight AI</h1>
+              <p className="mt-2 text-[#6B7280]">Login with your password or verify your email to create a new account.</p>
             </div>
 
             <Tabs
@@ -343,23 +343,23 @@ export default function Auth() {
               }}
               className="w-full"
             >
-              <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-slate-100 p-1">
+              <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-[#EEF6FF] p-1">
                 <TabsTrigger
                   value="login"
-                  className="h-9 text-slate-600 hover:text-slate-950 data-active:bg-slate-950 data-active:text-white"
+                  className="h-9 text-[#6B7280] hover:text-[#1F2937] data-active:bg-[#4F9CF9] data-active:text-white"
                 >
                   Login
                 </TabsTrigger>
                 <TabsTrigger
                   value="register"
-                  className="h-9 text-slate-600 hover:text-slate-950 data-active:bg-slate-950 data-active:text-white"
+                  className="h-9 text-[#6B7280] hover:text-[#1F2937] data-active:bg-[#4F9CF9] data-active:text-white"
                 >
                   Register
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
-                <Card className="border-slate-200 shadow-none">
+                <Card className="border-[#E5E7EB] shadow-none">
                   {loginStep === 'login' ? (
                     <form onSubmit={handleLogin}>
                       <CardHeader>
@@ -398,7 +398,7 @@ export default function Auth() {
                               setLoginStep('forgot');
                               setOtpCode('');
                             }}
-                            className="font-semibold text-emerald-700 underline hover:text-emerald-600"
+                            className="font-semibold text-[#34C759] underline hover:text-[#34C759]"
                           >
                             Forgot password?
                           </button>
@@ -406,7 +406,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter>
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           {loading ? 'Logging in...' : 'Login'}
                         </Button>
                       </CardFooter>
@@ -437,7 +437,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className="grid gap-3">
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           {loading ? 'Sending OTP...' : 'Send Reset OTP'}
                         </Button>
                         <Button
@@ -488,7 +488,7 @@ export default function Auth() {
                             required
                           />
                         </div>
-                        <div className="flex items-center justify-between text-sm text-slate-500">
+                        <div className="flex items-center justify-between text-sm text-[#6B7280]">
                           <button
                             type="button"
                             onClick={() => {
@@ -497,7 +497,7 @@ export default function Auth() {
                               setResetPassword('');
                               setResetEmail('');
                             }}
-                            className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-slate-950"
+                            className="inline-flex items-center gap-1 font-semibold text-[#1F2937] underline hover:text-[#1F2937]"
                           >
                             <i className="ki-outline ki-left text-sm" aria-hidden="true" />
                             Edit email
@@ -505,7 +505,7 @@ export default function Auth() {
                           {resendTimer > 0 ? (
                             <span>Resend in {resendTimer}s</span>
                           ) : (
-                            <button type="button" onClick={handleResendResetOTP} className="font-semibold text-emerald-700 underline hover:text-emerald-600">
+                            <button type="button" onClick={handleResendResetOTP} className="font-semibold text-[#34C759] underline hover:text-[#34C759]">
                               Resend OTP
                             </button>
                           )}
@@ -513,7 +513,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter>
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || otpCode.length !== 6}>
+                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
                       </CardFooter>
@@ -523,7 +523,7 @@ export default function Auth() {
               </TabsContent>
 
               <TabsContent value="register">
-                <Card className="border-slate-200 shadow-none">
+                <Card className="border-[#E5E7EB] shadow-none">
                   {registerStep === 'details' ? (
                     <form onSubmit={handleRegister}>
                       <CardHeader>
@@ -549,7 +549,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter>
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading}>
+                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           {loading ? 'Sending OTP...' : 'Send Verification OTP'}
                         </Button>
                       </CardFooter>
@@ -576,21 +576,21 @@ export default function Auth() {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between text-sm text-slate-500">
+                        <div className="flex items-center justify-between text-sm text-[#6B7280]">
                           <button
                             type="button"
                             onClick={() => {
                               setRegisterStep('details');
                               setOtpCode('');
                             }}
-                            className="font-semibold text-slate-700 underline hover:text-slate-950"
+                            className="font-semibold text-[#1F2937] underline hover:text-[#1F2937]"
                           >
                             Edit details
                           </button>
                           {resendTimer > 0 ? (
                             <span>Resend in {resendTimer}s</span>
                           ) : (
-                            <button type="button" onClick={handleResendOTP} className="font-semibold text-emerald-700 underline hover:text-emerald-600">
+                            <button type="button" onClick={handleResendOTP} className="font-semibold text-[#34C759] underline hover:text-[#34C759]">
                               Resend OTP
                             </button>
                           )}
@@ -598,7 +598,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter>
-                        <Button className="w-full bg-slate-950 text-white hover:bg-slate-800" type="submit" disabled={loading || otpCode.length !== 6}>
+                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           {loading ? 'Verifying...' : 'Verify & Create Account'}
                         </Button>
                       </CardFooter>

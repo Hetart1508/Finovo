@@ -162,7 +162,7 @@ export default function Insights() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Financial Insights</h1>
-          <p className="text-sm text-slate-500">Powered by Gemini, with local AI fallback.</p>
+          <p className="text-sm text-[#6B7280]">Powered by Gemini, with local AI fallback.</p>
         </div>
         <Button variant="outline" onClick={generateInsights} disabled={insightsLoading || transactionsLoading} className="gap-2">
           <i className={cn("ki-solid ki-refresh text-base", insightsLoading && "animate-spin")} aria-hidden="true" />
@@ -244,9 +244,9 @@ export default function Insights() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main AI Insights */}
-        <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-indigo-50/50 to-white dark:from-indigo-950/10 dark:to-slate-900">
+        <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-[#EEF6FF]/70 to-white  ">
           <CardHeader>
-            <div className="flex items-center gap-2 text-indigo-600">
+            <div className="flex items-center gap-2 text-[#4F9CF9]">
               <i className="ki-solid ki-abstract-26 text-lg" aria-hidden="true" />
 <CardTitle className="text-xl">AI Analysis</CardTitle>
             </div>
@@ -275,8 +275,8 @@ export default function Insights() {
               </>
             ) : (
               <div className="py-12 text-center">
-                <p className="text-slate-500">AI insights have not been generated yet.</p>
-                <p className="mt-2 text-sm text-slate-400">Click Generate AI Insights when you want to use AI tokens.</p>
+                <p className="text-[#6B7280]">AI insights have not been generated yet.</p>
+                <p className="mt-2 text-sm text-[#6B7280]">Click Generate AI Insights when you want to use AI tokens.</p>
               </div>
             )}
           </CardContent>
@@ -290,9 +290,9 @@ export default function Insights() {
             </CardHeader>
             <CardContent className="h-[250px]">
               {transactionsLoading ? (
-                <div className="h-full flex items-center justify-center text-slate-500">Loading data...</div>
+                <div className="h-full flex items-center justify-center text-[#6B7280]">Loading data...</div>
               ) : categoryData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-slate-500">No data</div>
+                <div className="h-full flex items-center justify-center text-[#6B7280]">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={categoryData}>
@@ -300,7 +300,7 @@ export default function Insights() {
                     <XAxis dataKey="name" fontSize={12} />
                     <YAxis tickFormatter={(v) => `₹${v}`} fontSize={11} />
                     <Tooltip />
-                    <Bar dataKey="value" fill="#6366f1" radius={[4,4,0,0]} />
+                    <Bar dataKey="value" fill="#4F9CF9" radius={[4,4,0,0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

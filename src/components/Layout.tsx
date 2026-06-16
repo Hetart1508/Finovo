@@ -55,15 +55,15 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="app-shell flex h-screen overflow-hidden">
-      <aside className="hidden w-72 flex-col border-r border-white/10 bg-slate-950 text-white lg:flex">
+      <aside className="hidden w-72 flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
         <div className="p-6">
           <div className="flex items-center gap-3">
-            <div className="kt-icon-badge bg-emerald-400 text-lg font-black text-slate-950 shadow-lg shadow-emerald-500/20">
+            <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
               <i className="fonticon fonticon-finance" />
             </div>
             <div>
               <h1 className="text-xl font-bold">FinSight AI</h1>
-              <p className="text-xs font-medium text-slate-400">Expense intelligence</p>
+              <p className="text-xs font-medium text-[#6B7280]">Expense intelligence</p>
             </div>
           </div>
         </div>
@@ -76,8 +76,8 @@ export default function Layout({ children }: LayoutProps) {
               className={cn(
                 "kt-nav-item metronic-action flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-all",
                 location.pathname === item.path
-                  ? "bg-white text-slate-950 shadow-lg shadow-black/10"
-                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+                  ? "bg-[#EEF6FF] text-[#4F9CF9] shadow-sm"
+                  : "text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]"
               )}
             >
               <i className={cn("ki-hover-rise text-lg", item.icon)} data-kt-icon-button />
@@ -86,19 +86,19 @@ export default function Layout({ children }: LayoutProps) {
           ))}
         </nav>
 
-        <div className="border-t border-white/10 p-4">
-          <div className="mb-3 flex items-center gap-3 rounded-lg bg-white/5 px-3 py-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10">
-              <i className="ki-outline ki-user text-slate-200" data-kt-icon-button />
+        <div className="border-t border-[#E5E7EB] p-4">
+          <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
+              <i className="ki-outline ki-user text-[#4F9CF9]" data-kt-icon-button />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
-              <p className="truncate text-xs text-slate-400">{user.email}</p>
+              <p className="truncate text-xs text-[#6B7280]">{user.email}</p>
             </div>
           </div>
           <Button 
             variant="ghost" 
-            className="h-10 w-full justify-start text-slate-300 hover:bg-red-500/10 hover:text-red-200"
+            className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"
             onClick={handleLogout}
           >
             <i className="ki-outline ki-exit-right mr-2" data-kt-icon-button />
@@ -110,8 +110,8 @@ export default function Layout({ children }: LayoutProps) {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="surface-panel m-4 mb-0 flex h-16 items-center justify-between rounded-lg px-5">
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-400">Workspace</p>
-            <h2 className="text-lg font-bold text-slate-950">
+            <p className="text-xs font-semibold uppercase text-[#6B7280]">Workspace</p>
+            <h2 className="text-lg font-bold text-[#1F2937]">
               {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
             </h2>
           </div>

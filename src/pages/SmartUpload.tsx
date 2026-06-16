@@ -109,33 +109,33 @@ export default function SmartUpload() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Smart Bill Upload</h1>
-        <p className="text-slate-500">Upload a receipt or invoice PDF/image, and Gemini will extract the details for you.</p>
+        <p className="text-[#6B7280]">Upload a receipt or invoice PDF/image, and Gemini will extract the details for you.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Upload Area */}
-        <Card className="border-dashed border-2 border-slate-200 dark:border-slate-800 bg-transparent">
+        <Card className="border-dashed border-2 border-[#E5E7EB] dark:border-[#E5E7EB] bg-transparent">
           <CardContent className="p-0">
             {!preview ? (
               <div 
                 {...getRootProps()} 
                 className={cn(
                   "h-[400px] flex flex-col items-center justify-center cursor-pointer transition-colors p-8 text-center",
-                  isDragActive ? "bg-indigo-50 dark:bg-indigo-900/10" : "hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                  isDragActive ? "bg-[#EEF6FF] bg-[#EEF6FF]" : "hover:bg-[#FAFBFC] dark:hover:bg-[#FAFBFC]/50"
                 )}
               >
                 <input {...getInputProps()} />
-                <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
-                  <i className="ki-outline ki-cloud-add text-3xl text-indigo-600" aria-hidden="true" />
+                <div className="w-16 h-16 bg-[#EEF6FF] bg-[#EEF6FF] rounded-full flex items-center justify-center mb-4">
+                  <i className="ki-outline ki-cloud-add text-3xl text-[#4F9CF9]" aria-hidden="true" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
-                <p className="text-sm text-slate-500 mt-2">Supports PDF, JPG, JPEG, and PNG</p>
+                <p className="text-sm text-[#6B7280] mt-2">Supports PDF, JPG, JPEG, and PNG</p>
               </div>
             ) : (
               <div className="relative h-[400px] group">
                 {file?.type === 'application/pdf' ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg">
-                    <i className="ki-outline ki-document mb-2 text-5xl text-slate-400" aria-hidden="true" />
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#EEF6FF] dark:bg-[#EEF6FF] rounded-lg">
+                    <i className="ki-outline ki-document mb-2 text-5xl text-[#6B7280]" aria-hidden="true" />
                     <p className="font-medium">{file.name}</p>
                   </div>
                 ) : (
@@ -157,10 +157,10 @@ export default function SmartUpload() {
         {/* Extraction Results */}
         <div className="space-y-6">
           {extractionError ? (
-            <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-dashed border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-900/20">
-              <i className="ki-solid ki-cross mb-4 text-4xl text-red-500" aria-hidden="true" />
-              <h3 className="font-semibold text-red-700 dark:text-red-300">Extraction Failed</h3>
-              <p className="text-sm text-red-600 dark:text-red-400 mt-2 max-w-md">{extractionError}</p>
+            <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-dashed border-[#FFF1F1] bg-[#FFF1F1]/50 ">
+              <i className="ki-solid ki-cross mb-4 text-4xl text-[#FF6B6B]" aria-hidden="true" />
+              <h3 className="font-semibold text-[#FF6B6B] ">Extraction Failed</h3>
+              <p className="text-sm text-[#FF6B6B]  mt-2 max-w-md">{extractionError}</p>
               <div className="space-y-2 mt-6">
                 <Button className="w-full" onClick={handleExtract} disabled={loading}>
                   {loading ? (
@@ -178,12 +178,12 @@ export default function SmartUpload() {
               </div>
             </Card>
           ) : !extractedData ? (
-            <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-slate-50 dark:bg-slate-900">
-              <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center shadow-sm mb-4">
-                <i className={cn("ki-solid ki-refresh text-2xl text-indigo-600", loading && "animate-spin")} aria-hidden="true" />
+            <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-[#FAFBFC] dark:bg-[#FAFBFC]">
+              <div className="w-12 h-12 bg-white dark:bg-[#EEF6FF] rounded-full flex items-center justify-center shadow-sm mb-4">
+                <i className={cn("ki-solid ki-refresh text-2xl text-[#4F9CF9]", loading && "animate-spin")} aria-hidden="true" />
               </div>
               <h3 className="font-semibold">Gemini Extraction Ready</h3>
-              <p className="text-sm text-slate-500 mt-2">Upload complete. Click to analyze.</p>
+              <p className="text-sm text-[#6B7280] mt-2">Upload complete. Click to analyze.</p>
               <Button 
                 className="mt-6 w-full" 
                 onClick={handleExtract} 
@@ -202,19 +202,19 @@ export default function SmartUpload() {
                       <p className="text-sm font-medium mt-1">
                         Confidence: <span className={cn(
                           'px-2 py-1 rounded-full text-xs',
-                          extractedData!.confidence === 'high' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50' :
-                          extractedData!.confidence === 'medium' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50' :
-                          'bg-red-100 text-red-800 dark:bg-red-900/50'
+                          extractedData!.confidence === 'high' ? 'bg-[#EAFBF0] text-[#34C759] ' :
+                          extractedData!.confidence === 'medium' ? 'bg-[#FFF7E8] text-[#B87516] ' :
+                          'bg-[#FFF1F1] text-[#FF6B6B] '
                         )}>{extractedData!.confidence.toUpperCase()}</span>
                       </p>
                       {extractedData.data.provider ? (
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-2 text-xs text-[#6B7280]">
                           {extractedData.data.provider === 'gemini' ? 'Gemini' : extractedData.data.provider}
                           {extractedData.data.model ? ` (${extractedData.data.model})` : ''}
                         </p>
                       ) : null}
                     </div>
-                    <i className="ki-solid ki-check text-2xl text-emerald-500" aria-hidden="true" />
+                    <i className="ki-solid ki-check text-2xl text-[#34C759]" aria-hidden="true" />
                   </div>
                   <CardDescription>Review and edit if needed before saving.</CardDescription>
                 </CardHeader>
@@ -267,11 +267,11 @@ export default function SmartUpload() {
                       </Select>
                     </div>
                     {extractedData.data.rawText ? (
-                      <details className="rounded-md border border-slate-200 bg-slate-50 p-3 text-left dark:border-slate-800 dark:bg-slate-900">
-                        <summary className="cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-200">
+                      <details className="rounded-md border border-[#E5E7EB] bg-[#FAFBFC] p-3 text-left dark:border-[#E5E7EB] dark:bg-[#FAFBFC]">
+                        <summary className="cursor-pointer text-sm font-medium text-[#1F2937] text-[#1F2937]">
                           OCR text
                         </summary>
-                        <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                        <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-[#6B7280] text-[#6B7280]">
                           {extractedData.data.rawText}
                         </pre>
                       </details>
@@ -279,7 +279,7 @@ export default function SmartUpload() {
                   </CardContent>
                   <CardFooter className="flex gap-4">
                     <Button variant="outline" className="flex-1" onClick={() => setExtractedData(null)}>Reset</Button>
-                    <Button className="flex-1 bg-indigo-600 hover:bg-indigo-700" type="submit" disabled={loading}>
+                    <Button className="flex-1 bg-[#4F9CF9] hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                       {loading ? "Saving..." : "Save Transaction"}
                     </Button>
                   </CardFooter>

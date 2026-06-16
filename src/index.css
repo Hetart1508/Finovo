@@ -50,72 +50,79 @@
 }
 
 :root {
-    --background: #0F172A;
-    --foreground: #F8FAFC;
-    --card: #1E293B;
-    --card-foreground: #F8FAFC;
-    --popover: #1E293B;
-    --popover-foreground: #F8FAFC;
-    --primary: #4F46E5;
-    --primary-foreground: #F8FAFC;
-    --secondary: #7C3AED;
-    --secondary-foreground: #F8FAFC;
-    --muted: #334155;
-    --muted-foreground: #94A3B8;
-    --accent: #7C3AED;
-    --accent-foreground: #F8FAFC;
-    --destructive: #EF4444;
-    --border: #334155;
-    --input: #334155;
-    --ring: #4F46E5;
-    --chart-1: #4F46E5;
-    --chart-2: #10B981;
-    --chart-3: #F59E0B;
-    --chart-4: #EF4444;
-    --chart-5: #7C3AED;
+    --background: #FAFBFC;
+    --foreground: #1F2937;
+    --card: #FFFFFF;
+    --card-foreground: #1F2937;
+    --popover: #FFFFFF;
+    --popover-foreground: #1F2937;
+    --primary: #4F9CF9;
+    --primary-foreground: #FFFFFF;
+    --secondary: #EEF6FF;
+    --secondary-foreground: #1F2937;
+    --muted: #EEF6FF;
+    --muted-foreground: #6B7280;
+    --accent: #EEF6FF;
+    --accent-foreground: #1F2937;
+    --destructive: #FF6B6B;
+    --border: #E5E7EB;
+    --input: #E5E7EB;
+    --ring: #4F9CF9;
+    --chart-1: #4F9CF9;
+    --chart-2: #34C759;
+    --chart-3: #FFB84D;
+    --chart-4: #FF6B6B;
+    --chart-5: #6B7280;
     --radius: 0.55rem;
-    --sidebar: #0F172A;
-    --sidebar-foreground: #F8FAFC;
-    --sidebar-primary: #4F46E5;
-    --sidebar-primary-foreground: #F8FAFC;
-    --sidebar-accent: #1E293B;
-    --sidebar-accent-foreground: #F8FAFC;
-    --sidebar-border: #334155;
-    --sidebar-ring: #4F46E5;
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #1F2937;
+    --sidebar-primary: #4F9CF9;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #EEF6FF;
+    --sidebar-accent-foreground: #1F2937;
+    --sidebar-border: #E5E7EB;
+    --sidebar-ring: #4F9CF9;
+    --color-primary-soft: #EEF6FF;
+    --color-success: #34C759;
+    --color-success-soft: #EAFBF0;
+    --color-expense: #FF6B6B;
+    --color-expense-soft: #FFF1F1;
+    --color-warning: #FFB84D;
+    --color-warning-soft: #FFF7E8;
 }
 
 .dark {
-    --background: #0F172A;
-    --foreground: #F8FAFC;
-    --card: #1E293B;
-    --card-foreground: #F8FAFC;
-    --popover: #1E293B;
-    --popover-foreground: #F8FAFC;
-    --primary: #4F46E5;
-    --primary-foreground: #F8FAFC;
-    --secondary: #7C3AED;
-    --secondary-foreground: #F8FAFC;
-    --muted: #334155;
-    --muted-foreground: #94A3B8;
-    --accent: #7C3AED;
-    --accent-foreground: #F8FAFC;
-    --destructive: #EF4444;
-    --border: #334155;
-    --input: #334155;
-    --ring: #4F46E5;
-    --chart-1: #4F46E5;
-    --chart-2: #10B981;
-    --chart-3: #F59E0B;
-    --chart-4: #EF4444;
-    --chart-5: #7C3AED;
-    --sidebar: #0F172A;
-    --sidebar-foreground: #F8FAFC;
-    --sidebar-primary: #4F46E5;
-    --sidebar-primary-foreground: #F8FAFC;
-    --sidebar-accent: #1E293B;
-    --sidebar-accent-foreground: #F8FAFC;
-    --sidebar-border: #334155;
-    --sidebar-ring: #4F46E5;
+    --background: #FAFBFC;
+    --foreground: #1F2937;
+    --card: #FFFFFF;
+    --card-foreground: #1F2937;
+    --popover: #FFFFFF;
+    --popover-foreground: #1F2937;
+    --primary: #4F9CF9;
+    --primary-foreground: #FFFFFF;
+    --secondary: #EEF6FF;
+    --secondary-foreground: #1F2937;
+    --muted: #EEF6FF;
+    --muted-foreground: #6B7280;
+    --accent: #EEF6FF;
+    --accent-foreground: #1F2937;
+    --destructive: #FF6B6B;
+    --border: #E5E7EB;
+    --input: #E5E7EB;
+    --ring: #4F9CF9;
+    --chart-1: #4F9CF9;
+    --chart-2: #34C759;
+    --chart-3: #FFB84D;
+    --chart-4: #FF6B6B;
+    --chart-5: #6B7280;
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #1F2937;
+    --sidebar-primary: #4F9CF9;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #EEF6FF;
+    --sidebar-accent-foreground: #1F2937;
+    --sidebar-border: #E5E7EB;
+    --sidebar-ring: #4F9CF9;
 }
 
 @layer base {
@@ -131,10 +138,7 @@
     }
   body {
     @apply bg-background text-foreground;
-    background:
-      radial-gradient(circle at top left, rgba(79, 70, 229, 0.16), transparent 32rem),
-      radial-gradient(circle at bottom right, rgba(124, 58, 237, 0.12), transparent 34rem),
-      var(--background);
+    background: var(--background);
     font-family: var(--font-sans);
     letter-spacing: 0;
     }
@@ -166,7 +170,7 @@
 
 @layer components {
   [data-slot="card"] {
-    @apply border border-[#334155] bg-[#1E293B]/95 text-[#F8FAFC] shadow-[0_18px_45px_rgba(2,6,23,0.22)] ring-0;
+    @apply border border-[#E5E7EB] bg-white text-[#1F2937] shadow-[0_16px_40px_rgba(31,41,55,0.06)] ring-0;
   }
 
   [data-slot="button"][data-size="default"] {
@@ -188,15 +192,31 @@
   }
 
   .app-shell {
-    @apply min-h-screen bg-transparent text-[#F8FAFC];
+    @apply min-h-screen bg-[#FAFBFC] text-[#1F2937];
   }
 
   .surface-panel {
-    @apply border border-[#334155] bg-[#1E293B]/80 shadow-[0_20px_60px_rgba(2,6,23,0.28)] backdrop-blur-xl;
+    @apply border border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.06)] backdrop-blur-xl;
   }
 
   .metric-card {
-    @apply border border-[#334155] bg-[#1E293B]/95 shadow-[0_16px_45px_rgba(2,6,23,0.22)];
+    @apply border border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.06)];
+  }
+
+  .icon-income {
+    @apply bg-[#EAFBF0] text-[#34C759];
+  }
+
+  .icon-expense {
+    @apply bg-[#FFF1F1] text-[#FF6B6B];
+  }
+
+  .icon-ai {
+    @apply bg-[#EEF6FF] text-[#4F9CF9];
+  }
+
+  .icon-upcoming {
+    @apply bg-[#FFF7E8] text-[#FFB84D];
   }
 
   .Toastify__toast {
@@ -211,58 +231,58 @@
   }
 
   .Toastify__toast--success {
-    background: #10B981;
+    background: #34C759;
   }
 
   .Toastify__toast--error {
-    background: #EF4444;
+    background: #FF6B6B;
   }
 
   .Toastify__toast--warning {
-    background: #F59E0B;
+    background: #FFB84D;
   }
 }
 
 [data-slot="button"].bg-primary,
 [data-slot="button"]:not([class*="bg-"]):not([data-slot="dialog-close"]) {
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.22);
+  box-shadow: 0 10px 24px rgba(79, 156, 249, 0.22);
 }
 
 [data-slot="input"],
 [data-slot="select-trigger"],
 .react-datepicker__input-container input {
-  background-color: rgba(15, 23, 42, 0.5) !important;
-  color: #F8FAFC !important;
+  background-color: #FFFFFF !important;
+  color: #1F2937 !important;
 }
 
 [data-slot="input"]::placeholder,
 .react-datepicker__input-container input::placeholder {
-  color: #94A3B8 !important;
+  color: #6B7280 !important;
 }
 
 .recharts-cartesian-axis-tick-value,
 .recharts-legend-item-text {
-  fill: #94A3B8;
-  color: #94A3B8 !important;
+  fill: #6B7280;
+  color: #6B7280 !important;
 }
 
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: #1E293B !important;
-  border: 1px solid #334155 !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #E5E7EB !important;
   border-radius: 8px !important;
-  color: #F8FAFC !important;
-  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.32) !important;
+  color: #1F2937 !important;
+  box-shadow: 0 16px 40px rgba(31, 41, 55, 0.12) !important;
 }
 
 .react-datepicker {
-  border-color: #334155 !important;
-  background-color: #1E293B !important;
-  color: #F8FAFC !important;
+  border-color: #E5E7EB !important;
+  background-color: #FFFFFF !important;
+  color: #1F2937 !important;
 }
 
 .react-datepicker__header {
-  border-color: #334155 !important;
-  background-color: #0F172A !important;
+  border-color: #E5E7EB !important;
+  background-color: #EEF6FF !important;
 }
 
 .react-datepicker__current-month,
@@ -270,20 +290,20 @@
 .react-datepicker-year-header,
 .react-datepicker__day-name,
 .react-datepicker__day {
-  color: #F8FAFC !important;
+  color: #1F2937 !important;
 }
 
 .react-datepicker__day:hover,
 .react-datepicker__month-text:hover,
 .react-datepicker__quarter-text:hover,
 .react-datepicker__year-text:hover {
-  background-color: #334155 !important;
+  background-color: #EEF6FF !important;
 }
 
 .react-datepicker__day--selected,
 .react-datepicker__month-text--selected,
 .react-datepicker__quarter-text--selected,
 .react-datepicker__year-text--selected {
-  background-color: #4F46E5 !important;
-  color: #F8FAFC !important;
+  background-color: #4F9CF9 !important;
+  color: #FFFFFF !important;
 }

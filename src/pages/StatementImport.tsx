@@ -143,7 +143,7 @@ export default function StatementImport() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Statement Import</h1>
-          <p className="text-slate-500">Extract income and expenses from a bank, card, UPI, or wallet statement before saving them.</p>
+          <p className="text-[#6B7280]">Extract income and expenses from a bank, card, UPI, or wallet statement before saving them.</p>
         </div>
 
         <input
@@ -163,26 +163,26 @@ export default function StatementImport() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="border-none shadow-sm">
           <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Statement</p>
+            <p className="text-sm text-[#6B7280]">Statement</p>
             <div className="mt-2 flex items-center gap-3">
-              <i className="ki-outline ki-document text-lg text-indigo-600" aria-hidden="true" />
+              <i className="ki-outline ki-document text-lg text-[#4F9CF9]" aria-hidden="true" />
               <p className="min-w-0 truncate font-semibold">{statementFile ? statementFile.name : 'No file selected'}</p>
             </div>
-            {model ? <p className="mt-2 text-xs text-slate-400">Parsed with {model}</p> : null}
+            {model ? <p className="mt-2 text-xs text-[#6B7280]">Parsed with {model}</p> : null}
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
           <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Income Found</p>
-            <p className="mt-2 text-2xl font-black text-emerald-600">₹{totals.income.toLocaleString()}</p>
+            <p className="text-sm text-[#6B7280]">Income Found</p>
+            <p className="mt-2 text-2xl font-black text-[#34C759]">₹{totals.income.toLocaleString()}</p>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-sm">
           <CardContent className="p-5">
-            <p className="text-sm text-slate-500">Expense Found</p>
-            <p className="mt-2 text-2xl font-black text-rose-600">₹{totals.expense.toLocaleString()}</p>
+            <p className="text-sm text-[#6B7280]">Expense Found</p>
+            <p className="mt-2 text-2xl font-black text-[#FF6B6B]">₹{totals.expense.toLocaleString()}</p>
           </CardContent>
         </Card>
       </div>
@@ -194,7 +194,7 @@ export default function StatementImport() {
             <CardDescription>Review extracted income and outgoing rows. Nothing is saved until you approve.</CardDescription>
           </div>
           <Button
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            className="gap-2 bg-[#34C759] hover:bg-[#2EB851]"
             onClick={handleApproveAll}
             disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
           >
@@ -205,7 +205,7 @@ export default function StatementImport() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+              <TableRow className="hover:bg-transparent border-[#E5E7EB] dark:border-[#E5E7EB]">
                 <TableHead className="w-[100px]">Type</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
@@ -218,36 +218,36 @@ export default function StatementImport() {
             <TableBody>
               {previewLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-slate-500">Extracting statement transactions...</TableCell>
+                  <TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">Extracting statement transactions...</TableCell>
                 </TableRow>
               ) : transactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-slate-500">
+                  <TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">
                     {approvedCount ? `Saved ${approvedCount} transactions. Select another statement to import more.` : 'Select a statement file to preview transactions.'}
                   </TableCell>
                 </TableRow>
               ) : (
                 transactions.map((transaction, index) => (
-                  <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-slate-100 dark:border-slate-800">
+                  <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB] dark:border-[#E5E7EB]">
                     <TableCell>
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center",
-                        transaction.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                        transaction.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
                       )}>
                         <i className={cn("ki-solid text-base", transaction.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">
+                    <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
                       {format(parseISO(transaction.date), 'dd MMM yyyy')}
                     </TableCell>
                     <TableCell className="font-medium">{transaction.description || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-normal">{transaction.category}</Badge>
                     </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">{transaction.payment_mode}</TableCell>
+                    <TableCell className="text-[#6B7280] dark:text-[#6B7280]">{transaction.payment_mode}</TableCell>
                     <TableCell className={cn(
                       "text-right font-bold",
-                      transaction.type === 'income' ? "text-emerald-600" : "text-slate-900 dark:text-white"
+                      transaction.type === 'income' ? "text-[#34C759]" : "text-[#1F2937] text-[#FF6B6B]"
                     )}>
                       {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
                     </TableCell>
@@ -255,7 +255,7 @@ export default function StatementImport() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-[#6B7280] hover:text-[#FF6B6B]"
                         onClick={() => handleRemovePreviewRow(index)}
                       >
                         <i className="ki-outline ki-trash text-base" aria-hidden="true" />
@@ -269,9 +269,9 @@ export default function StatementImport() {
         </CardContent>
       </Card>
 
-      <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
-        <i className="ki-outline ki-warning mt-0.5 text-base text-amber-600" aria-hidden="true" />
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+      <div className="flex items-start gap-2 rounded-lg bg-[#FFF7E8] p-3 ">
+        <i className="ki-outline ki-warning mt-0.5 text-base text-[#FFB84D]" aria-hidden="true" />
+        <p className="text-xs text-[#B87516] ">
           Statement extraction uses AI when you upload the file. Saving approved rows does not call AI again.
         </p>
       </div>

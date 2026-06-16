@@ -113,7 +113,7 @@ export default function CalendarView() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Expense Calendar</h1>
-          <p className="text-slate-500">Track your daily spending patterns and stay within limits.</p>
+          <p className="text-[#6B7280]">Track your daily spending patterns and stay within limits.</p>
         </div>
         
         <Popover>
@@ -127,7 +127,7 @@ export default function CalendarView() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Daily Spending Limit (₹)</Label>
-                <p className="text-xs text-slate-500">Dates exceeding this will be highlighted in red.</p>
+                <p className="text-xs text-[#6B7280]">Dates exceeding this will be highlighted in red.</p>
                 <Input 
                   type="number" 
                   value={threshold} 
@@ -143,8 +143,8 @@ export default function CalendarView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 border-none shadow-sm overflow-visible">
           <CardContent className="p-0">
-            <div className="overflow-visible rounded-lg border border-slate-200 bg-white">
-              <div className="flex items-center justify-between rounded-t-lg bg-red-600 px-4 py-3 text-white sm:px-6">
+            <div className="overflow-visible rounded-lg border border-[#E5E7EB] bg-white">
+              <div className="flex items-center justify-between rounded-t-lg bg-[#FF6B6B] px-4 py-3 text-white sm:px-6">
                 <Button
                   type="button"
                   variant="ghost"
@@ -195,7 +195,7 @@ export default function CalendarView() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-red-100">
+                  <p className="mt-2 text-sm font-semibold text-white/85">
                     Showing {format(visibleMonth, 'MMMM yyyy')}
                   </p>
                 </div>
@@ -218,7 +218,7 @@ export default function CalendarView() {
                       key={day}
                       className={cn(
                         "flex h-8 items-center justify-center text-[10px] font-bold uppercase tracking-wide sm:text-xs",
-                        index === 0 || index === 6 ? "text-red-600" : "text-slate-500"
+                        index === 0 || index === 6 ? "text-[#FF6B6B]" : "text-[#6B7280]"
                       )}
                     >
                       {day.slice(0, 3)}
@@ -252,11 +252,11 @@ export default function CalendarView() {
                         style={balanceColorStyle}
                         className={cn(
                           "group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl",
-                          !hasBalanceColor && (isWeekend ? "text-red-600" : "text-slate-950"),
-                          isToday && !isSelected && !hasBalanceColor && "border-slate-300",
-                          isOverLimit && !isSelected && dailySummary.net < 0 && "ring-2 ring-rose-500",
-                          isSelected && "bg-red-600 text-white shadow-md shadow-red-600/20",
-                          !hasBalanceColor && "hover:border-red-300 hover:bg-red-50 hover:text-red-700",
+                          !hasBalanceColor && (isWeekend ? "text-[#FF6B6B]" : "text-[#1F2937]"),
+                          isToday && !isSelected && !hasBalanceColor && "border-[#E5E7EB]",
+                          isOverLimit && !isSelected && dailySummary.net < 0 && "ring-2 ring-[#FF6B6B]",
+                          isSelected && "bg-[#FF6B6B] text-white shadow-md shadow-[#FF6B6B]/20",
+                          !hasBalanceColor && "hover:border-[#FF6B6B] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]",
                           hasBalanceColor && "hover:brightness-95"
                         )}
                         aria-label={`${format(day, 'dd MMMM yyyy')}: income ₹${dailySummary.income}, expense ₹${dailySummary.expense}, balance ₹${dailySummary.net}`}
@@ -269,37 +269,37 @@ export default function CalendarView() {
                               isSelected
                                 ? "bg-white"
                                 : dailySummary.net >= 0
-                                  ? "bg-emerald-700"
-                                  : "bg-rose-700"
+                                  ? "bg-[#34C759]"
+                                  : "bg-[#FF6B6B]"
                             )}
                           />
                         )}
                         <span
                           className={cn(
-                            "pointer-events-none absolute z-50 w-44 rounded-md border border-slate-200 bg-white p-3 text-left text-xs font-medium text-slate-700 opacity-0 shadow-xl shadow-slate-900/15 transition group-hover:opacity-100 group-focus-visible:opacity-100",
+                            "pointer-events-none absolute z-50 w-44 rounded-md border border-[#E5E7EB] bg-white p-3 text-left text-xs font-medium text-[#1F2937] opacity-0 shadow-xl shadow-[#1F2937]/15 transition group-hover:opacity-100 group-focus-visible:opacity-100",
                             columnIndex === 0 && "left-0",
                             columnIndex === 6 && "right-0",
                             columnIndex > 0 && columnIndex < 6 && "left-1/2 -translate-x-1/2",
                             shouldOpenUp ? "bottom-full mb-2" : "top-full mt-2"
                           )}
                         >
-                          <span className="block text-sm font-bold text-slate-950">{format(day, 'dd MMM yyyy')}</span>
+                          <span className="block text-sm font-bold text-[#1F2937]">{format(day, 'dd MMM yyyy')}</span>
                           <span className="mt-2 flex items-center justify-between">
-                            <span className="text-slate-500">Income</span>
-                            <span className="font-bold text-emerald-600">₹{dailySummary.income.toLocaleString()}</span>
+                            <span className="text-[#6B7280]">Income</span>
+                            <span className="font-bold text-[#34C759]">₹{dailySummary.income.toLocaleString()}</span>
                           </span>
                           <span className="mt-1 flex items-center justify-between">
-                            <span className="text-slate-500">Expense</span>
-                            <span className="font-bold text-rose-600">₹{dailySummary.expense.toLocaleString()}</span>
+                            <span className="text-[#6B7280]">Expense</span>
+                            <span className="font-bold text-[#FF6B6B]">₹{dailySummary.expense.toLocaleString()}</span>
                           </span>
-                          <span className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1">
-                            <span className="text-slate-500">Balance</span>
+                          <span className="mt-1 flex items-center justify-between border-t border-[#E5E7EB] pt-1">
+                            <span className="text-[#6B7280]">Balance</span>
                             <span
                               className={cn(
                                 "font-bold",
-                                dailySummary.net > 0 && "text-emerald-600",
-                                dailySummary.net < 0 && "text-rose-600",
-                                dailySummary.net === 0 && "text-slate-700"
+                                dailySummary.net > 0 && "text-[#34C759]",
+                                dailySummary.net < 0 && "text-[#FF6B6B]",
+                                dailySummary.net === 0 && "text-[#1F2937]"
                               )}
                             >
                               {dailySummary.net >= 0 ? '+' : '-'}₹{Math.abs(dailySummary.net).toLocaleString()}
@@ -323,15 +323,15 @@ export default function CalendarView() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4 rounded-xl bg-slate-50 p-4 dark:bg-slate-900">
+              <div className="space-y-4 rounded-xl bg-[#FAFBFC] p-4 dark:bg-[#FAFBFC]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500">Net Balance</p>
+                    <p className="text-sm text-[#6B7280]">Net Balance</p>
                     <h3
                       className={cn(
                         "mt-1 text-2xl font-bold",
-                        selectedDaySummary.net > 0 && "text-emerald-600",
-                        selectedDaySummary.net < 0 && "text-rose-600"
+                        selectedDaySummary.net > 0 && "text-[#34C759]",
+                        selectedDaySummary.net < 0 && "text-[#FF6B6B]"
                       )}
                     >
                       {selectedDaySummary.net >= 0 ? '+' : '-'}₹{Math.abs(selectedDaySummary.net).toLocaleString()}
@@ -345,36 +345,36 @@ export default function CalendarView() {
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-white p-3 dark:bg-slate-950">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Income</p>
-                    <p className="mt-1 text-base font-bold text-emerald-600">₹{selectedDaySummary.income.toLocaleString()}</p>
+                  <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Income</p>
+                    <p className="mt-1 text-base font-bold text-[#34C759]">₹{selectedDaySummary.income.toLocaleString()}</p>
                   </div>
-                  <div className="rounded-lg bg-white p-3 dark:bg-slate-950">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Expense</p>
-                    <p className="mt-1 text-base font-bold text-rose-600">₹{selectedDaySummary.expense.toLocaleString()}</p>
+                  <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Expense</p>
+                    <p className="mt-1 text-base font-bold text-[#FF6B6B]">₹{selectedDaySummary.expense.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm font-semibold uppercase tracking-wider text-slate-400">Transactions</p>
+                <p className="text-sm font-semibold uppercase tracking-wider text-[#6B7280]">Transactions</p>
                 {selectedDayTransactions.length > 0 ? (
                   selectedDayTransactions.map(t => (
-                    <div key={t.id} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                    <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#E5E7EB] dark:border-[#E5E7EB] last:border-0">
                       <div>
                         <p className="text-sm font-medium">{t.description || t.category}</p>
-                        <p className="text-xs text-slate-500">{t.category} • {t.payment_mode}</p>
+                        <p className="text-xs text-[#6B7280]">{t.category} • {t.payment_mode}</p>
                       </div>
                       <p className={cn(
                         "text-sm font-bold",
-                        t.type === 'income' ? "text-emerald-600" : "text-slate-900 dark:text-white"
+                        t.type === 'income' ? "text-[#34C759]" : "text-[#1F2937] text-[#FF6B6B]"
                       )}>
                         {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
                       </p>
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-slate-500 italic py-4">No transactions on this day.</p>
+                  <p className="text-sm text-[#6B7280] italic py-4">No transactions on this day.</p>
                 )}
               </div>
             </CardContent>

@@ -93,7 +93,7 @@ export default function Transactions() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
-          <i className="ki-outline ki-search absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400" aria-hidden="true" />
+          <i className="ki-outline ki-search absolute left-3 top-1/2 -translate-y-1/2 text-base text-[#6B7280]" aria-hidden="true" />
           <Input 
             placeholder="Search transactions..." 
             className="pl-10" 
@@ -117,7 +117,7 @@ export default function Transactions() {
 
           <Dialog>
             <DialogTrigger>
-              <Button className="bg-indigo-600 hover:bg-indigo-700">
+              <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]">
                 <i className="ki-outline ki-plus mr-2 text-base" aria-hidden="true" />
                 Add Transaction
               </Button>
@@ -220,7 +220,7 @@ export default function Transactions() {
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+              <TableRow className="hover:bg-transparent border-[#E5E7EB] dark:border-[#E5E7EB]">
                 <TableHead className="w-[100px]">Type</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
@@ -233,34 +233,34 @@ export default function Transactions() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">Loading transactions...</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-[#6B7280]">Loading transactions...</TableCell>
                 </TableRow>
               ) : filteredTransactions.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-slate-500">No transactions found.</TableCell>
+                  <TableCell colSpan={7} className="text-center py-8 text-[#6B7280]">No transactions found.</TableCell>
                 </TableRow>
               ) : (
                 filteredTransactions.map((t) => (
-                  <TableRow key={t.id} className="border-slate-100 dark:border-slate-800">
+                  <TableRow key={t.id} className="border-[#E5E7EB] dark:border-[#E5E7EB]">
                     <TableCell>
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center",
-                        t.type === 'income' ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                        t.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
                       )}>
                         <i className={cn("ki-solid text-base", t.type === 'income' ? "ki-arrow-up-right" : "ki-arrow-down-left")} aria-hidden="true" />
                       </div>
                     </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">
+                    <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
                       {format(parseISO(t.date), 'dd MMM yyyy')}
                     </TableCell>
                     <TableCell className="font-medium">{t.description || '-'}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-normal">{t.category}</Badge>
                     </TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400">{t.payment_mode}</TableCell>
+                    <TableCell className="text-[#6B7280] dark:text-[#6B7280]">{t.payment_mode}</TableCell>
                     <TableCell className={cn(
                       "text-right font-bold",
-                      t.type === 'income' ? "text-emerald-600" : "text-slate-900 dark:text-white"
+                      t.type === 'income' ? "text-[#34C759]" : "text-[#1F2937] text-[#FF6B6B]"
                     )}>
                       {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
                     </TableCell>
@@ -268,7 +268,7 @@ export default function Transactions() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-[#6B7280] hover:text-[#FF6B6B]"
                         onClick={() => handleDelete(t.id)}
                       >
                         <i className="ki-outline ki-trash text-base" aria-hidden="true" />
