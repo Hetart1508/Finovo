@@ -53,12 +53,12 @@ export default function Layout({ children }: LayoutProps) {
   }, [theme]);
 
   const navItems = [
-    { name: 'Dashboard', path: '/', icon: 'ki-duotone ki-element-11' },
-    { name: 'Transactions', path: '/transactions', icon: 'ki-outline ki-receipt' },
-    { name: 'Smart Upload', path: '/upload', icon: 'ki-outline ki-cloud-add' },
-    { name: 'Statement Import', path: '/statement-import', icon: 'ki-outline ki-file-sheet' },
-    { name: 'Calendar', path: '/calendar', icon: 'ki-outline ki-calendar' },
-    { name: 'AI Insights', path: '/insights', icon: 'ki-outline ki-stars' },
+    { name: 'Dashboard', path: '/', icon: 'ki-filled ki-element-11' },
+    { name: 'Transactions', path: '/transactions', icon: 'ki-filled ki-note-2' },
+    { name: 'Smart Upload', path: '/upload', icon: 'ki-filled ki-scan-barcode' },
+    { name: 'Statement Import', path: '/statement-import', icon: 'ki-filled ki-file-up' },
+    { name: 'Calendar', path: '/calendar', icon: 'ki-filled ki-calendar' },
+    { name: 'AI Insights', path: '/insights', icon: 'ki-filled ki-magic-star' },
   ];
 
   return (
@@ -67,7 +67,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
-              <i className="fonticon fonticon-finance" />
+              <i className="ki-filled ki-wallet" />
             </div>
             <div>
               <h1 className="text-xl font-bold">FinSight AI</h1>
@@ -97,7 +97,7 @@ export default function Layout({ children }: LayoutProps) {
         <div className="border-t border-[#E5E7EB] p-4">
           <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
-              <i className="ki-outline ki-user text-[#4F9CF9]" data-kt-icon-button />
+              <i className="ki-filled ki-profile-circle text-[#4F9CF9]" data-kt-icon-button />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
@@ -109,7 +109,7 @@ export default function Layout({ children }: LayoutProps) {
             className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"
             onClick={handleLogout}
           >
-            <i className="ki-outline ki-exit-right mr-2" data-kt-icon-button />
+            <i className="ki-filled ki-exit-right mr-2" data-kt-icon-button />
             Logout
           </Button>
         </div>
@@ -130,7 +130,7 @@ export default function Layout({ children }: LayoutProps) {
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
           >
-            <i className={cn("ki-solid text-base", theme === 'dark' ? "ki-sun" : "ki-moon")} aria-hidden="true" />
+            <i className={cn("ki-filled text-base", theme === 'dark' ? "ki-sun" : "ki-moon")} aria-hidden="true" />
           </Button>
         </header>
 

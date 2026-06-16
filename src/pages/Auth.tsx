@@ -32,7 +32,7 @@ function PasswordInputWithToggle({ inputId, className = '', ...props }: Password
         onClick={() => setShowPassword((current) => !current)}
         className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-[#6B7280] transition hover:bg-[#EEF6FF] hover:text-[#1F2937] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9CF9]"
       >
-        <i className={`ki-outline ${showPassword ? 'ki-eye-slash' : 'ki-eye'} text-base`} aria-hidden="true" />
+        <i className={`ki-filled ${showPassword ? 'ki-eye-slash' : 'ki-eye'} text-base`} aria-hidden="true" />
       </button>
     </div>
   );
@@ -48,7 +48,7 @@ function AuthNote({ icon, title, description }: AuthNoteProps) {
   return (
     <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#34C759]">
-        <i className={`ki-outline ${icon} text-base`} aria-hidden="true" />
+        <i className={`ki-filled ${icon} text-base`} aria-hidden="true" />
       </div>
       <div>
         <p className="font-semibold text-[#1F2937]">{title}</p>
@@ -308,7 +308,7 @@ export default function Auth() {
         title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
       >
-        <i className={`ki-solid ${theme === 'dark' ? 'ki-sun' : 'ki-moon'} text-base`} aria-hidden="true" />
+        <i className={`ki-filled ${theme === 'dark' ? 'ki-sun' : 'ki-moon'} text-base`} aria-hidden="true" />
       </Button>
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
@@ -331,12 +331,12 @@ export default function Auth() {
             <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
             <div className="grid grid-cols-3 gap-3 pt-4">
               {[
-                ['ki-receipt', 'Bills'],
-                ['ki-stars', 'Insights'],
-                ['ki-shield-tick', 'Secure'],
+                ['ki-note-2', 'Bills'],
+                ['ki-magic-star', 'Insights'],
+                ['ki-security-user', 'Secure'],
               ].map(([icon, label]) => (
                 <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-                  <i className={`ki-outline ${icon} text-xl text-white/85`} aria-hidden="true" />
+                  <i className={`ki-filled ${icon} text-xl text-white/85`} aria-hidden="true" />
                   <p className="mt-2 text-sm font-semibold">{label}</p>
                 </div>
               ))}
@@ -425,6 +425,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                          <i className="ki-filled ki-log-in mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Logging in...' : 'Login'}
                         </Button>
                       </CardFooter>
@@ -456,6 +457,7 @@ export default function Auth() {
 
                       <CardFooter className="grid gap-3">
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                          <i className="ki-filled ki-sms mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Reset OTP'}
                         </Button>
                         <Button
@@ -478,7 +480,7 @@ export default function Auth() {
 
                       <CardContent className="space-y-4">
                         <AuthNote
-                          icon="ki-shield-tick"
+                          icon="ki-security-user"
                           title="OTP verified reset"
                           description="Enter the code from your email, then choose a fresh password."
                         />
@@ -517,7 +519,7 @@ export default function Auth() {
                             }}
                             className="inline-flex items-center gap-1 font-semibold text-[#1F2937] underline hover:text-[#1F2937]"
                           >
-                            <i className="ki-outline ki-left text-sm" aria-hidden="true" />
+                            <i className="ki-filled ki-left text-sm" aria-hidden="true" />
                             Edit email
                           </button>
                           {resendTimer > 0 ? (
@@ -532,6 +534,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                          <i className="ki-filled ki-security-user mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
                       </CardFooter>
@@ -568,6 +571,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                          <i className="ki-filled ki-user-tick mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Verification OTP'}
                         </Button>
                       </CardFooter>
@@ -617,6 +621,7 @@ export default function Auth() {
 
                       <CardFooter>
                         <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                          <i className="ki-filled ki-security-user mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Verifying...' : 'Verify & Create Account'}
                         </Button>
                       </CardFooter>
