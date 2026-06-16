@@ -92,36 +92,36 @@
 }
 
 .dark {
-    --background: #FAFBFC;
-    --foreground: #1F2937;
-    --card: #FFFFFF;
-    --card-foreground: #1F2937;
-    --popover: #FFFFFF;
-    --popover-foreground: #1F2937;
+    --background: #0F172A;
+    --foreground: #F8FAFC;
+    --card: #111827;
+    --card-foreground: #F8FAFC;
+    --popover: #111827;
+    --popover-foreground: #F8FAFC;
     --primary: #4F9CF9;
     --primary-foreground: #FFFFFF;
-    --secondary: #EEF6FF;
-    --secondary-foreground: #1F2937;
-    --muted: #EEF6FF;
-    --muted-foreground: #6B7280;
-    --accent: #EEF6FF;
-    --accent-foreground: #1F2937;
+    --secondary: #1E293B;
+    --secondary-foreground: #F8FAFC;
+    --muted: #1E293B;
+    --muted-foreground: #CBD5E1;
+    --accent: #1E293B;
+    --accent-foreground: #F8FAFC;
     --destructive: #FF6B6B;
-    --border: #E5E7EB;
-    --input: #E5E7EB;
+    --border: #334155;
+    --input: #334155;
     --ring: #4F9CF9;
     --chart-1: #4F9CF9;
     --chart-2: #34C759;
     --chart-3: #FFB84D;
     --chart-4: #FF6B6B;
     --chart-5: #6B7280;
-    --sidebar: #FFFFFF;
-    --sidebar-foreground: #1F2937;
+    --sidebar: #111827;
+    --sidebar-foreground: #F8FAFC;
     --sidebar-primary: #4F9CF9;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #EEF6FF;
-    --sidebar-accent-foreground: #1F2937;
-    --sidebar-border: #E5E7EB;
+    --sidebar-accent: #1E293B;
+    --sidebar-accent-foreground: #F8FAFC;
+    --sidebar-border: #334155;
     --sidebar-ring: #4F9CF9;
 }
 
@@ -170,7 +170,7 @@
 
 @layer components {
   [data-slot="card"] {
-    @apply border border-[#E5E7EB] bg-white text-[#1F2937] shadow-[0_16px_40px_rgba(31,41,55,0.06)] ring-0;
+    @apply border border-border bg-card text-card-foreground shadow-[0_16px_40px_rgba(31,41,55,0.06)] ring-0;
   }
 
   [data-slot="button"][data-size="default"] {
@@ -192,15 +192,15 @@
   }
 
   .app-shell {
-    @apply min-h-screen bg-[#FAFBFC] text-[#1F2937];
+    @apply min-h-screen bg-background text-foreground;
   }
 
   .surface-panel {
-    @apply border border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.06)] backdrop-blur-xl;
+    @apply border border-border bg-card shadow-[0_16px_40px_rgba(31,41,55,0.06)] backdrop-blur-xl;
   }
 
   .metric-card {
-    @apply border border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.06)];
+    @apply border border-border bg-card shadow-[0_16px_40px_rgba(31,41,55,0.06)];
   }
 
   .icon-income {
@@ -260,6 +260,72 @@
   color: #6B7280 !important;
 }
 
+.dark [data-slot="card"],
+.dark .surface-panel,
+.dark .metric-card {
+  border-color: #334155 !important;
+  background-color: #111827 !important;
+  color: #F8FAFC !important;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.28) !important;
+}
+
+.dark [class~="bg-white"],
+.dark [class~="bg-[#FAFBFC]"] {
+  background-color: #111827 !important;
+}
+
+.dark [class~="bg-[#EEF6FF]"] {
+  background-color: #1E293B !important;
+}
+
+.dark [class~="border-[#E5E7EB]"] {
+  border-color: #334155 !important;
+}
+
+.dark [class~="text-[#1F2937]"] {
+  color: #F8FAFC !important;
+}
+
+.dark [class~="text-[#6B7280]"] {
+  color: #CBD5E1 !important;
+}
+
+.dark [class~="hover:bg-[#FAFBFC]"]:hover,
+.dark [class~="hover:bg-[#EEF6FF]"]:hover {
+  background-color: #1E293B !important;
+}
+
+.dark [class~="hover:text-[#1F2937]"]:hover {
+  color: #F8FAFC !important;
+}
+
+.dark [data-slot="input"],
+.dark [data-slot="select-trigger"],
+.dark .react-datepicker__input-container input {
+  background-color: #111827 !important;
+  border-color: #334155 !important;
+  color: #F8FAFC !important;
+}
+
+.dark [data-slot="input"]::placeholder,
+.dark .react-datepicker__input-container input::placeholder {
+  color: #CBD5E1 !important;
+}
+
+.ki-sun::before {
+  border-radius: 999px;
+  box-shadow:
+    0 -0.42em 0 -0.3em currentColor,
+    0 0.42em 0 -0.3em currentColor,
+    0.42em 0 0 -0.3em currentColor,
+    -0.42em 0 0 -0.3em currentColor;
+}
+
+.ki-moon::before {
+  border-radius: 999px;
+  clip-path: polygon(52% 0, 100% 12%, 76% 34%, 74% 62%, 92% 84%, 58% 100%, 18% 82%, 0 46%, 14% 14%);
+}
+
 .recharts-cartesian-axis-tick-value,
 .recharts-legend-item-text {
   fill: #6B7280;
@@ -306,4 +372,43 @@
 .react-datepicker__year-text--selected {
   background-color: #4F9CF9 !important;
   color: #FFFFFF !important;
+}
+
+.dark .recharts-cartesian-axis-tick-value,
+.dark .recharts-legend-item-text {
+  fill: #CBD5E1;
+  color: #CBD5E1 !important;
+}
+
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #111827 !important;
+  border-color: #334155 !important;
+  color: #F8FAFC !important;
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.32) !important;
+}
+
+.dark .react-datepicker {
+  border-color: #334155 !important;
+  background-color: #111827 !important;
+  color: #F8FAFC !important;
+}
+
+.dark .react-datepicker__header {
+  border-color: #334155 !important;
+  background-color: #1E293B !important;
+}
+
+.dark .react-datepicker__current-month,
+.dark .react-datepicker-time__header,
+.dark .react-datepicker-year-header,
+.dark .react-datepicker__day-name,
+.dark .react-datepicker__day {
+  color: #F8FAFC !important;
+}
+
+.dark .react-datepicker__day:hover,
+.dark .react-datepicker__month-text:hover,
+.dark .react-datepicker__quarter-text:hover,
+.dark .react-datepicker__year-text:hover {
+  background-color: #1E293B !important;
 }

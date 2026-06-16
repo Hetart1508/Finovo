@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,9 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [theme, setTheme] = useState(() => (
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  ));
 
   const finishLogout = (message: string) => {
     clearSession();
@@ -43,6 +46,11 @@ export default function Layout({ children }: LayoutProps) {
       if (timeout) window.clearTimeout(timeout);
     };
   }, [navigate]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: 'ki-duotone ki-element-11' },
@@ -115,7 +123,15 @@ export default function Layout({ children }: LayoutProps) {
               {navItems.find(item => item.path === location.pathname)?.name || 'Dashboard'}
             </h2>
           </div>
-          
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+          >
+            <i className={cn("ki-solid text-base", theme === 'dark' ? "ki-sun" : "ki-moon")} aria-hidden="true" />
+          </Button>
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 lg:p-8">

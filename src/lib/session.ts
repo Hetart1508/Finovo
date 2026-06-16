@@ -33,6 +33,23 @@ export const isSessionExpired = () => {
   return Boolean(expiresAt && expiresAt <= Date.now());
 };
 
+export const hasValidSession = () => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const user = localStorage.getItem(USER_KEY);
+  const expiresAt = getSessionExpiresAt();
+
+  if (!token || !user || !expiresAt || expiresAt <= Date.now()) {
+    return false;
+  }
+
+  try {
+    JSON.parse(user);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const saveSession = (token: string, user: unknown, expiresAt?: number) => {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));

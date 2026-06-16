@@ -9,29 +9,33 @@ import Insights from './pages/Insights';
 import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { clearSession, isSessionExpired } from './lib/session';
+import { clearSession, hasValidSession } from './lib/session';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const token = localStorage.getItem('token');
-  if (token && isSessionExpired()) {
+  if (!hasValidSession()) {
     clearSession();
-    return <Navigate to="/auth" />;
+    return <Navigate to="/auth" replace />;
   }
-  if (!token) return <Navigate to="/auth" />;
   return <Layout>{children}</Layout>;
+};
+
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  if (hasValidSession()) return <Navigate to="/" replace />;
+  return children;
 };
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/auth" element={<Auth />} />
+        <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
         <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
         <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <ToastContainer
         aria-label="Notifications"

@@ -9,6 +9,10 @@ import './_metronic/assets/sass/plugins.scss';
 import './_metronic/assets/sass/style.react.scss';
 import './index.css';
 
+const savedTheme = localStorage.getItem('theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
+
 createRoot(document.getElementById('root')!).render(
   <App />,
 );

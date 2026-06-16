@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { clearSession } from './session';
+import { clearSession, hasValidSession } from './session';
 
 const api = axios.create({
   baseURL: '/api',
@@ -7,7 +7,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && hasValidSession()) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

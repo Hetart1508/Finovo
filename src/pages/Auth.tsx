@@ -60,6 +60,9 @@ function AuthNote({ icon, title, description }: AuthNoteProps) {
 
 export default function Auth() {
   const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState(() => (
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  ));
   const [currentTab, setCurrentTab] = useState<'login' | 'register'>('login');
   const [registerStep, setRegisterStep] = useState<'details' | 'verify'>('details');
   const [loginStep, setLoginStep] = useState<'login' | 'forgot' | 'reset'>('login');
@@ -78,6 +81,11 @@ export default function Auth() {
   const [registerEmail, setRegisterEmail] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [lastRegisterForm, setLastRegisterForm] = useState<Record<string, FormDataEntryValue> | null>(null);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -292,6 +300,16 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-[#FAFBFC] p-4 text-[#1F2937] lg:p-8">
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute right-4 top-4 z-10"
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+        onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+      >
+        <i className={`ki-solid ${theme === 'dark' ? 'ki-sun' : 'ki-moon'} text-base`} aria-hidden="true" />
+      </Button>
       <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
           className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
