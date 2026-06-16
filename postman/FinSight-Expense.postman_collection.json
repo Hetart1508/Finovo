@@ -392,6 +392,24 @@
           }
         },
         {
+          "name": "Update Transaction All Fields",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 799,\n  \"type\": \"expense\",\n  \"category\": \"Shopping\",\n  \"date\": \"2026-06-16\",\n  \"payment_mode\": \"Card\",\n  \"description\": \"Updated transaction from Postman\",\n  \"bill_url\": \"https://example.com/receipt-799.pdf\"\n}"
+            },
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Updates all editable fields on an authenticated user's transaction. Requires a valid transactionId from Create Transaction or Get Transactions."
+          }
+        },
+        {
           "name": "Replace Transaction",
           "request": {
             "method": "PUT",

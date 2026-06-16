@@ -35,6 +35,8 @@ import {
   RiArrowRightUpLine,
   RiDeleteBin6Line,
   RiFilter3Line,
+  RiPencilLine,
+  RiSave3Line,
   RiSearchLine,
 } from 'react-icons/ri';
 
@@ -44,6 +46,7 @@ export default function Transactions() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [transactionDate, setTransactionDate] = useState<Date | null>(new Date());
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -87,6 +90,30 @@ export default function Transactions() {
       fetchTransactions();
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to add transaction."));
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingTransaction) return;
+
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const response = await api.put(`/transactions/${editingTransaction.id}`, {
+        ...data,
+        amount: parseFloat(data.amount as string),
+      });
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === editingTransaction.id ? response.data : transaction
+        )
+      );
+      setEditingTransaction(null);
+      toast.success(getApiSuccessMessage(response.data, "Transaction updated successfully"));
+    } catch (error: any) {
+      toast.error(getApiMessage(error, "Failed to update transaction."));
     }
   };
 
@@ -235,7 +262,7 @@ export default function Transactions() {
                 <TableHead>Category</TableHead>
                 <TableHead>Mode</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[88px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -273,6 +300,16 @@ export default function Transactions() {
                       {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
                     </TableCell>
                     <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-[#6B7280] hover:text-[#4F9CF9]"
+                          onClick={() => setEditingTransaction(t)}
+                          aria-label="Edit transaction"
+                        >
+                          <RiPencilLine className="text-base" aria-hidden="true" />
+                        </Button>
                       <Button 
                         variant="ghost" 
                         size="icon" 
@@ -281,6 +318,7 @@ export default function Transactions() {
                       >
                         <RiDeleteBin6Line className="text-base" aria-hidden="true" />
                       </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -289,6 +327,84 @@ export default function Transactions() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(editingTransaction)} onOpenChange={(open) => !open && setEditingTransaction(null)}>
+        {editingTransaction ? (
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Transaction</DialogTitle>
+            </DialogHeader>
+            <form key={editingTransaction.id} onSubmit={handleUpdate} className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-type">Type</Label>
+                  <Select name="type" defaultValue={editingTransaction.type}>
+                    <SelectTrigger id="edit-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="expense">Expense</SelectItem>
+                      <SelectItem value="income">Income</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-amount">Amount (₹)</Label>
+                  <Input id="edit-amount" name="amount" type="number" step="0.01" min="0.01" defaultValue={editingTransaction.amount} required />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select name="category" defaultValue={editingTransaction.category}>
+                  <SelectTrigger id="edit-category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other', 'Salary'].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-date">Date</Label>
+                <Input id="edit-date" name="date" type="date" defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-payment-mode">Payment Mode</Label>
+                <Select name="payment_mode" defaultValue={editingTransaction.payment_mode}>
+                  <SelectTrigger id="edit-payment-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="Card">Card</SelectItem>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Net Banking">Net Banking</SelectItem>
+                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="Bank Statement">Bank Statement</SelectItem>
+                    <SelectItem value="Wallet">Wallet</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">Description</Label>
+                <Input id="edit-description" name="description" defaultValue={editingTransaction.description || ''} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-bill-url">Bill URL</Label>
+                <Input id="edit-bill-url" name="bill_url" defaultValue={editingTransaction.bill_url || ''} placeholder="https://..." />
+              </div>
+              <DialogFooter>
+                <Button type="submit" className="w-full">
+                  <RiSave3Line className="mr-2 text-base" aria-hidden="true" />
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
