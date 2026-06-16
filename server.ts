@@ -948,7 +948,9 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
   }
 
   try {
-    await transporter.sendMail({
+    const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 10000);
+    await Promise.race([
+      transporter.sendMail({
       from: `"FinSight AI" <${EMAIL_USER}>`,
       to: email,
       subject: `Your FinSight AI ${label}`,
@@ -964,7 +966,11 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
           <p style="color: #6b7280; font-size: 14px;">FinSight AI - Intelligent expense tracking</p>
         </div>
       `,
-    });
+      }),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(`Email send timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
 
     return { status: 200, body: { message: "OTP sent successfully" } };
   } catch (error) {
