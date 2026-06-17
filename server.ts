@@ -206,6 +206,8 @@ const runMigrations = async () => {
     )
   `);
 
+  await ensureColumn("users", "auth_provider", "VARCHAR(50) NOT NULL DEFAULT 'local'");
+  await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
   await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
   await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
@@ -258,6 +260,7 @@ const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || EMAIL_USER;
 const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'FinSight AI';
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
@@ -551,6 +554,37 @@ const createAuthResponse = (user: any) => {
       daily_threshold: user.daily_threshold,
     },
   };
+};
+
+type GoogleTokenInfo = {
+  aud?: string;
+  email?: string;
+  email_verified?: string | boolean;
+  name?: string;
+  sub?: string;
+};
+
+const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo> => {
+  if (!GOOGLE_CLIENT_ID) {
+    throw Object.assign(new Error("Google sign-in is not configured"), { status: 500 });
+  }
+
+  const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw Object.assign(new Error("Invalid Google sign-in token"), { status: 401 });
+  }
+
+  if (payload.aud !== GOOGLE_CLIENT_ID) {
+    throw Object.assign(new Error("Google token was issued for another client"), { status: 401 });
+  }
+
+  if (!payload.email || payload.email_verified !== "true") {
+    throw Object.assign(new Error("Google account email is not verified"), { status: 401 });
+  }
+
+  return payload;
 };
 
 const normalizeTransactionBody = (body: any) => {
@@ -1246,7 +1280,10 @@ app.post("/api/auth/register/verify-otp", async (req, res) => {
       return res.status(409).json({ error: "Email already exists" });
     }
 
-    const info = await execute("INSERT INTO users (email, password, name) VALUES (?, ?, ?)", [pending.email, pending.password, pending.name]);
+    const info = await execute(
+      "INSERT INTO users (email, password, name, auth_provider, password_enabled) VALUES (?, ?, ?, 'local', TRUE)",
+      [pending.email, pending.password, pending.name]
+    );
     await execute("DELETE FROM pending_registrations WHERE email = ?", [email]);
 
     res.status(201).json(createAuthResponse({
@@ -1314,7 +1351,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await execute("UPDATE users SET password = ? WHERE email = ?", [hashedPassword, email]);
+    const result = await execute("UPDATE users SET password = ?, password_enabled = TRUE WHERE email = ?", [hashedPassword, email]);
     await execute("DELETE FROM password_resets WHERE email = ?", [email]);
 
     if (!result.affectedRows) {
@@ -1371,6 +1408,42 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   res.status(410).json({ error: "OTP login is disabled. Please login with email and password." });
 });
 
+app.post("/api/auth/google", async (req, res) => {
+  const credential = String(req.body.credential || "");
+
+  if (!credential) {
+    return res.status(400).json({ error: "Google credential is required" });
+  }
+
+  try {
+    const googleUser = await verifyGoogleIdToken(credential);
+    const email = normalizeEmail(googleUser.email);
+    const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
+
+    let user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+
+    if (!user) {
+      const randomPasswordHash = await bcrypt.hash(`google:${googleUser.sub}:${crypto.randomUUID()}`, 10);
+      const info = await execute(
+        "INSERT INTO users (email, password, name, auth_provider, password_enabled) VALUES (?, ?, ?, 'google', FALSE)",
+        [email, randomPasswordHash, name]
+      );
+
+      user = {
+        id: info.insertId,
+        email,
+        name,
+        daily_threshold: 1000,
+      };
+    }
+
+    res.json(createAuthResponse(user));
+  } catch (error: any) {
+    logger.error("Google auth error", { message: error?.message });
+    res.status(error?.status || 500).json({ error: error?.message || "Failed to sign in with Google" });
+  }
+});
+
 app.post("/api/auth/login", async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const password = String(req.body.password || "");
@@ -1382,6 +1455,12 @@ app.post("/api/auth/login", async (req, res) => {
   const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
   if (!user) {
     return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  if (!user.password_enabled) {
+    return res.status(409).json({
+      error: "This account was created with Google. Continue with Google or reset your password to enable password login.",
+    });
   }
 
   const isValidPassword = await bcrypt.compare(password, user.password);

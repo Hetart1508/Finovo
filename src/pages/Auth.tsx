@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,11 +96,83 @@ export default function Auth() {
   const [registerEmail, setRegisterEmail] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [lastRegisterForm, setLastRegisterForm] = useState<Record<string, FormDataEntryValue> | null>(null);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  const handleGoogleCredential = useCallback(async (credential?: string) => {
+    if (!credential) {
+      toast.error('Google sign-in did not return a credential.');
+      return;
+    }
+
+    setLoading(true);
+    const toastId = toast.loading('Signing in with Google...');
+
+    try {
+      const response = await api.post('/auth/google', { credential });
+      saveSession(response.data.token, response.data.user, response.data.expiresAt);
+      toast.update(toastId, {
+        render: `Welcome, ${response.data.user.name}!`,
+        type: 'success',
+        isLoading: false,
+        autoClose: 3500,
+      });
+      navigate('/');
+    } catch (error: any) {
+      toast.update(toastId, {
+        render: getApiMessage(error, 'Failed to sign in with Google.'),
+        type: 'error',
+        isLoading: false,
+        autoClose: 3500,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!googleClientId || !googleButtonRef.current) return;
+
+    const renderGoogleButton = () => {
+      if (!window.google || !googleButtonRef.current) return;
+
+      googleButtonRef.current.innerHTML = '';
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: (response) => handleGoogleCredential(response.credential),
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        text: currentTab === 'register' ? 'signup_with' : 'signin_with',
+        shape: 'rectangular',
+        width: 384,
+      });
+    };
+
+    if (window.google) {
+      renderGoogleButton();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', renderGoogleButton, { once: true });
+      return () => existingScript.removeEventListener('load', renderGoogleButton);
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = renderGoogleButton;
+    document.head.appendChild(script);
+  }, [currentTab, googleClientId, handleGoogleCredential]);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -408,6 +480,21 @@ export default function Auth() {
                   >
                     Register
                   </button>
+                </div>
+
+                <div className="space-y-3">
+                  {googleClientId ? (
+                    <div className="flex min-h-11 justify-center" ref={googleButtonRef} />
+                  ) : (
+                    <Button className="h-11 w-full" type="button" variant="outline" disabled>
+                      Google sign-in not configured
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-3 text-xs font-semibold uppercase text-[#94A3B8]">
+                    <span className="h-px flex-1 bg-[#E5E7EB]" />
+                    <span>or</span>
+                    <span className="h-px flex-1 bg-[#E5E7EB]" />
+                  </div>
                 </div>
 
                 {currentTab === 'login' ? (
