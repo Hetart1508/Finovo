@@ -197,9 +197,10 @@ export default function Auth() {
 
   const handleForgotPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
     const toastId = toast.loading('Sending password reset OTP...');
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const email = String(formData.get('email') || '').trim();
 
     try {
@@ -209,7 +210,7 @@ export default function Auth() {
       setResetPassword('');
       setLoginStep('reset');
       setResendTimer(300);
-      e.currentTarget.reset();
+      form.reset();
       toast.update(toastId, {
         render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
@@ -230,6 +231,7 @@ export default function Auth() {
 
   const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
     setLoading(true);
     const toastId = toast.loading('Resetting password...');
 
@@ -245,7 +247,7 @@ export default function Auth() {
       setResetPassword('');
       setResetEmail('');
       setResendTimer(0);
-      e.currentTarget.reset();
+      form.reset();
       setLoginStep('login');
     } catch (error: any) {
       toast.update(toastId, {
