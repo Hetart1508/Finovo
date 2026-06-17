@@ -240,35 +240,9 @@ export default function Layout({ children }: LayoutProps) {
           </Button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-3 pb-24 sm:p-4 sm:pb-24 lg:p-8">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
           {children}
         </div>
-
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#E5E7EB] bg-white/95 px-2 py-2 shadow-[0_-12px_30px_rgba(31,41,55,0.08)] backdrop-blur lg:hidden">
-          <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.path;
-
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    "flex min-w-[4.8rem] flex-1 flex-col items-center justify-center gap-1 rounded-lg px-2 py-2 text-[0.68rem] font-bold transition",
-                    isActive
-                      ? "bg-[#EEF6FF] text-[#4F9CF9]"
-                      : "text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]"
-                  )}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  <Icon className="text-lg" aria-hidden="true" />
-                  <span className="max-w-full truncate">{item.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
       </main>
     </div>
   );
