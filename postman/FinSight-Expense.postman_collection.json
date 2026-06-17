@@ -96,7 +96,7 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Register User",
+          "name": "Register - Send Verification OTP",
           "request": {
             "auth": {
               "type": "noauth"
@@ -113,32 +113,11 @@
               "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
-            "description": "Creates a new user. Change the email variable when re-testing."
+            "description": "Starts registration by saving pending user details and sending a verification OTP. Use Register - Debug OTP locally, or copy the OTP from email in production."
           }
         },
         {
-          "name": "Send OTP",
-          "request": {
-            "auth": {
-              "type": "noauth"
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\"\n}"
-            },
-            "url": "{{baseUrl}}/auth/send-otp",
-            "description": "Generates and emails an OTP for the selected email."
-          }
-        },
-        {
-          "name": "Debug OTP",
+          "name": "Register - Debug OTP",
           "event": [
             {
               "listen": "test",
@@ -147,7 +126,7 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('otp', json.otp);",
+                  "  if (json.otp) pm.collectionVariables.set('otp', json.otp);",
                   "}"
                 ]
               }
@@ -175,11 +154,11 @@
                 }
               ]
             },
-            "description": "Development-only helper. Reads the latest OTP for the email and saves it into the otp collection variable."
+            "description": "Development-only helper. Reads the latest OTP for the email and saves it into the otp collection variable. This should not be available in production."
           }
         },
         {
-          "name": "Verify OTP",
+          "name": "Register - Verify OTP",
           "event": [
             {
               "listen": "test",
@@ -210,12 +189,48 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
             },
-            "url": "{{baseUrl}}/auth/verify-otp",
-            "description": "Verifies OTP and stores the JWT token automatically."
+            "url": "{{baseUrl}}/auth/register/verify-otp",
+            "description": "Completes registration after OTP verification and stores the JWT token plus userId automatically."
           }
         },
         {
-          "name": "Login - Send OTP",
+          "name": "Login - Email Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('token', json.token);",
+                  "  pm.collectionVariables.set('userId', String(json.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Logs in with email and password, then stores the JWT token plus userId automatically."
+          }
+        },
+        {
+          "name": "Forgot Password - Send OTP",
           "request": {
             "auth": {
               "type": "noauth"
@@ -231,8 +246,29 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{email}}\"\n}"
             },
-            "url": "{{baseUrl}}/auth/login",
-            "description": "Starts OTP login. Use Debug OTP, then Verify OTP to receive and store the JWT token."
+            "url": "{{baseUrl}}/auth/forgot-password",
+            "description": "Sends a password reset OTP to the registered email address."
+          }
+        },
+        {
+          "name": "Reset Password - Apply OTP",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/reset-password",
+            "description": "Resets the password using the OTP from email. For local development, run Register - Debug OTP after Forgot Password - Send OTP to populate otp."
           }
         }
       ]
