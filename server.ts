@@ -275,7 +275,7 @@ const getEmailConfigStatus = () => {
       : null,
     passLength: trimmedPass.length,
     passHasSpaces: EMAIL_PASS !== trimmedPass,
-    transport: "smtp.gmail.com:587/starttls",
+    transport: "smtp.gmail.com:587/starttls with smtp.gmail.com:465/tls fallback",
     sendTimeoutMs: Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000),
     connectionTimeoutMs: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
     greetingTimeoutMs: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
@@ -953,19 +953,31 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
   };
 };
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  requireTLS: true,
+const getEmailTimeouts = () => ({
   connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
   greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
   socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
 });
+
+const emailTransports = [
+  {
+    name: "gmail-starttls-587",
+    options: {
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
+    },
+  },
+  {
+    name: "gmail-tls-465",
+    options: {
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+    },
+  },
+];
 
 const getEmailErrorMessage = (error: any) => {
   const message = String(error?.message || "");
@@ -1006,14 +1018,11 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
     return { status: 500, body: { error: "Email service is not configured" } };
   }
 
-  try {
-    const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
-    await Promise.race([
-      transporter.sendMail({
-      from: `"FinSight AI" <${EMAIL_USER}>`,
-      to: email,
-      subject: `Your FinSight AI ${label}`,
-      html: `
+  const mail = {
+    from: `"FinSight AI" <${EMAIL_USER}>`,
+    to: email,
+    subject: `Your FinSight AI ${label}`,
+    html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #6366f1;">Your ${label}</h2>
           <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-size: 32px; font-weight: bold; padding: 20px; text-align: center; border-radius: 12px; letter-spacing: 4px;">
@@ -1025,29 +1034,50 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
           <p style="color: #6b7280; font-size: 14px;">FinSight AI - Intelligent expense tracking</p>
         </div>
       `,
-      }),
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error(`Email send timed out after ${timeoutMs}ms`)), timeoutMs);
-      }),
-    ]);
+  };
 
-    return { status: 200, body: { message: "OTP sent successfully" } };
-  } catch (error: any) {
-    logger.error("Email error", {
-      message: error?.message,
-      code: error?.code,
-      command: error?.command,
-      responseCode: error?.responseCode,
-      response: error?.response,
-    });
-    return {
-      status: 500,
-      body: {
-        error: getEmailErrorMessage(error),
-        emailDebug: getEmailErrorDebug(error),
-      },
-    };
+  const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
+  let lastError: any = null;
+
+  for (const transport of emailTransports) {
+    try {
+      const transporter = nodemailer.createTransport({
+        ...transport.options,
+        ...getEmailTimeouts(),
+        auth: {
+          user: EMAIL_USER,
+          pass: EMAIL_PASS,
+        },
+      });
+
+      await Promise.race([
+        transporter.sendMail(mail),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`Email send timed out after ${timeoutMs}ms using ${transport.name}`)), timeoutMs);
+        }),
+      ]);
+
+      return { status: 200, body: { message: "OTP sent successfully" } };
+    } catch (error: any) {
+      lastError = error;
+      logger.error("Email transport failed", {
+        transport: transport.name,
+        message: error?.message,
+        code: error?.code,
+        command: error?.command,
+        responseCode: error?.responseCode,
+        response: error?.response,
+      });
+    }
   }
+
+  return {
+    status: 500,
+    body: {
+      error: getEmailErrorMessage(lastError),
+      emailDebug: getEmailErrorDebug(lastError),
+    },
+  };
 };
 
 // Auth Middleware
