@@ -116,7 +116,7 @@ export default function Layout({ children }: LayoutProps) {
               <RiWallet3Line aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">FinSight AI</h1>
+              <h1 className="text-xl font-bold">Finovo AI</h1>
               <p className="text-xs font-medium text-[#6B7280]">Expense intelligence</p>
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function Layout({ children }: LayoutProps) {
               <RiWallet3Line aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-lg font-bold">FinSight AI</h1>
+              <h1 className="text-lg font-bold">Finovo AI</h1>
               <p className="text-xs font-medium text-[#6B7280]">Expense intelligence</p>
             </div>
           </div>

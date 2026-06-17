@@ -246,7 +246,7 @@ app.use((req, res, next) => {
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    service: "finsight-api",
+    service: "finovo-api",
     environment: process.env.NODE_ENV || "development",
     email: getEmailConfigStatus(),
   });
@@ -258,7 +258,7 @@ const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || EMAIL_USER;
-const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'FinSight AI';
+const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'Finovo AI';
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -1172,9 +1172,9 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
   }
 
   const mail = {
-    from: `"FinSight AI" <${EMAIL_USER}>`,
+    from: `"Finovo AI" <${EMAIL_USER}>`,
     to: email,
-    subject: `Your FinSight AI ${label}`,
+    subject: `Your Finovo AI ${label}`,
     html: `
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #6366f1;">Your ${label}</h2>
@@ -1184,7 +1184,7 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
           <p style="margin-top: 24px;">This OTP is valid for <strong>5 minutes</strong>.</p>
           <p>If you didn't request this, please ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 14px;">FinSight AI - Intelligent expense tracking</p>
+          <p style="color: #6b7280; font-size: 14px;">Finovo AI - Intelligent expense tracking</p>
         </div>
       `,
   };

@@ -416,7 +416,7 @@ export default function Auth() {
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-xl font-black text-[#4F9CF9]">F</div>
             <div>
-              <h1 className="text-2xl font-black">FinSight AI</h1>
+              <h1 className="text-2xl font-black">Finovo AI</h1>
               <p className="text-sm text-white/85">Financial clarity, faster.</p>
             </div>
           </div>
@@ -444,7 +444,7 @@ export default function Auth() {
             <div>
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#4F9CF9] text-lg font-black text-white lg:hidden">F</div>
               <p className="text-sm font-semibold uppercase text-[#34C759]">Welcome</p>
-              <h1 className="mt-2 text-3xl font-black leading-tight text-[#1F2937] sm:text-4xl">FinSight AI</h1>
+              <h1 className="mt-2 text-3xl font-black leading-tight text-[#1F2937] sm:text-4xl">Finovo AI</h1>
               <p className="mt-2 max-w-sm text-base leading-relaxed text-[#6B7280]">Login with your password or verify your email to create a new account.</p>
             </div>
 

@@ -1,4 +1,4 @@
-# FinSight AI Expense Tracker
+# Finovo AI Expense Tracker
 
 A sophisticated AI-powered expense tracker designed for the Indian market.
 
@@ -93,8 +93,8 @@ VITE_API_URL=https://your-backend.onrender.com
 
 Import:
 
-- `postman/FinSight-Expense.postman_collection.json`
-- `postman/FinSight-Expense.postman_environment.json`
+- `postman/Finovo-Expense.postman_collection.json`
+- `postman/Finovo-Expense.postman_environment.json`
 
 Set `baseUrl` to:
 

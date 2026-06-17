@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "FinSight Expense API",
-    "description": "Postman collection for the FinSight AI Expense Tracker backend.",
+    "name": "Finovo Expense API",
+    "description": "Postman collection for the Finovo AI Expense Tracker backend.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
