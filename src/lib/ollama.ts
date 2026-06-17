@@ -349,20 +349,24 @@ export const extractBillData = async (base64Data: string, mimeType: string) => {
 };
 
 export const getFinancialInsights = async (transactions: any[]) => {
-  const prompt = `You are an expert Indian financial advisor. Provide 1-2 comprehensive paragraphs analyzing these transactions with key insights, trends, predictions, and actionable suggestions. Use INR (₹), Indian context (Diwali spending, fuel prices, UPI cashback).
+  const prompt = `You are an expert Indian personal-finance analyst. Analyze these transactions and create a practical report.
 
-Structure as paragraphs, not bullets. Cover:
-- Spending summary by category %
-- Notable trends/anomalies (e.g. Food spike)
-- Next month prediction with reasoning
-- 2-3 personalized saving suggestions
+Return concise markdown bullets with these headings:
+- Summary
+- Spending Highlights
+- Previous Transaction Trends
+- Future Expense Prediction
+- Saving Advice
+- Investment & Planning Notes
+- Next Actions
 
-Keep professional, concise (200-300 words total).
-
-Example:
-"In the last 30 days, your Food expenses dominate at 45% (₹12,500), while Transport dropped 20% MoM - good trend. Anomalies include a Shopping spike post-Diwali. At current rates, expect ₹8,500 monthly surplus if consistent. 
-
-Suggestions: Switch utility bills to CRED for 5% cashback (₹500/month save), meal prep to cut Food 20%, and consolidate UPI payments via Google Pay RuPay for extra rewards."
+Rules:
+- Use INR (₹).
+- Use previous transactions to identify category patterns, repeated payments, spikes, and unusual expenses.
+- Predict likely expenses for the next 30 days based on current pace and recurring-looking transactions.
+- Give practical saving and planning advice for an Indian user.
+- Investment guidance must be general education only. Do not recommend a specific stock, fund, crypto, or guaranteed return.
+- Keep bullets short and specific.
 
 Transactions: ${JSON.stringify(transactions.slice(0, 30), null, 2)}`;
 

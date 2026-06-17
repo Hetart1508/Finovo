@@ -262,7 +262,11 @@ const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'FinSight AI';
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const GEMINI_FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || 'gemini-2.5-flash')
+  .split(',')
+  .map((model) => model.trim())
+  .filter(Boolean);
 const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'] as const;
@@ -373,6 +377,33 @@ const normalizeGeminiBillData = (text: string) => {
   };
 };
 
+const normalizeInsightList = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .filter(isNonEmptyString)
+        .map((item) => item.trim())
+        .slice(0, 6)
+    : [];
+
+const normalizeGeminiInsights = (text: string) => {
+  const parsed = JSON.parse(extractJsonObject(text));
+  const summary = isNonEmptyString(parsed.summary) ? parsed.summary.trim() : "";
+
+  if (!summary) {
+    throw new Error("Gemini returned incomplete financial insights");
+  }
+
+  return {
+    summary,
+    spendingHighlights: normalizeInsightList(parsed.spendingHighlights),
+    trendAnalysis: normalizeInsightList(parsed.trendAnalysis),
+    futureExpensePrediction: normalizeInsightList(parsed.futureExpensePrediction),
+    savingAdvice: normalizeInsightList(parsed.savingAdvice),
+    investmentGuidance: normalizeInsightList(parsed.investmentGuidance),
+    actionPlan: normalizeInsightList(parsed.actionPlan),
+  };
+};
+
 const normalizeGeminiStatementTransactions = (text: string) => {
   const parsed = JSON.parse(extractJsonObject(text));
   const transactions = Array.isArray(parsed) ? parsed : parsed.transactions;
@@ -423,37 +454,50 @@ const generateGemini = async (
     throw new Error("GEMINI_API_KEY is not configured");
   }
 
-  const response = await fetch(
-    `${GEMINI_API_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: options.maxOutputTokens || 1024,
-          ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
-        },
-      }),
+  const modelCandidates = Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS]));
+  let lastError = "";
+
+  for (const model of modelCandidates) {
+    const response = await fetch(
+      `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: options.maxOutputTokens || 1024,
+            ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
+      if (response.status === 400 || response.status === 404) {
+        logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
+        continue;
+      }
+      throw new Error(lastError);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`Gemini error: ${response.status} ${await response.text()}`);
+    const data: any = await response.json();
+    const text = data.candidates?.[0]?.content?.parts
+      ?.map((part: any) => part.text || "")
+      .join("\n")
+      .trim();
+
+    if (!text) {
+      lastError = `Gemini returned an empty response using ${model}`;
+      continue;
+    }
+
+    return text;
   }
 
-  const data: any = await response.json();
-  const text = data.candidates?.[0]?.content?.parts
-    ?.map((part: any) => part.text || "")
-    .join("\n")
-    .trim();
-
-  if (!text) {
-    throw new Error("Gemini returned an empty response");
-  }
-
-  return text;
+  throw new Error(lastError || "Gemini returned no usable response");
 };
 
 const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
@@ -485,21 +529,37 @@ Rules:
 };
 
 const getFinancialInsightsWithGemini = async (transactions: any[]) => {
-  const prompt = `You are an expert Indian financial advisor. Analyze these expense tracker transactions and provide 1-2 concise paragraphs.
+  const prompt = `You are an expert Indian personal-finance analyst. Analyze these expense tracker transactions and create a practical report for the user.
 
-Cover:
-- Spending summary by category percentage
-- Notable trends or anomalies
-- Next month prediction with reasoning
-- 2-3 practical saving suggestions for an Indian user
+Return ONLY valid JSON with this exact shape:
+{
+  "summary":"2-3 sentence overall financial summary",
+  "spendingHighlights":["bullet string"],
+  "trendAnalysis":["bullet string"],
+  "futureExpensePrediction":["bullet string"],
+  "savingAdvice":["bullet string"],
+  "investmentGuidance":["bullet string"],
+  "actionPlan":["bullet string"]
+}
 
-Use INR formatting. Do not use markdown tables. Keep it professional and specific.
+Rules:
+- Use INR formatting like ₹12,500.
+- Use the user's previous transactions to identify category patterns, repeated payments, spikes, and unusual expenses.
+- Predict likely future expenses for the next 30 days based on category totals, recurring-looking descriptions, and recent spending pace.
+- Give practical saving advice and future planning advice for an Indian user.
+- Investment guidance must be general education only. Do not recommend a specific stock, fund, crypto, or guaranteed return.
+- Prefer clear bullet strings, one idea per bullet.
+- Keep every bullet under 24 words.
+- Do not use markdown, tables, code fences, or text outside JSON.
 
 Transactions:
 ${JSON.stringify(transactions.slice(0, 60), null, 2)}`;
 
-  const summary = await generateGemini([{ text: prompt }], { maxOutputTokens: 1200 });
-  return { summary };
+  const result = await generateGemini(
+    [{ text: prompt }],
+    { responseMimeType: "application/json", maxOutputTokens: 1800 }
+  );
+  return normalizeGeminiInsights(result);
 };
 
 const importStatementWithGemini = async (base64Data: string, mimeType: string) => {
@@ -1924,7 +1984,7 @@ const getGeminiImportHint = (message: string) => {
   }
 
   if (/model|404|not found/i.test(message)) {
-    return `The configured Gemini model (${GEMINI_MODEL}) may not be available for this API key. Try GEMINI_MODEL=gemini-2.5-flash-lite or gemini-2.0-flash-lite, then restart.`;
+    return `The configured Gemini model (${GEMINI_MODEL}) may not be available for this API key. Try GEMINI_MODEL=gemini-2.5-flash-lite with GEMINI_FALLBACK_MODELS=gemini-2.5-flash, then restart.`;
   }
 
   if (/JSON|parse|transactions/i.test(message)) {

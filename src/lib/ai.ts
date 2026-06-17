@@ -14,6 +14,12 @@ type BillData = {
 
 type FinancialInsights = {
   summary: string;
+  spendingHighlights?: string[];
+  trendAnalysis?: string[];
+  futureExpensePrediction?: string[];
+  savingAdvice?: string[];
+  investmentGuidance?: string[];
+  actionPlan?: string[];
   provider?: string;
   model?: string;
 };
