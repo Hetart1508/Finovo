@@ -4,11 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
+import { cn } from '@/lib/utils';
 import {
   RiArrowLeftLine,
   RiEyeLine,
@@ -38,7 +38,7 @@ function PasswordInputWithToggle({ inputId, className = '', ...props }: Password
         {...props}
         id={inputId}
         type={showPassword ? 'text' : 'password'}
-        className={`pr-11 ${className}`}
+        className={`pr-12 ${className}`}
       />
       <button
         type="button"
@@ -61,11 +61,11 @@ type AuthNoteProps = {
 
 function AuthNote({ icon: Icon, title, description }: AuthNoteProps) {
   return (
-    <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#34C759]">
+    <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm sm:p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[#34C759]">
         <Icon className="text-base" aria-hidden="true" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="font-semibold text-[#1F2937]">{title}</p>
         <p className="mt-0.5 text-[#6B7280]">{description}</p>
       </div>
@@ -315,19 +315,25 @@ export default function Auth() {
       .finally(() => setLoading(false));
   };
 
+  const authInputClass = "h-12 rounded-lg px-4 text-base";
+  const passwordInputClass = "h-12 rounded-lg px-4 pr-12 text-base";
+  const cardHeaderClass = "gap-1 px-4 pt-5 sm:px-6 sm:pt-6";
+  const cardContentClass = "space-y-4 px-4 sm:px-6";
+  const cardFooterClass = "px-4 pb-5 sm:px-6 sm:pb-6";
+
   return (
-    <div className="min-h-screen bg-[#FAFBFC] p-4 text-[#1F2937] lg:p-8">
+    <div className="min-h-dvh bg-[#FAFBFC] p-3 text-[#1F2937] sm:p-4 lg:p-8">
       <Button
         variant="outline"
         size="icon"
-        className="absolute right-4 top-4 z-10"
+        className="fixed right-4 top-4 z-10 bg-white/90 shadow-sm backdrop-blur"
         aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
         onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
       >
         {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
       </Button>
-      <div className="mx-auto grid min-h-[calc(100vh-2rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="mx-auto grid min-h-[calc(100dvh-1.5rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:min-h-[calc(100dvh-2rem)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
         <div
           className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
           style={{
@@ -361,48 +367,59 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center p-6 lg:p-12">
-          <div className="w-full max-w-md space-y-7">
+        <div className="flex items-start justify-center px-5 py-20 sm:p-8 lg:items-center lg:p-12">
+          <div className="w-full max-w-md space-y-6 sm:space-y-7">
             <div>
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#4F9CF9] text-lg font-black text-white lg:hidden">F</div>
               <p className="text-sm font-semibold uppercase text-[#34C759]">Welcome</p>
-              <h1 className="mt-2 text-3xl font-black text-[#1F2937]">FinSight AI</h1>
-              <p className="mt-2 text-[#6B7280]">Login with your password or verify your email to create a new account.</p>
+              <h1 className="mt-2 text-3xl font-black leading-tight text-[#1F2937] sm:text-4xl">FinSight AI</h1>
+              <p className="mt-2 max-w-sm text-base leading-relaxed text-[#6B7280]">Login with your password or verify your email to create a new account.</p>
             </div>
 
-            <Tabs
-              value={currentTab}
-              onValueChange={(value) => {
-                setCurrentTab(value as 'login' | 'register');
-                setOtpCode('');
-              }}
-              className="w-full"
-            >
-              <TabsList className="mb-6 grid w-full grid-cols-2 rounded-lg bg-[#EEF6FF] p-1">
-                <TabsTrigger
-                  value="login"
-                  className="h-9 text-[#6B7280] hover:text-[#1F2937] data-active:bg-[#4F9CF9] data-active:text-white"
-                >
-                  Login
-                </TabsTrigger>
-                <TabsTrigger
-                  value="register"
-                  className="h-9 text-[#6B7280] hover:text-[#1F2937] data-active:bg-[#4F9CF9] data-active:text-white"
-                >
-                  Register
-                </TabsTrigger>
-              </TabsList>
+            <div className="w-full space-y-5 sm:space-y-6">
+                <div className="grid h-12 w-full grid-cols-2 overflow-hidden rounded-lg bg-[#EEF6FF] p-1 dark:bg-[#1E293B]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('login');
+                      setOtpCode('');
+                    }}
+                    className={cn(
+                      "h-10 rounded-md text-sm font-bold transition-colors",
+                      currentTab === 'login'
+                        ? "bg-[#4F9CF9] text-white"
+                        : "text-[#6B7280] hover:text-[#1F2937] dark:text-[#CBD5E1] dark:hover:text-white"
+                    )}
+                  >
+                    Login
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentTab('register');
+                      setOtpCode('');
+                    }}
+                    className={cn(
+                      "h-10 rounded-md text-sm font-bold transition-colors",
+                      currentTab === 'register'
+                        ? "bg-[#4F9CF9] text-white"
+                        : "text-[#6B7280] hover:text-[#1F2937] dark:text-[#CBD5E1] dark:hover:text-white"
+                    )}
+                  >
+                    Register
+                  </button>
+                </div>
 
-              <TabsContent value="login">
-                <Card className="border-[#E5E7EB] shadow-none">
+                {currentTab === 'login' ? (
+                  <Card className="relative z-0 rounded-xl border-[#E5E7EB] bg-white shadow-none dark:border-[#334155] dark:bg-[#111827]">
                   {loginStep === 'login' ? (
                     <form onSubmit={handleLogin}>
-                      <CardHeader>
+                      <CardHeader className={cardHeaderClass}>
                         <CardTitle className="text-xl font-bold">Welcome back</CardTitle>
                         <CardDescription>Enter your email and password to continue.</CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className={cardContentClass}>
                         <AuthNote
                           icon={RiLock2Line}
                           title="Password login"
@@ -415,6 +432,7 @@ export default function Auth() {
                             name="email"
                             type="email"
                             placeholder="name@example.com"
+                            className={authInputClass}
                             required
                           />
                         </div>
@@ -423,6 +441,7 @@ export default function Auth() {
                           <PasswordInputWithToggle
                             inputId="login-password"
                             name="password"
+                            className={passwordInputClass}
                             required
                           />
                         </div>
@@ -440,8 +459,8 @@ export default function Auth() {
                         </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                      <CardFooter className={cardFooterClass}>
+                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiLoginCircleLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Logging in...' : 'Login'}
                         </Button>
@@ -449,12 +468,12 @@ export default function Auth() {
                     </form>
                   ) : loginStep === 'forgot' ? (
                     <form onSubmit={handleForgotPassword}>
-                      <CardHeader>
+                      <CardHeader className={cardHeaderClass}>
                         <CardTitle className="text-xl font-bold">Reset password</CardTitle>
                         <CardDescription>Enter your registered email to receive an OTP.</CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className={cardContentClass}>
                         <AuthNote
                           icon={RiMailLine}
                           title="Reset by email"
@@ -467,18 +486,19 @@ export default function Auth() {
                             name="email"
                             type="email"
                             placeholder="name@example.com"
+                            className={authInputClass}
                             required
                           />
                         </div>
                       </CardContent>
 
-                      <CardFooter className="grid gap-3">
-                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                      <CardFooter className={`${cardFooterClass} grid gap-3`}>
+                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiMailLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Reset OTP'}
                         </Button>
                         <Button
-                          className="w-full"
+                          className="h-12 w-full"
                           type="button"
                           variant="outline"
                           onClick={() => setLoginStep('login')}
@@ -490,12 +510,12 @@ export default function Auth() {
                     </form>
                   ) : (
                     <form onSubmit={handleResetPassword}>
-                      <CardHeader>
+                      <CardHeader className={cardHeaderClass}>
                         <CardTitle className="text-xl font-bold">Apply new password</CardTitle>
                         <CardDescription>Enter the 6-digit code sent to {resetEmail}.</CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className={cardContentClass}>
                         <AuthNote
                           icon={RiShieldUserLine}
                           title="OTP verified reset"
@@ -511,6 +531,7 @@ export default function Auth() {
                             value={otpCode}
                             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                             placeholder="123456"
+                            className={authInputClass}
                             required
                           />
                         </div>
@@ -522,6 +543,7 @@ export default function Auth() {
                             value={resetPassword}
                             onChange={(e) => setResetPassword(e.target.value)}
                             placeholder="New password"
+                            className={passwordInputClass}
                             required
                           />
                         </div>
@@ -549,45 +571,45 @@ export default function Auth() {
                         </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                      <CardFooter className={cardFooterClass}>
+                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
                       </CardFooter>
                     </form>
                   )}
-                </Card>
-              </TabsContent>
+                  </Card>
+                ) : null}
 
-              <TabsContent value="register">
-                <Card className="border-[#E5E7EB] shadow-none">
+                {currentTab === 'register' ? (
+                  <Card className="relative z-0 rounded-xl border-[#E5E7EB] bg-white shadow-none dark:border-[#334155] dark:bg-[#111827]">
                   {registerStep === 'details' ? (
                     <form onSubmit={handleRegister}>
-                      <CardHeader>
+                      <CardHeader className={cardHeaderClass}>
                         <CardTitle className="text-xl font-bold">Create account</CardTitle>
                         <CardDescription>Verify your email, then use this password for login.</CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className={cardContentClass}>
                         <div className="space-y-2">
                           <Label htmlFor="reg-name">Full Name</Label>
-                          <Input id="reg-name" name="name" placeholder="John Doe" required minLength={2} />
+                          <Input id="reg-name" name="name" placeholder="John Doe" className={authInputClass} required minLength={2} />
                         </div>
 
                         <div className="space-y-2">
                           <Label htmlFor="reg-email">Email</Label>
-                          <Input id="reg-email" name="email" type="email" placeholder="name@example.com" required />
+                          <Input id="reg-email" name="email" type="email" placeholder="name@example.com" className={authInputClass} required />
                         </div>
 
                         <div className="space-y-2">
                           <Label htmlFor="reg-password">Password</Label>
-                          <PasswordInputWithToggle inputId="reg-password" name="password" required />
+                          <PasswordInputWithToggle inputId="reg-password" name="password" className={passwordInputClass} required />
                         </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                      <CardFooter className={cardFooterClass}>
+                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiUserAddLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Verification OTP'}
                         </Button>
@@ -595,12 +617,12 @@ export default function Auth() {
                     </form>
                   ) : (
                     <form onSubmit={handleVerifyRegisterOTP}>
-                      <CardHeader>
+                      <CardHeader className={cardHeaderClass}>
                         <CardTitle className="text-xl font-bold">Verify email</CardTitle>
                         <CardDescription>Enter the 6-digit code sent to {registerEmail}</CardDescription>
                       </CardHeader>
 
-                      <CardContent className="space-y-4">
+                      <CardContent className={cardContentClass}>
                         <div className="space-y-2">
                           <Label htmlFor="reg-otp">OTP Code</Label>
                           <Input
@@ -611,6 +633,7 @@ export default function Auth() {
                             value={otpCode}
                             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                             placeholder="123456"
+                            className={authInputClass}
                             required
                           />
                         </div>
@@ -636,17 +659,17 @@ export default function Auth() {
                         </div>
                       </CardContent>
 
-                      <CardFooter>
-                        <Button className="w-full bg-[#4F9CF9] text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                      <CardFooter className={cardFooterClass}>
+                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Verifying...' : 'Verify & Create Account'}
                         </Button>
                       </CardFooter>
                     </form>
                   )}
-                </Card>
-              </TabsContent>
-            </Tabs>
+                  </Card>
+                ) : null}
+            </div>
           </div>
         </div>
       </div>
