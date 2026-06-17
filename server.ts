@@ -254,6 +254,9 @@ const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 const SESSION_EXPIRES_IN = (process.env.SESSION_EXPIRES_IN || "2h") as SignOptions["expiresIn"];
 const EMAIL_USER = process.env.EMAIL_USER || '';
 const EMAIL_PASS = process.env.EMAIL_PASS || '';
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || EMAIL_USER;
+const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'FinSight AI';
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
@@ -267,9 +270,13 @@ const getEmailConfigStatus = () => {
   const [localPart, domain] = trimmedUser.split("@");
 
   return {
-    configured: Boolean(trimmedUser && trimmedPass),
+    configured: Boolean((BREVO_API_KEY && BREVO_FROM_EMAIL) || (trimmedUser && trimmedPass)),
+    provider: BREVO_API_KEY ? "brevo" : "gmail-smtp",
     userSet: Boolean(trimmedUser),
     passSet: Boolean(trimmedPass),
+    brevoApiKeySet: Boolean(BREVO_API_KEY),
+    brevoFromEmailSet: Boolean(BREVO_FROM_EMAIL),
+    brevoFromNameSet: Boolean(BREVO_FROM_NAME),
     userPreview: trimmedUser
       ? `${localPart.slice(0, 3)}***@${domain || "unknown-domain"}`
       : null,
@@ -985,6 +992,14 @@ const getEmailErrorMessage = (error: any) => {
   const code = String(error?.code || "");
   const combined = `${message} ${response} ${code}`.toLowerCase();
 
+  if (error?.provider === "brevo") {
+    if (error?.responseCode === 401 || error?.responseCode === 403) {
+      return "Brevo rejected the API key or sender. Check BREVO_API_KEY, BREVO_FROM_EMAIL, and sender verification in Render/Brevo.";
+    }
+
+    return "Brevo failed to send OTP. Check BREVO_API_KEY, BREVO_FROM_EMAIL, sender verification, and the provider response.";
+  }
+
   if (combined.includes("invalid login") || combined.includes("username and password not accepted") || error?.responseCode === 535) {
     return "Gmail rejected the email credentials. Use EMAIL_USER with a Google App Password in EMAIL_PASS, then redeploy.";
   }
@@ -1009,11 +1024,55 @@ const getEmailErrorDebug = (error: any) => ({
   command: error?.command || null,
   responseCode: error?.responseCode || null,
   message: error?.message || null,
+  provider: error?.provider || null,
 });
+
+const sendEmailWithBrevo = async (mail: { to: string; subject: string; html: string }, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": BREVO_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: {
+          name: BREVO_FROM_NAME,
+          email: BREVO_FROM_EMAIL,
+        },
+        to: [{ email: mail.to }],
+        subject: mail.subject,
+        htmlContent: mail.html,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      const error: any = new Error(`Brevo API ${response.status}: ${body}`);
+      error.provider = "brevo";
+      error.responseCode = response.status;
+      throw error;
+    }
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      const timeoutError: any = new Error(`Brevo API timed out after ${timeoutMs}ms`);
+      timeoutError.provider = "brevo";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
   const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
-  if (!EMAIL_USER || !EMAIL_PASS) {
+  if (!BREVO_API_KEY && (!EMAIL_USER || !EMAIL_PASS)) {
     logger.error("Email is not configured");
     return { status: 500, body: { error: "Email service is not configured" } };
   }
@@ -1038,6 +1097,25 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
 
   const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
   let lastError: any = null;
+
+  if (BREVO_API_KEY) {
+    try {
+      await sendEmailWithBrevo(mail, timeoutMs);
+      return { status: 200, body: { message: "OTP sent successfully" } };
+    } catch (error: any) {
+      logger.error("Brevo email failed", {
+        message: error?.message,
+        responseCode: error?.responseCode,
+      });
+      return {
+        status: 500,
+        body: {
+          error: getEmailErrorMessage(error),
+          emailDebug: getEmailErrorDebug(error),
+        },
+      };
+    }
+  }
 
   for (const transport of emailTransports) {
     try {
