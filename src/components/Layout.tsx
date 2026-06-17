@@ -18,6 +18,7 @@ import {
   RiCalendarEventLine,
   RiCloseLine,
   RiMenu3Line,
+  RiRepeatLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -78,6 +79,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Smart Upload', path: '/upload', icon: RiScanLine },
     { name: 'Statement Import', path: '/statement-import', icon: RiFileUploadLine },
     { name: 'Calendar', path: '/calendar', icon: RiCalendarEventLine },
+    { name: 'Recurring', path: '/recurring', icon: RiRepeatLine },
     { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];

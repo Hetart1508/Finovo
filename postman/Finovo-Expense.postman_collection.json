@@ -602,6 +602,30 @@
           }
         },
         {
+          "name": "Get Upcoming Recurring Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recurring/upcoming?days=365",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "recurring",
+                "upcoming"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "365"
+                }
+              ]
+            },
+            "description": "Returns recurring events due within the next N days, including next_due_date and days_until_due."
+          }
+        },
+        {
           "name": "Create Recurring Event",
           "event": [
             {

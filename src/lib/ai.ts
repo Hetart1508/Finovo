@@ -35,9 +35,9 @@ export const extractBillData = async (base64Data: string, mimeType: string): Pro
   }
 };
 
-export const getFinancialInsights = async (transactions: any[]): Promise<FinancialInsights> => {
+export const getFinancialInsights = async (transactions: any[], recurringEvents: any[] = []): Promise<FinancialInsights> => {
   try {
-    const { data } = await api.post('/ai/insights', { transactions });
+    const { data } = await api.post('/ai/insights', { transactions, recurringEvents });
     return data;
   } catch (error) {
     console.warn('Gemini insights failed, falling back to local Ollama:', error);

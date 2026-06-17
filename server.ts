@@ -528,8 +528,8 @@ Rules:
   return normalizeGeminiBillData(result);
 };
 
-const getFinancialInsightsWithGemini = async (transactions: any[]) => {
-  const prompt = `You are an expert Indian personal-finance analyst. Analyze these expense tracker transactions and create a practical report for the user.
+const getFinancialInsightsWithGemini = async (transactions: any[], recurringEvents: any[] = []) => {
+  const prompt = `You are an expert Indian personal-finance analyst. Analyze these expense tracker transactions and planned recurring payments to create a practical report for the user.
 
 Return ONLY valid JSON with this exact shape:
 {
@@ -545,15 +545,20 @@ Return ONLY valid JSON with this exact shape:
 Rules:
 - Use INR formatting like ₹12,500.
 - Use the user's previous transactions to identify category patterns, repeated payments, spikes, and unusual expenses.
-- Predict likely future expenses for the next 30 days based on category totals, recurring-looking descriptions, and recent spending pace.
+- Use planned recurring payments to improve future expense predictions, including subscriptions, EMIs, rent, insurance, and yearly fees.
+- Predict likely future expenses for the next 30 days and full year based on category totals, recurring payments, and recent spending pace.
 - Give practical saving advice and future planning advice for an Indian user.
+- Mention recurring commitments when they materially affect the forecast or action plan.
 - Investment guidance must be general education only. Do not recommend a specific stock, fund, crypto, or guaranteed return.
 - Prefer clear bullet strings, one idea per bullet.
 - Keep every bullet under 24 words.
 - Do not use markdown, tables, code fences, or text outside JSON.
 
 Transactions:
-${JSON.stringify(transactions.slice(0, 60), null, 2)}`;
+${JSON.stringify(transactions.slice(0, 60), null, 2)}
+
+Planned recurring payments for the next 365 days:
+${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
 
   const result = await generateGemini(
     [{ text: prompt }],
@@ -995,6 +1000,32 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
 
 const findRecurringEventById = (id: number, userId: number) =>
   queryOne("SELECT * FROM recurring_events WHERE id = ? AND user_id = ?", [id, userId]);
+
+const getNextRecurringDueDate = (dayOfMonth: number, today = new Date()) => {
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const currentMonthLastDay = new Date(year, month + 1, 0).getDate();
+  const currentDue = new Date(year, month, Math.min(dayOfMonth, currentMonthLastDay));
+
+  if (currentDue >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+    return currentDue;
+  }
+
+  const nextMonthLastDay = new Date(year, month + 2, 0).getDate();
+  return new Date(year, month + 1, Math.min(dayOfMonth, nextMonthLastDay));
+};
+
+const addRecurringDueInfo = (event: any) => {
+  const nextDueDate = getNextRecurringDueDate(Number(event.day_of_month));
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  return {
+    ...event,
+    next_due_date: nextDueDate.toISOString().split("T")[0],
+    days_until_due: Math.ceil((nextDueDate.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000)),
+  };
+};
 
 const updateRecurringEvent = async (id: number, userId: number, body: any) => {
   const existing: any = await findRecurringEventById(id, userId);
@@ -1722,6 +1753,21 @@ app.get("/api/recurring", authenticateToken, async (req: any, res) => {
   res.json(events);
 });
 
+app.get("/api/recurring/upcoming", authenticateToken, async (req: any, res) => {
+  const days = req.query.days === undefined ? 365 : toPositiveInteger(req.query.days);
+  if (!days || days > 365) {
+    return res.status(400).json({ error: "days must be between 1 and 365" });
+  }
+
+  const events = await queryAll("SELECT * FROM recurring_events WHERE user_id = ?", [req.user.id]);
+  res.json(
+    events
+      .map(addRecurringDueInfo)
+      .filter((event) => event.days_until_due <= days)
+      .sort((a, b) => a.days_until_due - b.days_until_due)
+  );
+});
+
 app.post("/api/recurring", authenticateToken, async (req: any, res) => {
   const { name, amount, day_of_month, category, type } = req.body;
   const parsedAmount = toNumber(amount);
@@ -1825,13 +1871,14 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
 
 app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
   const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
+  const recurringEvents = Array.isArray(req.body?.recurringEvents) ? req.body.recurringEvents : [];
 
   if (!transactions) {
     return res.status(400).json({ error: "transactions must be an array" });
   }
 
   try {
-    const insights = await getFinancialInsightsWithGemini(transactions);
+    const insights = await getFinancialInsightsWithGemini(transactions, recurringEvents);
     res.json({ ...insights, provider: "gemini", model: GEMINI_MODEL });
   } catch (error: any) {
     logger.error("Gemini insights error", { error });

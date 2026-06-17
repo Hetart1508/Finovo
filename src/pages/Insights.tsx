@@ -159,7 +159,8 @@ export default function Insights() {
         return;
       }
 
-      const aiInsights = await getFinancialInsights(transactionsInRange);
+      const { data: recurringEvents } = await api.get('/recurring/upcoming?days=365');
+      const aiInsights = await getFinancialInsights(transactionsInRange, recurringEvents);
       setInsights(aiInsights);
       toast.success('AI suggestions generated!');
     } catch (error: any) {
