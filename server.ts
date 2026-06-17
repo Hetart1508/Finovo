@@ -931,9 +931,9 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
-  connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 10000),
-  greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 10000),
-  socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 10000),
+  connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
+  greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
+  socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
   auth: {
     user: EMAIL_USER,
     pass: EMAIL_PASS,
@@ -948,7 +948,7 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
   }
 
   try {
-    const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 10000);
+    const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
     await Promise.race([
       transporter.sendMail({
       from: `"FinSight AI" <${EMAIL_USER}>`,
@@ -973,8 +973,14 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
     ]);
 
     return { status: 200, body: { message: "OTP sent successfully" } };
-  } catch (error) {
-    logger.error("Email error", { error });
+  } catch (error: any) {
+    logger.error("Email error", {
+      message: error?.message,
+      code: error?.code,
+      command: error?.command,
+      responseCode: error?.responseCode,
+      response: error?.response,
+    });
     return { status: 500, body: { error: "Failed to send OTP" } };
   }
 };
