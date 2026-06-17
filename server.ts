@@ -246,6 +246,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     service: "finsight-api",
     environment: process.env.NODE_ENV || "development",
+    email: getEmailConfigStatus(),
   });
 });
 
@@ -259,6 +260,28 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
 const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'] as const;
+
+const getEmailConfigStatus = () => {
+  const trimmedUser = EMAIL_USER.trim();
+  const trimmedPass = EMAIL_PASS.trim();
+  const [localPart, domain] = trimmedUser.split("@");
+
+  return {
+    configured: Boolean(trimmedUser && trimmedPass),
+    userSet: Boolean(trimmedUser),
+    passSet: Boolean(trimmedPass),
+    userPreview: trimmedUser
+      ? `${localPart.slice(0, 3)}***@${domain || "unknown-domain"}`
+      : null,
+    passLength: trimmedPass.length,
+    passHasSpaces: EMAIL_PASS !== trimmedPass,
+    sendTimeoutMs: Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000),
+    connectionTimeoutMs: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
+    greetingTimeoutMs: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
+    socketTimeoutMs: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
+  };
+};
+
 type GeminiCategory = typeof GEMINI_CATEGORIES[number];
 type GeminiStatementTransaction = {
   date: string;
@@ -930,7 +953,10 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
 };
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  requireTLS: true,
   connectionTimeout: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
   greetingTimeout: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
   socketTimeout: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
@@ -939,6 +965,31 @@ const transporter = nodemailer.createTransport({
     pass: EMAIL_PASS,
   },
 });
+
+const getEmailErrorMessage = (error: any) => {
+  const message = String(error?.message || "");
+  const response = String(error?.response || "");
+  const code = String(error?.code || "");
+  const combined = `${message} ${response} ${code}`.toLowerCase();
+
+  if (combined.includes("invalid login") || combined.includes("username and password not accepted") || error?.responseCode === 535) {
+    return "Gmail rejected the email credentials. Use EMAIL_USER with a Google App Password in EMAIL_PASS, then redeploy.";
+  }
+
+  if (combined.includes("less secure") || combined.includes("application-specific password")) {
+    return "Gmail requires a Google App Password for this account. Normal Gmail passwords do not work with SMTP.";
+  }
+
+  if (combined.includes("timed out") || code === "ETIMEDOUT" || code === "ESOCKET") {
+    return "Email sending timed out while connecting to Gmail SMTP. Check Render networking/logs and try a 30000ms email timeout.";
+  }
+
+  if (combined.includes("daily user sending quota exceeded") || error?.responseCode === 454) {
+    return "Gmail rejected the send because the account hit a sending limit or temporary SMTP restriction.";
+  }
+
+  return "Failed to send OTP. Check Render logs for the Email error details from Gmail/Nodemailer.";
+};
 
 const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
   const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
@@ -981,7 +1032,7 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
       responseCode: error?.responseCode,
       response: error?.response,
     });
-    return { status: 500, body: { error: "Failed to send OTP" } };
+    return { status: 500, body: { error: getEmailErrorMessage(error) } };
   }
 };
 
@@ -1752,6 +1803,7 @@ app.use('/uploads', express.static('uploads'));
 // Vite Integration
 async function startServer() {
   await runMigrations();
+  logger.info("Email configuration status", getEmailConfigStatus());
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
