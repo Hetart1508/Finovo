@@ -163,7 +163,7 @@ export default function Insights() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AI Financial Insights</h1>
-          <p className="text-sm text-[#6B7280]">Powered by Gemini, with local AI fallback.</p>
+          <p className="text-sm text-[#6B7280] dark:text-[#CBD5E1]">Powered by Gemini, with local AI fallback.</p>
         </div>
         <Button variant="outline" onClick={generateInsights} disabled={insightsLoading || transactionsLoading} className="gap-2">
           <RiRefreshLine className={cn("text-base", insightsLoading && "animate-spin")} aria-hidden="true" />
@@ -245,13 +245,13 @@ export default function Insights() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main AI Insights */}
-        <Card className="lg:col-span-2 border-none shadow-sm bg-gradient-to-br from-[#EEF6FF]/70 to-white  ">
+        <Card className="lg:col-span-2 border-none bg-gradient-to-br from-[#EEF6FF]/80 to-white text-[#1F2937] shadow-sm dark:from-[#10213A] dark:to-[#111827] dark:text-[#F8FAFC]">
           <CardHeader>
             <div className="flex items-center gap-2 text-[#4F9CF9]">
               <RiSparkling2Line className="text-lg" aria-hidden="true" />
-<CardTitle className="text-xl">AI Analysis</CardTitle>
+              <CardTitle className="text-xl text-[#1F2937] dark:text-[#F8FAFC]">AI Analysis</CardTitle>
             </div>
-            <CardDescription>
+            <CardDescription className="text-[#6B7280] dark:text-[#CBD5E1]">
               Based on transactions from {rangeLabel}
               {insights?.model ? ` using ${insights.model}.` : '.'}
             </CardDescription>
@@ -276,8 +276,8 @@ export default function Insights() {
               </>
             ) : (
               <div className="py-12 text-center">
-                <p className="text-[#6B7280]">AI insights have not been generated yet.</p>
-                <p className="mt-2 text-sm text-[#6B7280]">Click Generate AI Insights when you want to use AI tokens.</p>
+                <p className="font-medium text-[#1F2937] dark:text-[#F8FAFC]">AI insights have not been generated yet.</p>
+                <p className="mt-2 text-sm text-[#6B7280] dark:text-[#CBD5E1]">Click Generate AI Insights when you want to use AI tokens.</p>
               </div>
             )}
           </CardContent>
@@ -291,9 +291,9 @@ export default function Insights() {
             </CardHeader>
             <CardContent className="h-[250px]">
               {transactionsLoading ? (
-                <div className="h-full flex items-center justify-center text-[#6B7280]">Loading data...</div>
+                <div className="h-full flex items-center justify-center text-[#6B7280] dark:text-[#CBD5E1]">Loading data...</div>
               ) : categoryData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[#6B7280]">No data</div>
+                <div className="h-full flex items-center justify-center text-[#6B7280] dark:text-[#CBD5E1]">No data</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={categoryData}>
