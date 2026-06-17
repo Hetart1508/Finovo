@@ -275,6 +275,7 @@ const getEmailConfigStatus = () => {
       : null,
     passLength: trimmedPass.length,
     passHasSpaces: EMAIL_PASS !== trimmedPass,
+    transport: "smtp.gmail.com:587/starttls",
     sendTimeoutMs: Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000),
     connectionTimeoutMs: Number(process.env.EMAIL_CONNECTION_TIMEOUT_MS || 30000),
     greetingTimeoutMs: Number(process.env.EMAIL_GREETING_TIMEOUT_MS || 30000),
@@ -991,6 +992,13 @@ const getEmailErrorMessage = (error: any) => {
   return "Failed to send OTP. Check Render logs for the Email error details from Gmail/Nodemailer.";
 };
 
+const getEmailErrorDebug = (error: any) => ({
+  code: error?.code || null,
+  command: error?.command || null,
+  responseCode: error?.responseCode || null,
+  message: error?.message || null,
+});
+
 const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
   const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
   if (!EMAIL_USER || !EMAIL_PASS) {
@@ -1032,7 +1040,13 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
       responseCode: error?.responseCode,
       response: error?.response,
     });
-    return { status: 500, body: { error: getEmailErrorMessage(error) } };
+    return {
+      status: 500,
+      body: {
+        error: getEmailErrorMessage(error),
+        emailDebug: getEmailErrorDebug(error),
+      },
+    };
   }
 };
 
