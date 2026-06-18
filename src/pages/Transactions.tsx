@@ -39,6 +39,8 @@ import {
   RiArrowUpDownLine,
   RiArrowUpSLine,
   RiDeleteBin6Line,
+  RiExternalLinkLine,
+  RiEyeLine,
   RiFilter3Line,
   RiPencilLine,
   RiSave3Line,
@@ -61,6 +63,16 @@ const sortLabels: Record<SortKey, string> = {
   amount: 'Amount',
 };
 
+const isPdfBill = (url: string) => {
+  const cleanUrl = url.split('?')[0].toLowerCase();
+  return cleanUrl.endsWith('.pdf') || cleanUrl.includes('/raw/upload/');
+};
+
+const getBillUrl = (url: string) => {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export default function Transactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +83,7 @@ export default function Transactions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [transactionDate, setTransactionDate] = useState<Date | null>(new Date());
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+  const [viewingBill, setViewingBill] = useState<any | null>(null);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -95,6 +108,13 @@ export default function Transactions() {
       toast.success(getApiSuccessMessage(response.data, "Transaction deleted successfully"));
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to delete transaction."));
+    }
+  };
+
+  const openBillInNewTab = (url: string) => {
+    const openedWindow = window.open(getBillUrl(url), '_blank');
+    if (openedWindow) {
+      openedWindow.opener = null;
     }
   };
 
@@ -437,6 +457,18 @@ export default function Transactions() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        {t.bill_url ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-[#6B7280] hover:text-[#4F9CF9]"
+                            onClick={() => setViewingBill(t)}
+                            aria-label="View invoice bill"
+                            title="View invoice bill"
+                          >
+                            <RiEyeLine className="text-base" aria-hidden="true" />
+                          </Button>
+                        ) : null}
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -515,6 +547,55 @@ export default function Transactions() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(viewingBill)} onOpenChange={(open) => !open && setViewingBill(null)}>
+        {viewingBill ? (
+          <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Invoice Bill</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 dark:border-[#334155] dark:bg-[#111827]">
+                <p className="truncate text-sm font-semibold text-[#1F2937] dark:text-[#CBD5E1]">
+                  {viewingBill.description || viewingBill.category}
+                </p>
+                <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">
+                  {format(parseISO(viewingBill.date), 'dd MMM yyyy')} • ₹{Number(viewingBill.amount).toLocaleString()}
+                </p>
+              </div>
+
+              {isPdfBill(viewingBill.bill_url) ? (
+                <div className="h-[70vh] overflow-hidden rounded-lg border border-[#E5E7EB] dark:border-[#334155]">
+                  <iframe
+                    src={getBillUrl(viewingBill.bill_url)}
+                    title="Invoice bill PDF"
+                    className="h-full w-full bg-white"
+                  />
+                </div>
+              ) : (
+                <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-lg border border-[#E5E7EB] bg-[#0F172A]/5 p-3 dark:border-[#334155]">
+                  <img
+                    src={getBillUrl(viewingBill.bill_url)}
+                    alt="Invoice bill"
+                    className="max-h-[66vh] max-w-full rounded-md object-contain"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => openBillInNewTab(viewingBill.bill_url)}
+                >
+                  <RiExternalLinkLine className="text-base" aria-hidden="true" />
+                  Open in new tab
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
 
       <Dialog open={Boolean(editingTransaction)} onOpenChange={(open) => !open && setEditingTransaction(null)}>
         {editingTransaction ? (

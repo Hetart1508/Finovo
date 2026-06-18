@@ -86,11 +86,20 @@ export default function SmartUpload() {
     if (!extractedData?.data) return;
     setLoading(true);
     try {
+      let billUrl: string | null = null;
+      if (file) {
+        const uploadForm = new FormData();
+        uploadForm.append('file', file);
+        const { data: uploadedBill } = await api.post('/upload', uploadForm);
+        billUrl = uploadedBill.url;
+      }
+
       const response = await api.post('/transactions', {
         ...extractedData.data,
         type: 'expense',
         payment_mode: 'UPI',
-        description: `AI Extracted (${extractedData.confidence}): ${extractedData.data.merchant}`
+        description: `AI Extracted (${extractedData.confidence}): ${extractedData.data.merchant}`,
+        bill_url: billUrl,
       });
       toast.success(getApiSuccessMessage(response.data, "Transaction saved successfully"));
       setFile(null);

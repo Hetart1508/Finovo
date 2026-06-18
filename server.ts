@@ -333,6 +333,14 @@ type NormalizedTransaction = {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
+const getRequiredEnv = (key: string) => {
+  const value = process.env[key];
+  if (!isNonEmptyString(value)) {
+    throw new Error(`${key} is not configured`);
+  }
+  return value.trim();
+};
+
 const normalizeEmail = (value: unknown) =>
   isNonEmptyString(value) ? value.trim().toLowerCase() : "";
 
@@ -2166,6 +2174,41 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 // --- File Upload (for bills) ---
 const upload = multer({ dest: 'uploads/' });
 
+const uploadBillToCloudinary = async (file: Express.Multer.File, userId: number) => {
+  const cloudName = getRequiredEnv("CLOUDINARY_CLOUD_NAME");
+  const apiKey = getRequiredEnv("CLOUDINARY_API_KEY");
+  const apiSecret = getRequiredEnv("CLOUDINARY_API_SECRET");
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const folder = `finovo/bills/user-${userId}`;
+  const signaturePayload = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
+  const signature = crypto.createHash("sha1").update(signaturePayload).digest("hex");
+  const fileBuffer = fs.readFileSync(file.path);
+  const formData = new FormData();
+
+  formData.append("file", new Blob([fileBuffer], { type: file.mimetype }), file.originalname);
+  formData.append("api_key", apiKey);
+  formData.append("timestamp", timestamp);
+  formData.append("folder", folder);
+  formData.append("signature", signature);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  const data: any = await response.json().catch(() => ({}));
+
+  if (!response.ok || !isNonEmptyString(data.secure_url)) {
+    throw new Error(data.error?.message || "Cloudinary upload failed");
+  }
+
+  return {
+    url: data.secure_url,
+    public_id: data.public_id,
+    resource_type: data.resource_type,
+    format: data.format,
+  };
+};
+
 const getGeminiImportHint = (message: string) => {
   if (/API key|permission|403|401/i.test(message)) {
     return "Check GEMINI_API_KEY in .env and restart npm run dev.";
@@ -2186,10 +2229,29 @@ const getGeminiImportHint = (message: string) => {
   return "Make sure the file is a readable, non-password-protected PDF/JPG/PNG and Gemini billing/quota is available.";
 };
 
-app.post("/api/upload", authenticateToken, upload.single('file'), (req: any, res) => {
+app.post("/api/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  // In a real app, we'd upload to S3/Cloudinary. Here we just return the local path.
-  res.json({ url: `/uploads/${req.file.filename}` });
+
+  const mimeType = req.file.mimetype || "";
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG invoice." });
+  }
+
+  try {
+    const uploaded = await uploadBillToCloudinary(req.file, req.user.id);
+    res.json(uploaded);
+  } catch (error: any) {
+    logger.error("Cloudinary bill upload error", { error });
+    res.status(502).json({
+      error: "Bill upload failed",
+      detail: IS_PRODUCTION ? undefined : error.message,
+    });
+  } finally {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+  }
 });
 
 app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file'), async (req: any, res) => {
