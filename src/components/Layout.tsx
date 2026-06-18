@@ -111,7 +111,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
-      <aside className="hidden w-72 flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
+      <aside className="hidden w-60 flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
