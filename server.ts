@@ -2172,12 +2172,48 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 });
 
 // --- File Upload (for bills) ---
-const upload = multer({ dest: 'uploads/' });
+const uploadsDir = path.join(process.cwd(), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
 
-const uploadBillToCloudinary = async (file: Express.Multer.File, userId: number) => {
-  const cloudName = getRequiredEnv("CLOUDINARY_CLOUD_NAME");
-  const apiKey = getRequiredEnv("CLOUDINARY_API_KEY");
-  const apiSecret = getRequiredEnv("CLOUDINARY_API_SECRET");
+const extensionForMimeType = (mimeType: string) => {
+  if (mimeType === "application/pdf") return ".pdf";
+  if (mimeType === "image/jpeg") return ".jpg";
+  if (mimeType === "image/png") return ".png";
+  if (mimeType === "image/webp") return ".webp";
+  return "";
+};
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const originalExt = path.extname(file.originalname || "").toLowerCase().replace(/[^.\w]/g, "");
+      const ext = originalExt || extensionForMimeType(file.mimetype || "");
+      cb(null, `${Date.now()}-${crypto.randomUUID()}${ext}`);
+    },
+  }),
+});
+
+const getCloudinaryConfig = () => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
+  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+
+  if (!cloudName || !apiKey || !apiSecret) return null;
+  return { cloudName, apiKey, apiSecret };
+};
+
+const getLocalUploadResponse = (file: Express.Multer.File) => ({
+  url: `/uploads/${path.basename(file.filename)}`,
+  storage: "local",
+});
+
+const uploadBillToCloudinary = async (
+  file: Express.Multer.File,
+  userId: number,
+  config: NonNullable<ReturnType<typeof getCloudinaryConfig>>
+) => {
+  const { cloudName, apiKey, apiSecret } = config;
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const folder = `finovo/bills/user-${userId}`;
   const signaturePayload = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
@@ -2238,19 +2274,22 @@ app.post("/api/upload", authenticateToken, upload.single('file'), async (req: an
     return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG invoice." });
   }
 
+  const cloudinaryConfig = getCloudinaryConfig();
+  if (!cloudinaryConfig) {
+    logger.warn("Cloudinary is not configured; using local bill upload storage");
+    return res.json(getLocalUploadResponse(req.file));
+  }
+
   try {
-    const uploaded = await uploadBillToCloudinary(req.file, req.user.id);
+    const uploaded = await uploadBillToCloudinary(req.file, req.user.id, cloudinaryConfig);
+    fs.unlinkSync(req.file.path);
     res.json(uploaded);
   } catch (error: any) {
-    logger.error("Cloudinary bill upload error", { error });
-    res.status(502).json({
-      error: "Bill upload failed",
-      detail: IS_PRODUCTION ? undefined : error.message,
+    logger.error("Cloudinary bill upload error; using local bill upload storage", { error });
+    res.json({
+      ...getLocalUploadResponse(req.file),
+      warning: "Cloudinary upload failed; stored locally instead.",
     });
-  } finally {
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
   }
 });
 
