@@ -333,14 +333,6 @@ type NormalizedTransaction = {
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
-const getRequiredEnv = (key: string) => {
-  const value = process.env[key];
-  if (!isNonEmptyString(value)) {
-    throw new Error(`${key} is not configured`);
-  }
-  return value.trim();
-};
-
 const normalizeEmail = (value: unknown) =>
   isNonEmptyString(value) ? value.trim().toLowerCase() : "";
 
@@ -2194,74 +2186,10 @@ const upload = multer({
   }),
 });
 
-const getCloudinaryConfig = () => {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
-  const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
-  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
-
-  if (!cloudName || !apiKey || !apiSecret) return null;
-  return { cloudName, apiKey, apiSecret };
-};
-
-const getCloudinaryConfigPreview = (config: NonNullable<ReturnType<typeof getCloudinaryConfig>>) => ({
-  cloudName: config.cloudName,
-  apiKeyPreview: `${config.apiKey.slice(0, 4)}...${config.apiKey.slice(-4)}`,
-  apiSecretSet: Boolean(config.apiSecret),
-});
-
-const getUploadErrorDetails = (error: unknown) => ({
-  name: error instanceof Error ? error.name : typeof error,
-  message: error instanceof Error ? error.message : String(error),
-  stack: IS_PRODUCTION || !(error instanceof Error) ? undefined : error.stack,
-});
-
 const getLocalUploadResponse = (file: Express.Multer.File) => ({
   url: `/uploads/${path.basename(file.filename)}`,
   storage: "local",
 });
-
-const uploadBillToCloudinary = async (
-  file: Express.Multer.File,
-  userId: number,
-  config: NonNullable<ReturnType<typeof getCloudinaryConfig>>
-) => {
-  const { cloudName, apiKey, apiSecret } = config;
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const folder = `finovo/bills/user-${userId}`;
-  const signaturePayload = `folder=${folder}&timestamp=${timestamp}${apiSecret}`;
-  const signature = crypto.createHash("sha1").update(signaturePayload).digest("hex");
-  const fileBuffer = fs.readFileSync(file.path);
-  const formData = new FormData();
-
-  formData.append("file", new Blob([fileBuffer], { type: file.mimetype }), file.originalname);
-  formData.append("api_key", apiKey);
-  formData.append("timestamp", timestamp);
-  formData.append("folder", folder);
-  formData.append("signature", signature);
-
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-    method: "POST",
-    body: formData,
-  });
-  const responseText = await response.text();
-  let data: any = {};
-  try {
-    data = responseText ? JSON.parse(responseText) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok || !isNonEmptyString(data.secure_url)) {
-    throw new Error(`Cloudinary upload failed: ${response.status} ${data.error?.message || responseText || response.statusText}`);
-  }
-
-  return {
-    url: data.secure_url,
-    public_id: data.public_id,
-    resource_type: data.resource_type,
-    format: data.format,
-  };
-};
 
 const getGeminiImportHint = (message: string) => {
   if (/API key|permission|403|401/i.test(message)) {
@@ -2292,31 +2220,7 @@ app.post("/api/upload", authenticateToken, upload.single('file'), async (req: an
     return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, JPEG, or PNG invoice." });
   }
 
-  const cloudinaryConfig = getCloudinaryConfig();
-  if (!cloudinaryConfig) {
-    logger.warn("Cloudinary is not configured; using local bill upload storage");
-    return res.json(getLocalUploadResponse(req.file));
-  }
-
-  try {
-    const uploaded = await uploadBillToCloudinary(req.file, req.user.id, cloudinaryConfig);
-    fs.unlinkSync(req.file.path);
-    res.json(uploaded);
-  } catch (error: any) {
-    logger.error("Cloudinary bill upload error; using local bill upload storage", {
-      error: getUploadErrorDetails(error),
-      cloudinary: getCloudinaryConfigPreview(cloudinaryConfig),
-      file: {
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        originalname: req.file.originalname,
-      },
-    });
-    res.json({
-      ...getLocalUploadResponse(req.file),
-      warning: "Cloudinary upload failed; stored locally instead.",
-    });
-  }
+  res.json(getLocalUploadResponse(req.file));
 });
 
 app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file'), async (req: any, res) => {
