@@ -34,6 +34,15 @@ type StatementTransaction = {
   payment_mode: string;
 };
 
+const getTodayDateString = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${today.getFullYear()}-${month}-${day}`;
+};
+
+const isFutureTransactionDate = (date: string) => date > getTodayDateString();
+
 export default function StatementImport() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statementFile, setStatementFile] = useState<File | null>(null);
@@ -94,17 +103,24 @@ export default function StatementImport() {
       });
 
       const importedTransactions: StatementTransaction[] = data.transactions || [];
-      setTransactions(importedTransactions);
+      const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
+      const futureTransactionCount = importedTransactions.length - validTransactions.length;
+
+      setTransactions(validTransactions);
       setModel(data.model || '');
       setStatementHash(data.statementHash || '');
       setAlreadyImported(Boolean(data.alreadyImported));
 
       if (data.alreadyImported) {
         toast.warn('This statement was already imported. No transactions will be added again.');
-      } else if (importedTransactions.length) {
-        toast.success(`Found ${importedTransactions.length} statement transactions. Review and approve to save.`);
+      } else if (validTransactions.length) {
+        toast.success(`Found ${validTransactions.length} statement transactions. Review and approve to save.`);
       } else {
         toast.warn('No transactions found in this statement.');
+      }
+
+      if (futureTransactionCount > 0) {
+        toast.warn(`${futureTransactionCount} future-dated statement row${futureTransactionCount === 1 ? '' : 's'} skipped.`);
       }
     } catch (error: any) {
       console.error(error);
@@ -123,6 +139,11 @@ export default function StatementImport() {
 
   const handleApproveAll = async () => {
     if (!transactions.length) return;
+
+    if (transactions.some((transaction) => isFutureTransactionDate(transaction.date))) {
+      toast.error('Statement transactions cannot include future dates.');
+      return;
+    }
 
     setApproveLoading(true);
     try {

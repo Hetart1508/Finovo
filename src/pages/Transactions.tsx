@@ -84,6 +84,7 @@ export default function Transactions() {
   const [transactionDate, setTransactionDate] = useState<Date | null>(new Date());
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [viewingBill, setViewingBill] = useState<any | null>(null);
+  const todayDateString = format(new Date(), 'yyyy-MM-dd');
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -122,12 +123,18 @@ export default function Transactions() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
+    const selectedDate = transactionDate ? format(transactionDate, 'yyyy-MM-dd') : '';
+
+    if (selectedDate > todayDateString) {
+      toast.error('Transaction date cannot be in the future.');
+      return;
+    }
     
     try {
       const response = await api.post('/transactions', {
         ...data,
         amount: parseFloat(data.amount as string),
-        date: transactionDate ? format(transactionDate, 'yyyy-MM-dd') : '',
+        date: selectedDate,
       });
       toast.success(getApiSuccessMessage(response.data, "Transaction added successfully"));
       setTransactionDate(new Date());
@@ -143,6 +150,12 @@ export default function Transactions() {
 
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
+    const selectedDate = String(data.date || '');
+
+    if (selectedDate > todayDateString) {
+      toast.error('Transaction date cannot be in the future.');
+      return;
+    }
 
     try {
       const response = await api.put(`/transactions/${editingTransaction.id}`, {
@@ -335,6 +348,7 @@ export default function Transactions() {
                     <DatePicker
                       value={transactionDate}
                       onChange={setTransactionDate}
+                      maxDate={new Date()}
                       format="dd MMM yyyy"
                       slotProps={{
                         textField: {
@@ -637,7 +651,7 @@ export default function Transactions() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-date">Date</Label>
-                <Input id="edit-date" name="date" type="date" defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
+                <Input id="edit-date" name="date" type="date" max={todayDateString} defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-payment-mode">Payment Mode</Label>

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Finovo Expense API",
-    "description": "Postman collection for the Finovo AI Expense Tracker backend.",
+    "description": "Complete Postman collection for the Finovo AI Expense Tracker backend. Import this collection and set baseUrl, email/password, token, file, or base64 variables as needed.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,18 +16,43 @@
       "type": "string"
     },
     {
+      "key": "name",
+      "value": "Test User",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "you@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "Password@123",
+      "type": "string"
+    },
+    {
       "key": "otp",
       "value": "",
       "type": "string"
     },
     {
+      "key": "googleCredential",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "userId",
-      "value": "3",
+      "value": "1",
       "type": "string"
     },
     {
       "key": "transactionId",
-      "value": "6",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "importedTransactionId",
+      "value": "",
       "type": "string"
     },
     {
@@ -36,28 +61,38 @@
       "type": "string"
     },
     {
-      "key": "name",
-      "value": "Hetarth",
+      "key": "fromDate",
+      "value": "2026-01-01",
       "type": "string"
     },
     {
-      "key": "email",
-      "value": "hetarth150804@gmail.com",
+      "key": "toDate",
+      "value": "2026-12-31",
       "type": "string"
     },
     {
-      "key": "password",
-      "value": "Hetarth@1508",
+      "key": "todayDate",
+      "value": "2026-06-18",
       "type": "string"
     },
     {
-      "key": "statementMimeType",
-      "value": "application/pdf",
+      "key": "limit",
+      "value": "100",
       "type": "string"
     },
     {
-      "key": "statementBase64",
-      "value": "",
+      "key": "offset",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "days",
+      "value": "365",
+      "type": "string"
+    },
+    {
+      "key": "threshold",
+      "value": "1000",
       "type": "string"
     },
     {
@@ -71,13 +106,28 @@
       "type": "string"
     },
     {
-      "key": "statementPreviewTransactions",
-      "value": "[]",
+      "key": "billUrl",
+      "value": "",
       "type": "string"
     },
     {
-      "key": "importedTransactionId",
+      "key": "statementMimeType",
+      "value": "application/pdf",
+      "type": "string"
+    },
+    {
+      "key": "statementBase64",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "statementHash",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "statementPreviewTransactions",
+      "value": "[]",
       "type": "string"
     }
   ],
@@ -92,6 +142,23 @@
     ]
   },
   "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Checks API health, environment, and email configuration status."
+          }
+        }
+      ]
+    },
     {
       "name": "Auth",
       "item": [
@@ -113,7 +180,7 @@
               "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/register",
-            "description": "Starts registration by saving pending user details and sending a verification OTP. Use Register - Debug OTP locally, or copy the OTP from email in production."
+            "description": "Starts registration and sends a verification OTP."
           }
         },
         {
@@ -138,23 +205,8 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/auth/debug-otp?email={{email}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "debug-otp"
-              ],
-              "query": [
-                {
-                  "key": "email",
-                  "value": "{{email}}"
-                }
-              ]
-            },
-            "description": "Development-only helper. Reads the latest OTP for the email and saves it into the otp collection variable. This should not be available in production."
+            "url": "{{baseUrl}}/auth/debug-otp?email={{email}}",
+            "description": "Development-only helper that returns the pending registration OTP and saves it to otp."
           }
         },
         {
@@ -165,10 +217,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('token', json.token);",
-                  "  pm.collectionVariables.set('userId', String(json.user.id));",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "  if (json.user && json.user.id) pm.collectionVariables.set('userId', String(json.user.id));",
                   "}"
                 ]
               }
@@ -190,7 +242,7 @@
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/register/verify-otp",
-            "description": "Completes registration after OTP verification and stores the JWT token plus userId automatically."
+            "description": "Completes registration, then saves token and userId."
           }
         },
         {
@@ -201,10 +253,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 200) {",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('token', json.token);",
-                  "  pm.collectionVariables.set('userId', String(json.user.id));",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "  if (json.user && json.user.id) pm.collectionVariables.set('userId', String(json.user.id));",
                   "}"
                 ]
               }
@@ -226,7 +278,43 @@
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/login",
-            "description": "Logs in with email and password, then stores the JWT token plus userId automatically."
+            "description": "Logs in with email/password, then saves token and userId."
+          }
+        },
+        {
+          "name": "Google Sign In",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "  if (json.user && json.user.id) pm.collectionVariables.set('userId', String(json.user.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credential\": \"{{googleCredential}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/google",
+            "description": "Signs in with a Google ID token credential, then saves token and userId."
           }
         },
         {
@@ -247,7 +335,7 @@
               "raw": "{\n  \"email\": \"{{email}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/forgot-password",
-            "description": "Sends a password reset OTP to the registered email address."
+            "description": "Sends password reset OTP to a registered email."
           }
         },
         {
@@ -268,7 +356,49 @@
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": "{{baseUrl}}/auth/reset-password",
-            "description": "Resets the password using the OTP from email. For local development, run Register - Debug OTP after Forgot Password - Send OTP to populate otp."
+            "description": "Resets password using the password reset OTP."
+          }
+        },
+        {
+          "name": "OTP Login - Send OTP Disabled",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/send-otp",
+            "description": "Compatibility endpoint. Backend intentionally returns 410 because OTP login is disabled."
+          }
+        },
+        {
+          "name": "OTP Login - Verify OTP Disabled",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"otp\": \"{{otp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/verify-otp",
+            "description": "Compatibility endpoint. Backend intentionally returns 410 because OTP login is disabled."
           }
         }
       ]
@@ -277,73 +407,21 @@
       "name": "Transactions",
       "item": [
         {
-          "name": "Get My Transactions",
+          "name": "List My Transactions",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/transactions?limit=100&offset=0",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "transactions"
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "100"
-                },
-                {
-                  "key": "offset",
-                  "value": "0"
-                },
-                {
-                  "key": "type",
-                  "value": "expense",
-                  "disabled": true
-                },
-                {
-                  "key": "category",
-                  "value": "Food",
-                  "disabled": true
-                },
-                {
-                  "key": "payment_mode",
-                  "value": "UPI",
-                  "disabled": true
-                },
-                {
-                  "key": "from",
-                  "value": "2026-01-01",
-                  "disabled": true
-                },
-                {
-                  "key": "to",
-                  "value": "2026-12-31",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Lists authenticated user's transactions with optional filters and pagination."
+            "url": "{{baseUrl}}/transactions?limit={{limit}}&offset={{offset}}&from={{fromDate}}&to={{toDate}}",
+            "description": "Lists authenticated user transactions. Optional query filters: type, category, payment_mode, from, to, limit, offset."
           }
         },
         {
-          "name": "Get Transaction By ID",
+          "name": "List My Transactions - By Type",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "description": "Gets one transaction by id for the authenticated user."
-          }
-        },
-        {
-          "name": "Get Transactions By User ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/users/{{userId}}/transactions",
-            "description": "Gets transactions by user id. The id must match the authenticated user."
+            "url": "{{baseUrl}}/transactions?type=expense&limit={{limit}}&offset={{offset}}",
+            "description": "Example filtered transaction list using type."
           }
         },
         {
@@ -354,9 +432,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('transactionId', String(json.id));",
+                  "  if (json.id) pm.collectionVariables.set('transactionId', String(json.id));",
                   "}"
                 ]
               }
@@ -372,45 +450,37 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 250,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Lunch\",\n  \"bill_url\": null\n}"
+              "raw": "{\n  \"amount\": 249.5,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"{{todayDate}}\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Lunch\",\n  \"bill_url\": \"{{billUrl}}\"\n}"
             },
-            "url": "{{baseUrl}}/transactions"
+            "url": "{{baseUrl}}/transactions",
+            "description": "Creates a transaction for the authenticated user and saves transactionId."
           }
         },
         {
-          "name": "Create Transaction By User ID",
+          "name": "Get Transaction By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions/{{transactionId}}",
+            "description": "Gets one authenticated-user transaction."
+          }
+        },
+        {
+          "name": "Patch Transaction",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('transactionId', String(json.id));",
+                  "  if (json.id) pm.collectionVariables.set('transactionId', String(json.id));",
                   "}"
                 ]
               }
             }
           ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"amount\": 1500,\n  \"type\": \"income\",\n  \"category\": \"Salary\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"Bank Transfer\",\n  \"description\": \"Freelance payout\",\n  \"bill_url\": null\n}"
-            },
-            "url": "{{baseUrl}}/users/{{userId}}/transactions",
-            "description": "Creates a transaction for a user id. The id must match the authenticated user."
-          }
-        },
-        {
-          "name": "Update Transaction Partial",
           "request": {
             "method": "PATCH",
             "header": [
@@ -421,14 +491,28 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 275,\n  \"description\": \"Lunch with tip\"\n}"
+              "raw": "{\n  \"amount\": 299,\n  \"category\": \"Food\",\n  \"description\": \"Updated lunch\"\n}"
             },
             "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "description": "Updates selected fields on a transaction."
+            "description": "Partially updates a transaction."
           }
         },
         {
-          "name": "Update Transaction All Fields",
+          "name": "Put Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('transactionId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PUT",
             "header": [
@@ -439,28 +523,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 799,\n  \"type\": \"expense\",\n  \"category\": \"Shopping\",\n  \"date\": \"2026-06-16\",\n  \"payment_mode\": \"Card\",\n  \"description\": \"Updated transaction from Postman\",\n  \"bill_url\": \"https://example.com/receipt-799.pdf\"\n}"
+              "raw": "{\n  \"amount\": 349,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"{{todayDate}}\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Replaced transaction\",\n  \"bill_url\": \"{{billUrl}}\"\n}"
             },
             "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "description": "Updates all editable fields on an authenticated user's transaction. Requires a valid transactionId from Create Transaction or Get Transactions."
+            "description": "Updates/replaces transaction fields using the PUT route."
           }
         },
         {
-          "name": "Replace Transaction",
+          "name": "Delete Transaction",
           "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"amount\": 300,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"2026-06-13\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Dinner\",\n  \"bill_url\": null\n}"
-            },
+            "method": "DELETE",
+            "header": [],
             "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "description": "Replaces editable fields on a transaction."
+            "description": "Deletes a transaction belonging to the authenticated user."
           }
         },
         {
@@ -468,42 +543,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/transactions/summary?from=2026-01-01&to=2026-12-31",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "transactions",
-                "summary"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-12-31"
-                },
-                {
-                  "key": "type",
-                  "value": "expense",
-                  "disabled": true
-                },
-                {
-                  "key": "category",
-                  "value": "Food",
-                  "disabled": true
-                },
-                {
-                  "key": "payment_mode",
-                  "value": "UPI",
-                  "disabled": true
-                }
-              ]
-            },
-            "description": "Returns total income, total expense, balance, and transaction count."
+            "url": "{{baseUrl}}/transactions/summary?from={{fromDate}}&to={{toDate}}",
+            "description": "Returns total income, total expense, balance, and count. Supports same filters as transaction list."
           }
         },
         {
@@ -511,32 +552,49 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/transactions/categories?from=2026-01-01&to=2026-12-31",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "transactions",
-                "categories"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-12-31"
-                },
-                {
-                  "key": "type",
-                  "value": "expense",
-                  "disabled": true
-                }
-              ]
+            "url": "{{baseUrl}}/transactions/categories?from={{fromDate}}&to={{toDate}}",
+            "description": "Returns category totals grouped by category and type. Supports same filters as transaction list."
+          }
+        },
+        {
+          "name": "List Transactions By User ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users/{{userId}}/transactions",
+            "description": "Legacy user-scoped list route. userId must match the authenticated user."
+          }
+        },
+        {
+          "name": "Create Transaction By User ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('transactionId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 249.5,\n  \"type\": \"expense\",\n  \"category\": \"Food\",\n  \"date\": \"{{todayDate}}\",\n  \"payment_mode\": \"UPI\",\n  \"description\": \"Lunch\",\n  \"bill_url\": \"{{billUrl}}\"\n}"
             },
-            "description": "Groups transactions by category and type with count and total amount."
+            "url": "{{baseUrl}}/users/{{userId}}/transactions",
+            "description": "Legacy user-scoped create route. userId must match the authenticated user."
           }
         },
         {
@@ -545,16 +603,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/transactions/{{importedTransactionId}}",
-            "description": "Gets the first transaction inserted by Statement Import approval."
-          }
-        },
-        {
-          "name": "Delete Transaction By ID",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": "{{baseUrl}}/transactions/{{transactionId}}",
-            "description": "Deletes one transaction by id for the authenticated user."
+            "description": "Fetches the first transaction saved by a statement import approve request."
           }
         }
       ]
@@ -568,7 +617,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/users/{{userId}}",
-            "description": "Returns the authenticated user's profile. The id must match the token user."
+            "description": "Gets the authenticated user profile. userId must match token user."
           }
         },
         {
@@ -583,9 +632,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"threshold\": 1000\n}"
+              "raw": "{\n  \"threshold\": \"{{threshold}}\"\n}"
             },
-            "url": "{{baseUrl}}/user/threshold"
+            "url": "{{baseUrl}}/user/threshold",
+            "description": "Updates daily spending threshold. Returns 204 on success."
           }
         }
       ]
@@ -594,35 +644,21 @@
       "name": "Recurring Events",
       "item": [
         {
-          "name": "Get Recurring Events",
+          "name": "List Recurring Events",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/recurring"
+            "url": "{{baseUrl}}/recurring",
+            "description": "Lists recurring events for the authenticated user."
           }
         },
         {
-          "name": "Get Upcoming Recurring Events",
+          "name": "List Upcoming Recurring Events",
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/recurring/upcoming?days=365",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "recurring",
-                "upcoming"
-              ],
-              "query": [
-                {
-                  "key": "days",
-                  "value": "365"
-                }
-              ]
-            },
-            "description": "Returns recurring events due within the next N days, including next_due_date and days_until_due."
+            "url": "{{baseUrl}}/recurring/upcoming?days={{days}}",
+            "description": "Lists recurring events due within 1-365 days."
           }
         },
         {
@@ -633,9 +669,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) {",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
                   "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('recurringId', String(json.id));",
+                  "  if (json.id) pm.collectionVariables.set('recurringId', String(json.id));",
                   "}"
                 ]
               }
@@ -651,9 +687,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Rent\",\n  \"amount\": 12000,\n  \"day_of_month\": 1,\n  \"category\": \"Rent\",\n  \"type\": \"expense\"\n}"
+              "raw": "{\n  \"name\": \"Netflix Subscription\",\n  \"amount\": 649,\n  \"day_of_month\": 5,\n  \"category\": \"Entertainment\",\n  \"type\": \"Subscription\",\n  \"frequency\": \"monthly\",\n  \"interval_count\": 1,\n  \"start_date\": \"{{fromDate}}\",\n  \"payment_mode\": \"auto\",\n  \"autopay_enabled\": true,\n  \"payment_account\": \"HDFC Credit Card\"\n}"
             },
-            "url": "{{baseUrl}}/recurring"
+            "url": "{{baseUrl}}/recurring",
+            "description": "Creates a recurring event and saves recurringId."
           }
         },
         {
@@ -662,11 +699,25 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/recurring/{{recurringId}}",
-            "description": "Gets one recurring event by id for the authenticated user."
+            "description": "Gets one recurring event."
           }
         },
         {
-          "name": "Update Recurring Event",
+          "name": "Patch Recurring Event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('recurringId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PATCH",
             "header": [
@@ -677,10 +728,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 12500,\n  \"day_of_month\": 2\n}"
+              "raw": "{\n  \"amount\": 699,\n  \"day_of_month\": 7,\n  \"payment_mode\": \"manual\",\n  \"autopay_enabled\": false\n}"
             },
             "url": "{{baseUrl}}/recurring/{{recurringId}}",
-            "description": "Updates selected fields on a recurring event."
+            "description": "Partially updates a recurring event."
           }
         },
         {
@@ -689,187 +740,7 @@
             "method": "DELETE",
             "header": [],
             "url": "{{baseUrl}}/recurring/{{recurringId}}",
-            "description": "Deletes one recurring event by id for the authenticated user."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Statement Import",
-      "item": [
-        {
-          "name": "Preview Statement JSON Base64",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
-            },
-            "url": "{{baseUrl}}/statement-import/preview",
-            "description": "Extracts income and expense rows from a statement without saving them. Put base64-only file content in statementBase64. The test script saves extracted rows into statementPreviewTransactions for the approve request."
-          }
-        },
-        {
-          "name": "Approve Previewed Statement Transactions",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const rows = pm.collectionVariables.get('statementPreviewTransactions') || '[]';",
-                  "pm.variables.set('statementPreviewTransactionsBody', rows);"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  const first = (json.savedTransactions || [])[0];",
-                  "  if (first?.id) pm.collectionVariables.set('importedTransactionId', String(first.id));",
-                  "  if (first?.id) pm.collectionVariables.set('transactionId', String(first.id));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transactions\": {{statementPreviewTransactionsBody}}\n}"
-            },
-            "url": "{{baseUrl}}/statement-import/approve",
-            "description": "Saves the rows from statementPreviewTransactions into the authenticated user's transaction table. Run Preview Statement JSON Base64 first, review the saved variable, then send this request."
-          }
-        },
-        {
-          "name": "Approve Statement Transactions - Manual Sample",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  const first = (json.savedTransactions || [])[0];",
-                  "  if (first?.id) pm.collectionVariables.set('importedTransactionId', String(first.id));",
-                  "  if (first?.id) pm.collectionVariables.set('transactionId', String(first.id));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"transactions\": [\n    {\n      \"date\": \"2026-06-01\",\n      \"description\": \"Salary credit\",\n      \"amount\": 50000,\n      \"type\": \"income\",\n      \"category\": \"Salary\",\n      \"payment_mode\": \"Bank Statement\"\n    },\n    {\n      \"date\": \"2026-06-02\",\n      \"description\": \"UPI grocery payment\",\n      \"amount\": 1250,\n      \"type\": \"expense\",\n      \"category\": \"Shopping\",\n      \"payment_mode\": \"UPI\"\n    }\n  ]\n}"
-            },
-            "url": "{{baseUrl}}/statement-import/approve",
-            "description": "Manual approve test that does not call Gemini. Useful for confirming approved statement rows are inserted into the transactions table."
-          }
-        },
-        {
-          "name": "Legacy Preview Statement JSON Base64",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"mimeType\": \"{{statementMimeType}}\",\n  \"base64Data\": \"{{statementBase64}}\"\n}"
-            },
-            "url": "{{baseUrl}}/ai/import-statement",
-            "description": "Backward-compatible statement extraction endpoint. It now returns pendingApproval=true and does not save rows automatically."
-          }
-        },
-        {
-          "name": "Legacy Preview Statement File (PDF/Image)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "  const json = pm.response.json();",
-                  "  pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions || []));",
-                  "}"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            },
-            "url": "{{baseUrl}}/ai/import-statement-file",
-            "description": "Upload a PDF/JPG/PNG statement using form-data key file. This endpoint now previews extracted rows only; approve separately with /statement-import/approve."
+            "description": "Deletes a recurring event."
           }
         }
       ]
@@ -878,7 +749,7 @@
       "name": "AI - Gemini",
       "item": [
         {
-          "name": "Extract Bill JSON Base64",
+          "name": "Extract Bill - Base64",
           "request": {
             "method": "POST",
             "header": [
@@ -889,10 +760,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mimeType\": \"{{billMimeType}}\",\n  \"base64Data\": \"{{billBase64}}\"\n}"
+              "raw": "{\n  \"base64Data\": \"{{billBase64}}\",\n  \"mimeType\": \"{{billMimeType}}\"\n}"
             },
             "url": "{{baseUrl}}/ai/extract-bill",
-            "description": "Extracts merchant, amount, date, and category from a bill image. Put base64-only image content in billBase64. This does not save a transaction by itself."
+            "description": "Extracts merchant, amount, date, and category from a PDF/image bill using Gemini."
           }
         },
         {
@@ -907,19 +778,62 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"transactions\": [\n    {\n      \"amount\": 250,\n      \"type\": \"expense\",\n      \"category\": \"Food\",\n      \"date\": \"2026-06-13\",\n      \"payment_mode\": \"UPI\",\n      \"description\": \"Lunch\"\n    },\n    {\n      \"amount\": 50000,\n      \"type\": \"income\",\n      \"category\": \"Salary\",\n      \"date\": \"2026-06-01\",\n      \"payment_mode\": \"Bank Transfer\",\n      \"description\": \"Monthly salary\"\n    }\n  ]\n}"
+              "raw": "{\n  \"transactions\": [\n    {\n      \"amount\": 249.5,\n      \"type\": \"expense\",\n      \"category\": \"Food\",\n      \"date\": \"{{todayDate}}\",\n      \"payment_mode\": \"UPI\",\n      \"description\": \"Lunch\"\n    }\n  ],\n  \"recurringEvents\": [\n    {\n      \"name\": \"Netflix Subscription\",\n      \"amount\": 649,\n      \"day_of_month\": 5,\n      \"category\": \"Entertainment\",\n      \"type\": \"Subscription\",\n      \"frequency\": \"monthly\",\n      \"interval_count\": 1,\n      \"start_date\": \"{{fromDate}}\",\n      \"payment_mode\": \"auto\",\n      \"autopay_enabled\": true,\n      \"payment_account\": \"HDFC Credit Card\"\n    }\n  ]\n}"
             },
             "url": "{{baseUrl}}/ai/insights",
-            "description": "Generates Gemini financial insights from supplied transaction rows. The app usually sends current transactions from the database."
+            "description": "Generates financial insights from transactions and recurring events using Gemini."
           }
-        }
-      ]
-    },
-    {
-      "name": "Upload",
-      "item": [
+        },
         {
-          "name": "Upload Bill",
+          "name": "Import Statement - Legacy Base64 Preview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.statementHash) pm.collectionVariables.set('statementHash', json.statementHash);",
+                  "  if (Array.isArray(json.transactions)) pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"base64Data\": \"{{statementBase64}}\",\n  \"mimeType\": \"{{statementMimeType}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai/import-statement",
+            "description": "Legacy statement import preview route. Extracts transactions but waits for approval."
+          }
+        },
+        {
+          "name": "Import Statement - Legacy File Preview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.statementHash) pm.collectionVariables.set('statementHash', json.statementHash);",
+                  "  if (Array.isArray(json.transactions)) pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions));",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [],
@@ -929,12 +843,158 @@
                 {
                   "key": "file",
                   "type": "file",
-                  "src": []
+                  "src": [],
+                  "description": "Choose a PDF/image file for the file field."
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/ai/import-statement-file",
+            "description": "Legacy multipart file statement preview route. Use form-data key file."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Statement Import",
+      "item": [
+        {
+          "name": "Preview Statement - Base64",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.statementHash) pm.collectionVariables.set('statementHash', json.statementHash);",
+                  "  if (Array.isArray(json.transactions)) pm.collectionVariables.set('statementPreviewTransactions', JSON.stringify(json.transactions));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"base64Data\": \"{{statementBase64}}\",\n  \"mimeType\": \"{{statementMimeType}}\"\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/preview",
+            "description": "Preferred statement preview route. Saves statementHash and previewed transactions to collection variables."
+          }
+        },
+        {
+          "name": "Approve Previewed Statement Transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (Array.isArray(json.savedTransactions) && json.savedTransactions[0]?.id) {",
+                  "    pm.collectionVariables.set('importedTransactionId', String(json.savedTransactions[0].id));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statementHash\": \"{{statementHash}}\",\n  \"transactions\": {{statementPreviewTransactions}}\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/approve",
+            "description": "Approves transactions returned by Preview Statement and saves the first importedTransactionId."
+          }
+        },
+        {
+          "name": "Approve Statement Transactions - Manual Sample",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (Array.isArray(json.savedTransactions) && json.savedTransactions[0]?.id) {",
+                  "    pm.collectionVariables.set('importedTransactionId', String(json.savedTransactions[0].id));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statementHash\": \"{{statementHash}}\",\n  \"transactions\": [\n    {\n      \"amount\": 1200,\n      \"type\": \"expense\",\n      \"category\": \"Utilities\",\n      \"date\": \"{{todayDate}}\",\n      \"payment_mode\": \"Bank Statement\",\n      \"description\": \"Electricity bill\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/statement-import/approve",
+            "description": "Manual sample for approving statement transactions without running AI preview first."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Upload",
+      "item": [
+        {
+          "name": "Upload Bill File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.url) pm.collectionVariables.set('billUrl', json.url);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Choose a PDF/image file for the file field."
                 }
               ]
             },
             "url": "{{baseUrl}}/upload",
-            "description": "Choose a file for the file field before sending."
+            "description": "Uploads a bill/invoice PDF or image using multipart form-data key file."
           }
         }
       ]
@@ -957,10 +1017,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"llama3.2:1b\",\n  \"prompt\": \"Give one saving tip for monthly expenses.\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0,\n    \"top_p\": 0.95,\n    \"top_k\": 40,\n    \"num_predict\": 256,\n    \"seed\": 42\n  }\n}"
+              "raw": "{\n  \"model\": \"llama3.2\",\n  \"prompt\": \"Say hello from Finovo\",\n  \"stream\": false\n}"
             },
             "url": "http://localhost:11434/api/generate",
-            "description": "Direct local Ollama endpoint used by the frontend AI helpers."
+            "description": "Local Ollama helper used by frontend fallback code. This is not an Express backend route."
           }
         }
       ]

@@ -349,6 +349,16 @@ const toPositiveInteger = (value: unknown) => {
 const isValidDateString = (value: unknown) =>
   isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
+const getTodayDateString = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isFutureDateString = (value: string) => value > getTodayDateString();
+
 const sha256 = (value: string | Buffer) =>
   crypto.createHash("sha256").update(value).digest("hex");
 
@@ -378,6 +388,10 @@ const normalizeGeminiBillData = (text: string) => {
 
   if (!isNonEmptyString(parsed.merchant) || amount === null || amount <= 0 || !isValidDateString(parsed.date)) {
     throw new Error("Gemini returned incomplete bill data");
+  }
+
+  if (isFutureDateString(parsed.date)) {
+    throw new Error("Bill date cannot be in the future");
   }
 
   return {
@@ -431,7 +445,7 @@ const normalizeGeminiStatementTransactions = (text: string) => {
       const date = isValidDateString(transaction.date) ? transaction.date : null;
       const description = isNonEmptyString(transaction.description) ? transaction.description.trim() : "";
 
-      if (!date || !type || amount === null || amount <= 0 || !description) {
+      if (!date || isFutureDateString(date) || !type || amount === null || amount <= 0 || !description) {
         return null;
       }
 
@@ -522,6 +536,7 @@ Rules:
 - Pick the final payable amount only. Ignore GST, CGST, SGST, discounts, invoice numbers, phone numbers, GSTIN, item counts, and dates.
 - Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
 - Use ${today} only if the bill date is unreadable.
+- Do not return a date after ${today}; if the bill appears future-dated, treat it as invalid.
 - Category must be exactly one of: Food, Transport, Shopping, Utilities, Entertainment, Health, Other.`;
 
   const result = await generateGemini(
@@ -593,6 +608,7 @@ Rules:
 - Ignore opening balance, closing balance, available balance, account numbers, totals, summaries, page headers, and duplicate continuation rows.
 - Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
 - If a date is unreadable, omit that row rather than using ${today}.
+- Omit rows dated after ${today}; future transactions must not be imported.
 - Choose a practical category. Use Salary, Refund, Interest, Transfer, Food, Transport, Shopping, Utilities, Entertainment, Health, Fees, ATM, Other.
 - Keep descriptions short but traceable to the statement narration.
 - Return up to 150 transactions, newest or statement order is fine.`;
@@ -678,6 +694,10 @@ const normalizeTransactionBody = (body: any) => {
 
   if (!isNonEmptyString(category) || !isValidDateString(date) || !isNonEmptyString(payment_mode)) {
     return { status: 400, body: { error: "Category, date, and payment mode are required" } };
+  }
+
+  if (isFutureDateString(date)) {
+    return { status: 400, body: { error: "Transaction date cannot be in the future" } };
   }
 
   const transaction = {
@@ -972,6 +992,10 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
 
   if (!isNonEmptyString(next.category) || !isValidDateString(next.date) || !isNonEmptyString(next.payment_mode)) {
     return { status: 400, body: { error: "Category, date, and payment mode are required" } };
+  }
+
+  if (isFutureDateString(next.date)) {
+    return { status: 400, body: { error: "Transaction date cannot be in the future" } };
   }
 
   const transaction = {
@@ -1643,7 +1667,7 @@ app.post("/api/auth/login", async (req, res) => {
 
   const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
   if (!user) {
-    return res.status(401).json({ error: "Invalid email or password" });
+    return res.status(404).json({ error: "User email not found. Please register before logging in." });
   }
 
   if (!user.password_enabled) {
@@ -1654,7 +1678,7 @@ app.post("/api/auth/login", async (req, res) => {
 
   const isValidPassword = await bcrypt.compare(password, user.password);
   if (!isValidPassword) {
-    return res.status(401).json({ error: "Invalid email or password" });
+    return res.status(401).json({ error: "Incorrect password. Please try again." });
   }
 
   res.json(createAuthResponse(user));

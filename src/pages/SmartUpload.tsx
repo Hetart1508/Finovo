@@ -19,6 +19,14 @@ import {
   RiRefreshLine,
   RiUploadCloudLine,
 } from 'react-icons/ri';
+
+const getTodayDateString = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${today.getFullYear()}-${month}-${day}`;
+};
+
 interface Extracted {
   data: {
     merchant: string;
@@ -37,6 +45,7 @@ export default function SmartUpload() {
   const [loading, setLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
   const [extractionError, setExtractionError] = useState<string | null>(null);
+  const todayDateString = getTodayDateString();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const selectedFile = acceptedFiles[0];
@@ -65,6 +74,9 @@ export default function SmartUpload() {
     try {
       const base64 = preview.split(',')[1];
       const data = await extractBillData(base64, file.type);
+      if (data.date > todayDateString) {
+        throw new Error('Bill date cannot be in the future.');
+      }
       
       // Simple confidence heuristic (can enhance with Ollama logits later)
       const confidence = data.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? 'high' : 'medium';
@@ -84,6 +96,12 @@ export default function SmartUpload() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!extractedData?.data) return;
+
+    if (extractedData.data.date > todayDateString) {
+      toast.error('Transaction date cannot be in the future.');
+      return;
+    }
+
     setLoading(true);
     try {
       let billUrl: string | null = null;
@@ -115,7 +133,7 @@ export default function SmartUpload() {
 
   const enterManually = () => {
     setExtractedData({
-      data: { merchant: '', amount: 0, date: new Date().toISOString().split('T')[0], category: 'Other' },
+      data: { merchant: '', amount: 0, date: getTodayDateString(), category: 'Other' },
       confidence: 'low'
     } as Extracted);
     setExtractionError(null);
@@ -254,6 +272,7 @@ export default function SmartUpload() {
                         <Label>Date</Label>
                         <Input 
                           type="date"
+                          max={todayDateString}
                           value={extractedData.data.date || ''} 
                           onChange={(e) => setExtractedData({...extractedData, data: {...extractedData.data, date: e.target.value}})}
                           required
