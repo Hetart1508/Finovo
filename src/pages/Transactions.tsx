@@ -293,7 +293,7 @@ export default function Transactions() {
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="all">All-Types</SelectItem>
               <SelectItem value="expense">Expenses</SelectItem>
               <SelectItem value="income">Income</SelectItem>
             </SelectContent>

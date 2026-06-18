@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   XAxis, 
@@ -16,7 +18,7 @@ import {
   Line
 } from 'recharts';
 import api from '@/src/lib/api';
-import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from 'date-fns';
+import { endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'react-toastify';
 import { getApiMessage } from '@/src/lib/toastMessages';
@@ -30,16 +32,78 @@ import {
 
 const COLORS = ['#4F9CF9', '#34C759', '#FFB84D', '#FF6B6B', '#6B7280', '#EEF6FF', '#E5E7EB'];
 
+type RangePreset = 'this-month' | 'last-month' | 'this-week' | 'last-week' | 'last-3-months' | 'last-6-months' | 'all';
+type AnalysisRange = RangePreset | 'custom';
+
+const rangeLabels: Record<AnalysisRange, string> = {
+  'this-month': 'This-Month',
+  'last-month': 'Last-Month',
+  'this-week': 'This-Week',
+  'last-week': 'Last-Week',
+  'last-3-months': 'Last-3-Months',
+  'last-6-months': 'Last-6-Months',
+  all: 'All',
+  custom: 'Custom',
+};
+
+const getDateRange = (preset: AnalysisRange, customStart: string, customEnd: string) => {
+  const today = new Date();
+  const todayEnd = new Date(today);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  if (preset === 'all') return null;
+
+  if (preset === 'custom') {
+    if (!customStart || !customEnd) return null;
+    const start = parseISO(customStart);
+    const end = parseISO(customEnd);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (preset === 'last-month') {
+    const previousMonth = subMonths(today, 1);
+    return { start: startOfMonth(previousMonth), end: endOfMonth(previousMonth) };
+  }
+
+  if (preset === 'this-week') {
+    return { start: startOfWeek(today, { weekStartsOn: 1 }), end: todayEnd };
+  }
+
+  if (preset === 'last-week') {
+    const previousWeek = subWeeks(today, 1);
+    return {
+      start: startOfWeek(previousWeek, { weekStartsOn: 1 }),
+      end: endOfWeek(previousWeek, { weekStartsOn: 1 }),
+    };
+  }
+
+  if (preset === 'last-3-months') {
+    return { start: subMonths(today, 3), end: todayEnd };
+  }
+
+  if (preset === 'last-6-months') {
+    return { start: subMonths(today, 6), end: todayEnd };
+  }
+
+  return { start: startOfMonth(today), end: todayEnd };
+};
+
 export default function Dashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [recurring, setRecurring] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPreset, setSelectedPreset] = useState<RangePreset>('this-month');
+  const [activeRange, setActiveRange] = useState<AnalysisRange>('this-month');
+  const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const todayDateString = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [tRes, rRes] = await Promise.all([
-          api.get('/transactions'),
+          api.get('/transactions?limit=10000&offset=0'),
           api.get('/recurring')
         ]);
         setTransactions(tRes.data);
@@ -54,25 +118,41 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  const currentMonth = startOfMonth(new Date());
-  const monthEnd = endOfMonth(new Date());
-
-  const monthTransactions = transactions.filter(t => 
-    isWithinInterval(parseISO(t.date), { start: currentMonth, end: monthEnd })
+  const selectedRange = useMemo(
+    () => getDateRange(activeRange, customStartDate, customEndDate),
+    [activeRange, customEndDate, customStartDate]
   );
 
-  const totalIncome = monthTransactions
+  const hasInvalidCustomRange =
+    activeRange === 'custom' &&
+    Boolean(customStartDate && customEndDate) &&
+    customStartDate > customEndDate;
+
+  const analysisTransactions = useMemo(() => {
+    if (hasInvalidCustomRange) return [];
+    if (!selectedRange) return transactions;
+
+    return transactions.filter(t =>
+      isWithinInterval(parseISO(t.date), selectedRange)
+    );
+  }, [hasInvalidCustomRange, selectedRange, transactions]);
+
+  const rangeDescription = selectedRange
+    ? `${format(selectedRange.start, 'dd MMM yyyy')} - ${format(selectedRange.end, 'dd MMM yyyy')}`
+    : 'All transactions';
+
+  const totalIncome = analysisTransactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const totalExpense = monthTransactions
+  const totalExpense = analysisTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0);
 
   const balance = totalIncome - totalExpense;
 
   const categoryData = Object.entries(
-    monthTransactions
+    analysisTransactions
       .filter(t => t.type === 'expense')
       .reduce((acc: any, t) => {
         acc[t.category] = (acc[t.category] || 0) + t.amount;
@@ -81,7 +161,7 @@ export default function Dashboard() {
   ).map(([name, value]) => ({ name, value }));
 
   const dailyData = Object.entries(
-    monthTransactions
+    analysisTransactions
       .filter(t => t.type === 'expense')
       .reduce((acc: any, t) => {
         const day = format(parseISO(t.date), 'dd MMM');
@@ -89,6 +169,10 @@ export default function Dashboard() {
         return acc;
       }, {})
   ).map(([name, amount]) => ({ name, amount })).reverse();
+
+  const recentAnalysisTransactions = [...analysisTransactions]
+    .sort((first, second) => parseISO(second.date).getTime() - parseISO(first.date).getTime())
+    .slice(0, 5);
 
   if (loading) return <div className="flex h-full items-center justify-center text-sm font-semibold text-[#6B7280]">Loading dashboard...</div>;
 
@@ -98,12 +182,65 @@ export default function Dashboard() {
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Financial overview</p>
-            <h1 className="mt-2 text-3xl font-black text-[#1F2937]">This month's money movement</h1>
-          
+            <h1 className="mt-2 text-3xl font-black text-[#1F2937]">{rangeLabels[activeRange]} money movement</h1>
+            <p className="mt-2 text-sm text-[#6B7280]">{rangeDescription}</p>
+            {hasInvalidCustomRange ? (
+              <p className="mt-2 text-sm font-semibold text-[#FF6B6B]">Start date must be before or equal to end date.</p>
+            ) : null}
           </div>
-          <div className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase text-[#6B7280]">Transactions</p>
-            <p className="text-2xl font-black text-[#1F2937]">{monthTransactions.length}</p>
+          <div className="flex flex-col gap-3 md:items-end">
+            <div className="flex flex-col gap-3 lg:flex-row">
+              <Select
+                value={selectedPreset}
+                onValueChange={(value) => {
+                  const preset = value as RangePreset;
+                  setSelectedPreset(preset);
+                  setActiveRange(preset);
+                }}
+              >
+                <SelectTrigger className="h-10 w-full bg-white sm:w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="this-month">This-Month</SelectItem>
+                  <SelectItem value="last-month">Last-Month</SelectItem>
+                  <SelectItem value="this-week">This-Week</SelectItem>
+                  <SelectItem value="last-week">Last-Week</SelectItem>
+                  <SelectItem value="last-3-months">Last-3-Months</SelectItem>
+                  <SelectItem value="last-6-months">Last-6-Months</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="date"
+                  max={todayDateString}
+                  value={customStartDate}
+                  onChange={(event) => {
+                    setCustomStartDate(event.target.value);
+                    setActiveRange('custom');
+                  }}
+                  aria-label="Custom start date"
+                  className="h-10 bg-white"
+                />
+                <Input
+                  type="date"
+                  max={todayDateString}
+                  value={customEndDate}
+                  onChange={(event) => {
+                    setCustomEndDate(event.target.value);
+                    setActiveRange('custom');
+                  }}
+                  aria-label="Custom end date"
+                  className="h-10 bg-white"
+                />
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-right">
+              <p className="text-xs font-semibold uppercase text-[#6B7280]">Transactions</p>
+              <p className="text-2xl font-black text-[#1F2937]">{analysisTransactions.length}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -115,7 +252,7 @@ export default function Dashboard() {
               <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-income">
                 <RiArrowRightUpLine className="text-lg" aria-hidden="true" />
               </div>
-              <Badge variant="outline" className="border-[#EAFBF0] text-[#34C759]">Monthly</Badge>
+              <Badge variant="outline" className="border-[#EAFBF0] text-[#34C759]">{rangeLabels[activeRange]}</Badge>
             </div>
             <p className="text-sm text-[#6B7280] font-medium">Total Income</p>
             <h3 className="text-2xl font-bold mt-1">₹{totalIncome.toLocaleString()}</h3>
@@ -128,7 +265,7 @@ export default function Dashboard() {
               <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-expense">
                 <RiArrowLeftDownLine className="text-lg" aria-hidden="true" />
               </div>
-              <Badge variant="outline" className="border-[#FFF1F1] text-[#FF6B6B]">Monthly</Badge>
+              <Badge variant="outline" className="border-[#FFF1F1] text-[#FF6B6B]">{rangeLabels[activeRange]}</Badge>
             </div>
             <p className="text-sm text-[#6B7280] font-medium">Total Expenses</p>
             <h3 className="text-2xl font-bold mt-1">₹{totalExpense.toLocaleString()}</h3>
@@ -219,7 +356,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {transactions.slice(0, 5).map((t) => (
+              {recentAnalysisTransactions.map((t) => (
                 <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-[#FAFBFC] transition-colors">
                   <div className="flex items-center gap-4">
                     <div className={cn(
@@ -241,7 +378,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               ))}
-              {transactions.length === 0 && <p className="text-center text-[#6B7280] py-8">No transactions yet.</p>}
+              {recentAnalysisTransactions.length === 0 && <p className="text-center text-[#6B7280] py-8">No transactions found for this range.</p>}
             </div>
           </CardContent>
         </Card>

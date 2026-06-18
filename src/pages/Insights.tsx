@@ -202,11 +202,11 @@ export default function Insights() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="currentMonth">Current Month</SelectItem>
-                  <SelectItem value="last30Days">Last 30 Days</SelectItem>
-                  <SelectItem value="last4Months">Last 4 Months</SelectItem>
-                  <SelectItem value="selectedMonth">Pick Month</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
+                  <SelectItem value="currentMonth">Current-Month</SelectItem>
+                  <SelectItem value="last30Days">Last-30-Days</SelectItem>
+                  <SelectItem value="last4Months">Last-4-Months</SelectItem>
+                  <SelectItem value="selectedMonth">Pick-Month</SelectItem>
+                  <SelectItem value="custom">Custom-Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
