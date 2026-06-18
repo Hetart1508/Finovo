@@ -151,7 +151,7 @@ export default function Auth() {
         size: 'large',
         text: currentTab === 'register' ? 'signup_with' : 'signin_with',
         shape: 'rectangular',
-        width: 384,
+        width: Math.min(384, Math.floor(googleButtonRef.current.getBoundingClientRect().width || 384)),
       });
     };
 
@@ -484,7 +484,7 @@ export default function Auth() {
 
                 <div className="space-y-3">
                   {googleClientId ? (
-                    <div className="flex min-h-10 justify-center" ref={googleButtonRef} />
+                    <div className="flex min-h-10 w-full justify-center overflow-hidden" ref={googleButtonRef} />
                   ) : (
                     <Button className="h-10 w-full" type="button" variant="outline" disabled>
                       Google sign-in not configured
