@@ -387,14 +387,14 @@ export default function Auth() {
       .finally(() => setLoading(false));
   };
 
-  const authInputClass = "h-12 rounded-lg px-4 text-base";
-  const passwordInputClass = "h-12 rounded-lg px-4 pr-12 text-base";
-  const cardHeaderClass = "gap-1 px-4 pt-5 sm:px-6 sm:pt-6";
-  const cardContentClass = "space-y-4 px-4 sm:px-6";
-  const cardFooterClass = "px-4 pb-5 sm:px-6 sm:pb-6";
+  const authInputClass = "h-10 rounded-lg px-3 text-sm";
+  const passwordInputClass = "h-10 rounded-lg px-3 pr-12 text-sm";
+  const cardHeaderClass = "gap-0.5 px-4 pt-4 sm:px-5 sm:pt-4";
+  const cardContentClass = "space-y-3 px-4 sm:px-5";
+  const cardFooterClass = "px-4 pb-4 sm:px-5 sm:pb-4";
 
   return (
-    <div className="min-h-dvh bg-[#FAFBFC] p-3 text-[#1F2937] sm:p-4 lg:p-8">
+    <div className="flex min-h-dvh items-center justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:overflow-hidden lg:p-4">
       <Button
         variant="outline"
         size="icon"
@@ -405,51 +405,51 @@ export default function Auth() {
       >
         {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
       </Button>
-      <div className="mx-auto grid min-h-[calc(100dvh-1.5rem)] max-w-6xl overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:min-h-[calc(100dvh-2rem)] lg:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="mx-auto grid w-full max-w-md overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:max-w-lg lg:h-[calc(100vh-2rem)] lg:max-w-6xl lg:grid-cols-[1.05fr_0.95fr] lg:rounded-xl">
         <div
-          className="relative hidden bg-cover bg-center p-10 text-white lg:flex lg:flex-col lg:justify-between"
+          className="relative hidden bg-cover bg-center p-7 text-white lg:flex lg:flex-col lg:justify-between xl:p-8"
           style={{
             backgroundImage:
               "linear-gradient(135deg, #4F9CF9, #34C759)",
           }}
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-xl font-black text-[#4F9CF9]">F</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-lg font-black text-[#4F9CF9]">F</div>
             <div>
-              <h1 className="text-2xl font-black">Finovo AI</h1>
+              <h1 className="text-xl font-black">Finovo AI</h1>
               <p className="text-sm text-white/85">Financial clarity, faster.</p>
             </div>
           </div>
 
-          <div className="max-w-lg space-y-5">
+          <div className="max-w-lg space-y-4">
             <p className="text-sm font-semibold uppercase text-white/85">Expense command center</p>
-            <h2 className="text-5xl font-black leading-tight">Track spending, import bills, and ask AI what changed.</h2>
-            <div className="grid grid-cols-3 gap-3 pt-4">
+            <h2 className="text-4xl font-black leading-tight xl:text-[2.65rem]">Track spending, import bills, and ask AI what changed.</h2>
+            <div className="grid grid-cols-3 gap-3 pt-2">
               {[
                 { Icon: RiFileList3Line, label: 'Bills' },
                 { Icon: RiSparkling2Line, label: 'Insights' },
                 { Icon: RiShieldKeyholeLine, label: 'Secure' },
               ].map(({ Icon, label }) => (
-                <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-                  <Icon className="text-xl text-white/85" aria-hidden="true" />
-                  <p className="mt-2 text-sm font-semibold">{label}</p>
+                <div key={label} className="rounded-lg border border-white/15 bg-white/10 p-3 backdrop-blur">
+                  <Icon className="text-lg text-white/85" aria-hidden="true" />
+                  <p className="mt-1.5 text-sm font-semibold">{label}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="flex items-start justify-center px-5 py-20 sm:p-8 lg:items-center lg:p-12">
-          <div className="w-full max-w-md space-y-6 sm:space-y-7">
-            <div>
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#4F9CF9] text-lg font-black text-white lg:hidden">F</div>
+        <div className="flex min-h-[calc(100dvh-2rem)] items-center justify-center bg-[radial-gradient(circle_at_top,#EEF6FF,transparent_42%)] px-4 py-8 sm:min-h-[calc(100dvh-3rem)] sm:px-8 lg:min-h-0 lg:bg-none lg:p-7 xl:p-8">
+          <div className="flex w-full max-w-md flex-col items-center space-y-5">
+            <div className="w-full text-center lg:text-left">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#4F9CF9] text-lg font-black text-white shadow-[0_12px_30px_rgba(79,156,249,0.28)] lg:hidden">F</div>
               <p className="text-sm font-semibold uppercase text-[#34C759]">Welcome</p>
-              <h1 className="mt-2 text-3xl font-black leading-tight text-[#1F2937] sm:text-4xl">Finovo AI</h1>
-              <p className="mt-2 max-w-sm text-base leading-relaxed text-[#6B7280]">Login with your password or verify your email to create a new account.</p>
+              <h1 className="mt-1 text-3xl font-black leading-tight text-[#1F2937] sm:text-4xl lg:text-3xl">Finovo AI</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-[#6B7280] lg:mx-0 lg:mt-1">Login with your password or verify your email to create a new account.</p>
             </div>
 
-            <div className="w-full space-y-5 sm:space-y-6">
-                <div className="grid h-12 w-full grid-cols-2 overflow-hidden rounded-lg bg-[#EEF6FF] p-1 dark:bg-[#1E293B]">
+            <div className="mx-auto w-full max-w-sm space-y-3">
+                <div className="grid h-11 w-full grid-cols-2 overflow-hidden rounded-lg bg-[#EEF6FF] p-1 dark:bg-[#1E293B]">
                   <button
                     type="button"
                     onClick={() => {
@@ -457,7 +457,7 @@ export default function Auth() {
                       setOtpCode('');
                     }}
                     className={cn(
-                      "h-10 rounded-md text-sm font-bold transition-colors",
+                      "h-9 rounded-md text-sm font-bold transition-colors",
                       currentTab === 'login'
                         ? "bg-[#4F9CF9] text-white"
                         : "text-[#6B7280] hover:text-[#1F2937] dark:text-[#CBD5E1] dark:hover:text-white"
@@ -472,7 +472,7 @@ export default function Auth() {
                       setOtpCode('');
                     }}
                     className={cn(
-                      "h-10 rounded-md text-sm font-bold transition-colors",
+                      "h-9 rounded-md text-sm font-bold transition-colors",
                       currentTab === 'register'
                         ? "bg-[#4F9CF9] text-white"
                         : "text-[#6B7280] hover:text-[#1F2937] dark:text-[#CBD5E1] dark:hover:text-white"
@@ -484,9 +484,9 @@ export default function Auth() {
 
                 <div className="space-y-3">
                   {googleClientId ? (
-                    <div className="flex min-h-11 justify-center" ref={googleButtonRef} />
+                    <div className="flex min-h-10 justify-center" ref={googleButtonRef} />
                   ) : (
-                    <Button className="h-11 w-full" type="button" variant="outline" disabled>
+                    <Button className="h-10 w-full" type="button" variant="outline" disabled>
                       Google sign-in not configured
                     </Button>
                   )}
@@ -498,7 +498,7 @@ export default function Auth() {
                 </div>
 
                 {currentTab === 'login' ? (
-                  <Card className="relative z-0 rounded-xl border-[#E5E7EB] bg-white shadow-none dark:border-[#334155] dark:bg-[#111827]">
+                  <Card className="relative z-0 w-full rounded-xl border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.08)] dark:border-[#334155] dark:bg-[#111827]">
                   {loginStep === 'login' ? (
                     <form onSubmit={handleLogin}>
                       <CardHeader className={cardHeaderClass}>
@@ -547,7 +547,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className={cardFooterClass}>
-                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                        <Button className="h-10 w-full bg-[#4F9CF9] text-sm text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiLoginCircleLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Logging in...' : 'Login'}
                         </Button>
@@ -580,12 +580,12 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className={`${cardFooterClass} grid gap-3`}>
-                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                        <Button className="h-10 w-full bg-[#4F9CF9] text-sm text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiMailLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Reset OTP'}
                         </Button>
                         <Button
-                          className="h-12 w-full"
+                          className="h-10 w-full"
                           type="button"
                           variant="outline"
                           onClick={() => setLoginStep('login')}
@@ -659,7 +659,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className={cardFooterClass}>
-                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                        <Button className="h-10 w-full bg-[#4F9CF9] text-sm text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Resetting...' : 'Reset Password'}
                         </Button>
@@ -670,7 +670,7 @@ export default function Auth() {
                 ) : null}
 
                 {currentTab === 'register' ? (
-                  <Card className="relative z-0 rounded-xl border-[#E5E7EB] bg-white shadow-none dark:border-[#334155] dark:bg-[#111827]">
+                  <Card className="relative z-0 w-full rounded-xl border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.08)] dark:border-[#334155] dark:bg-[#111827]">
                   {registerStep === 'details' ? (
                     <form onSubmit={handleRegister}>
                       <CardHeader className={cardHeaderClass}>
@@ -696,7 +696,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className={cardFooterClass}>
-                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
+                        <Button className="h-10 w-full bg-[#4F9CF9] text-sm text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading}>
                           <RiUserAddLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Sending OTP...' : 'Send Verification OTP'}
                         </Button>
@@ -747,7 +747,7 @@ export default function Auth() {
                       </CardContent>
 
                       <CardFooter className={cardFooterClass}>
-                        <Button className="h-12 w-full bg-[#4F9CF9] text-base text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
+                        <Button className="h-10 w-full bg-[#4F9CF9] text-sm text-white hover:bg-[#3F8BE5]" type="submit" disabled={loading || otpCode.length !== 6}>
                           <RiShieldUserLine className="mr-2 text-base" aria-hidden="true" />
                           {loading ? 'Verifying...' : 'Verify & Create Account'}
                         </Button>
