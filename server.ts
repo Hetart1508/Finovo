@@ -2203,6 +2203,18 @@ const getCloudinaryConfig = () => {
   return { cloudName, apiKey, apiSecret };
 };
 
+const getCloudinaryConfigPreview = (config: NonNullable<ReturnType<typeof getCloudinaryConfig>>) => ({
+  cloudName: config.cloudName,
+  apiKeyPreview: `${config.apiKey.slice(0, 4)}...${config.apiKey.slice(-4)}`,
+  apiSecretSet: Boolean(config.apiSecret),
+});
+
+const getUploadErrorDetails = (error: unknown) => ({
+  name: error instanceof Error ? error.name : typeof error,
+  message: error instanceof Error ? error.message : String(error),
+  stack: IS_PRODUCTION || !(error instanceof Error) ? undefined : error.stack,
+});
+
 const getLocalUploadResponse = (file: Express.Multer.File) => ({
   url: `/uploads/${path.basename(file.filename)}`,
   storage: "local",
@@ -2285,7 +2297,15 @@ app.post("/api/upload", authenticateToken, upload.single('file'), async (req: an
     fs.unlinkSync(req.file.path);
     res.json(uploaded);
   } catch (error: any) {
-    logger.error("Cloudinary bill upload error; using local bill upload storage", { error });
+    logger.error("Cloudinary bill upload error; using local bill upload storage", {
+      error: getUploadErrorDetails(error),
+      cloudinary: getCloudinaryConfigPreview(cloudinaryConfig),
+      file: {
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        originalname: req.file.originalname,
+      },
+    });
     res.json({
       ...getLocalUploadResponse(req.file),
       warning: "Cloudinary upload failed; stored locally instead.",
