@@ -2243,10 +2243,16 @@ const uploadBillToCloudinary = async (
     method: "POST",
     body: formData,
   });
-  const data: any = await response.json().catch(() => ({}));
+  const responseText = await response.text();
+  let data: any = {};
+  try {
+    data = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    data = {};
+  }
 
   if (!response.ok || !isNonEmptyString(data.secure_url)) {
-    throw new Error(data.error?.message || "Cloudinary upload failed");
+    throw new Error(`Cloudinary upload failed: ${response.status} ${data.error?.message || responseText || response.statusText}`);
   }
 
   return {
