@@ -45,15 +45,30 @@ type RecurringEvent = {
   day_of_month: number;
   category: string;
   type: string;
+  frequency?: 'monthly' | 'yearly';
+  interval_count?: number;
+  start_date?: string | null;
+  payment_mode?: 'manual' | 'auto';
+  autopay_enabled?: boolean | number;
+  payment_account?: string | null;
   next_due_date?: string;
   days_until_due?: number;
 };
 
-const categories = ['Rent', 'Subscription', 'Utilities', 'Insurance', 'EMI', 'Internet', 'Education', 'Health', 'Other'];
-const paymentTypes = ['expense', 'income'];
+const categories = ['Rent', 'SIP', 'Mutual Fund', 'Subscription', 'Utilities', 'Insurance', 'EMI', 'Internet', 'Education', 'Health', 'Car Service', 'Maintenance', 'Other'];
+const paymentTypes = ['expense', 'income', 'investment', 'service'];
+const frequencies = ['monthly', 'yearly'];
+
+const getScheduleLabel = (event: RecurringEvent) => {
+  const frequency = event.frequency || 'monthly';
+  const interval = Number(event.interval_count) || 1;
+  const unit = frequency === 'yearly' ? 'year' : 'month';
+  const intervalText = interval === 1 ? `Every ${unit}` : `Every ${interval} ${unit}s`;
+  return `${intervalText} on day ${event.day_of_month}`;
+};
 
 const getDueLabel = (event: RecurringEvent) => {
-  if (typeof event.days_until_due !== 'number') return `Every month on day ${event.day_of_month}`;
+  if (typeof event.days_until_due !== 'number') return getScheduleLabel(event);
   if (event.days_until_due === 0) return 'Due today';
   if (event.days_until_due === 1) return 'Due tomorrow';
   return `Due in ${event.days_until_due} days`;
@@ -65,6 +80,21 @@ const getDateFromDayOfMonth = (dayOfMonth: number) => {
   return new Date(today.getFullYear(), today.getMonth(), Math.min(dayOfMonth, lastDayOfMonth));
 };
 
+const getDateFromEvent = (event: RecurringEvent) => (
+  event.start_date ? parseISO(event.start_date) : getDateFromDayOfMonth(event.day_of_month)
+);
+
+const getTypeClassName = (type: string) => {
+  if (type === 'income') return 'border-[#EAFBF0] text-[#34C759]';
+  if (type === 'investment') return 'border-[#EEF6FF] text-[#4F9CF9]';
+  if (type === 'service') return 'border-[#FFF7E8] text-[#FFB84D]';
+  return 'border-[#FFF1F1] text-[#FF6B6B]';
+};
+
+const getAmountClassName = (type: string) => (
+  type === 'income' ? 'text-[#34C759]' : type === 'investment' ? 'text-[#4F9CF9]' : 'text-[#FF6B6B]'
+);
+
 export default function Recurring() {
   const [events, setEvents] = useState<RecurringEvent[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<RecurringEvent[]>([]);
@@ -73,10 +103,21 @@ export default function Recurring() {
   const [editingEvent, setEditingEvent] = useState<RecurringEvent | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(new Date());
 
-  const monthlyExpenseTotal = useMemo(
+  const monthlyCashOutflow = useMemo(
     () => events
-      .filter((event) => event.type === 'expense')
-      .reduce((sum, event) => sum + Number(event.amount), 0),
+      .filter((event) => event.type !== 'income')
+      .reduce((sum, event) => {
+        const interval = Number(event.interval_count) || 1;
+        const monthlyEquivalent = event.frequency === 'yearly'
+          ? Number(event.amount) / (interval * 12)
+          : Number(event.amount) / interval;
+        return sum + monthlyEquivalent;
+      }, 0),
+    [events]
+  );
+
+  const autoPaymentCount = useMemo(
+    () => events.filter((event) => event.payment_mode === 'auto' || Boolean(event.autopay_enabled)).length,
     [events]
   );
 
@@ -122,6 +163,12 @@ export default function Recurring() {
       day_of_month: dueDate.getDate(),
       category: String(formData.get('category') || 'Other'),
       type: String(formData.get('type') || 'expense'),
+      frequency: String(formData.get('frequency') || 'monthly'),
+      interval_count: Number(formData.get('interval_count') || 1),
+      start_date: format(dueDate, 'yyyy-MM-dd'),
+      payment_mode: String(formData.get('payment_mode') || 'manual'),
+      autopay_enabled: formData.get('payment_mode') === 'auto',
+      payment_account: String(formData.get('payment_account') || '').trim() || null,
     };
 
     try {
@@ -171,14 +218,14 @@ export default function Recurring() {
               Add Recurring
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingEvent ? 'Edit Recurring Payment' : 'Add Recurring Payment'}</DialogTitle>
             </DialogHeader>
             <form key={editingEvent?.id || 'new'} onSubmit={handleSave} className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="recurring-name">Name</Label>
-                <Input id="recurring-name" name="name" placeholder="Netflix, Rent, SIP reminder" defaultValue={editingEvent?.name || ''} required />
+                <Input id="recurring-name" name="name" placeholder="Rent, SIP, WiFi subscription, car service" defaultValue={editingEvent?.name || ''} required />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -187,7 +234,7 @@ export default function Recurring() {
                   <Input id="recurring-amount" name="amount" type="number" step="0.01" min="0.01" defaultValue={editingEvent?.amount || ''} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recurring-due-date">Due Date</Label>
+                  <Label htmlFor="recurring-due-date">Start / Payment Date</Label>
                   <LocalizationProvider dateAdapter={AdapterDateFns}>
                     <DatePicker
                       value={dueDate}
@@ -240,10 +287,66 @@ export default function Recurring() {
                     </SelectTrigger>
                     <SelectContent>
                       {paymentTypes.map((type) => (
-                        <SelectItem key={type} value={type}>{type === 'expense' ? 'Expense' : 'Income'}</SelectItem>
+                        <SelectItem key={type} value={type}>
+                          {type === 'expense' ? 'Expense' : type === 'income' ? 'Income' : type === 'investment' ? 'Investment' : 'Service'}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Repeats</Label>
+                  <Select name="frequency" defaultValue={editingEvent?.frequency || 'monthly'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {frequencies.map((frequency) => (
+                        <SelectItem key={frequency} value={frequency}>
+                          {frequency === 'monthly' ? 'Monthly' : 'Yearly'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurring-interval">Every</Label>
+                  <Input
+                    id="recurring-interval"
+                    name="interval_count"
+                    type="number"
+                    min="1"
+                    max="120"
+                    defaultValue={editingEvent?.interval_count || 1}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Payment</Label>
+                  <Select name="payment_mode" defaultValue={editingEvent?.payment_mode || (editingEvent?.autopay_enabled ? 'auto' : 'manual')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Manual reminder</SelectItem>
+                      <SelectItem value="auto">Auto debit / autopay</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurring-account">Account / Source</Label>
+                  <Input
+                    id="recurring-account"
+                    name="payment_account"
+                    placeholder="HDFC Bank, UPI mandate"
+                    defaultValue={editingEvent?.payment_account || ''}
+                  />
                 </div>
               </div>
 
@@ -261,8 +364,8 @@ export default function Recurring() {
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
               <RiRepeatLine className="text-lg" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-[#6B7280]">Monthly Recurring Expenses</p>
-            <h3 className="mt-1 text-2xl font-bold">₹{monthlyExpenseTotal.toLocaleString()}</h3>
+            <p className="text-sm font-medium text-[#6B7280]">Monthly Cash Outflow</p>
+            <h3 className="mt-1 text-2xl font-bold">₹{Math.round(monthlyCashOutflow).toLocaleString()}</h3>
           </CardContent>
         </Card>
 
@@ -282,8 +385,8 @@ export default function Recurring() {
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EAFBF0] text-[#34C759]">
               <RiRefreshLine className="text-lg" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-[#6B7280]">Tracked Items</p>
-            <h3 className="mt-1 text-2xl font-bold">{events.length}</h3>
+            <p className="text-sm font-medium text-[#6B7280]">Auto Payments</p>
+            <h3 className="mt-1 text-2xl font-bold">{autoPaymentCount}</h3>
           </CardContent>
         </Card>
       </div>
@@ -299,8 +402,9 @@ export default function Recurring() {
                 <TableRow className="border-[#E5E7EB] hover:bg-transparent dark:border-[#334155]">
                   <TableHead>Name</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Due Date</TableHead>
+                  <TableHead>Schedule</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Payment</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="w-[88px]"></TableHead>
                 </TableRow>
@@ -308,30 +412,37 @@ export default function Recurring() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">Loading recurring payments...</TableCell>
+                    <TableCell colSpan={7} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">Loading recurring payments...</TableCell>
                   </TableRow>
                 ) : events.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">No recurring payments added yet.</TableCell>
+                    <TableCell colSpan={7} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">No recurring payments added yet.</TableCell>
                   </TableRow>
                 ) : (
                   events.map((event) => (
                     <TableRow key={event.id} className="border-[#E5E7EB] dark:border-[#334155]">
                       <TableCell className="font-medium">{event.name}</TableCell>
                       <TableCell><Badge variant="secondary" className="font-normal">{event.category}</Badge></TableCell>
-                      <TableCell className="text-[#6B7280] dark:text-[#CBD5E1]">Monthly on day {event.day_of_month}</TableCell>
+                      <TableCell className="text-[#6B7280] dark:text-[#CBD5E1]">{getScheduleLabel(event)}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={cn(
-                            "capitalize",
-                            event.type === 'income' ? "border-[#EAFBF0] text-[#34C759]" : "border-[#FFF1F1] text-[#FF6B6B]"
-                          )}
+                          className={cn("capitalize", getTypeClassName(event.type))}
                         >
                           {event.type}
                         </Badge>
                       </TableCell>
-                      <TableCell className={cn("text-right font-bold", event.type === 'income' ? "text-[#34C759]" : "text-[#FF6B6B]")}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            {event.payment_mode === 'auto' || event.autopay_enabled ? 'Auto' : 'Manual'}
+                          </Badge>
+                          {event.payment_account ? (
+                            <p className="max-w-[9rem] truncate text-xs text-[#6B7280] dark:text-[#CBD5E1]">{event.payment_account}</p>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn("text-right font-bold", getAmountClassName(event.type))}>
                         ₹{Number(event.amount).toLocaleString()}
                       </TableCell>
                       <TableCell>
@@ -342,7 +453,7 @@ export default function Recurring() {
                             className="text-[#6B7280] hover:text-[#4F9CF9]"
                             onClick={() => {
                               setEditingEvent(event);
-                              setDueDate(getDateFromDayOfMonth(event.day_of_month));
+                              setDueDate(getDateFromEvent(event));
                               setDialogOpen(true);
                             }}
                             aria-label="Edit recurring payment"
@@ -385,10 +496,16 @@ export default function Recurring() {
                         <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">
                           {event.next_due_date ? format(parseISO(event.next_due_date), 'dd MMM yyyy') : `Day ${event.day_of_month}`} • {event.category}
                         </p>
+                        <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">
+                          {getScheduleLabel(event)} • {event.payment_mode === 'auto' || event.autopay_enabled ? 'Auto' : 'Manual'}
+                        </p>
                       </div>
-                      <p className={cn("font-bold", event.type === 'income' ? "text-[#34C759]" : "text-[#FF6B6B]")}>₹{Number(event.amount).toLocaleString()}</p>
+                      <p className={cn("font-bold", getAmountClassName(event.type))}>₹{Number(event.amount).toLocaleString()}</p>
                     </div>
-                    <Badge variant="secondary" className="mt-3 text-xs">{getDueLabel(event)}</Badge>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant="secondary" className="text-xs">{getDueLabel(event)}</Badge>
+                      <Badge variant="outline" className={cn("text-xs capitalize", getTypeClassName(event.type))}>{event.type}</Badge>
+                    </div>
                   </div>
                 ))
               )}

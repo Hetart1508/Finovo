@@ -193,6 +193,12 @@ const runMigrations = async () => {
       day_of_month INT NOT NULL,
       category VARCHAR(100) NOT NULL,
       type VARCHAR(100) NOT NULL,
+      frequency VARCHAR(50) NOT NULL DEFAULT 'monthly',
+      interval_count INT NOT NULL DEFAULT 1,
+      start_date DATE NULL,
+      payment_mode VARCHAR(50) NOT NULL DEFAULT 'manual',
+      autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      payment_account VARCHAR(100) NULL,
       CONSTRAINT chk_day_of_month CHECK (day_of_month BETWEEN 1 AND 31),
       CONSTRAINT fk_recurring_user
         FOREIGN KEY (user_id) REFERENCES users(id)
@@ -210,6 +216,12 @@ const runMigrations = async () => {
   await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
   await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
   await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
+  await ensureColumn("recurring_events", "frequency", "VARCHAR(50) NOT NULL DEFAULT 'monthly'");
+  await ensureColumn("recurring_events", "interval_count", "INT NOT NULL DEFAULT 1");
+  await ensureColumn("recurring_events", "start_date", "DATE NULL");
+  await ensureColumn("recurring_events", "payment_mode", "VARCHAR(50) NOT NULL DEFAULT 'manual'");
+  await ensureColumn("recurring_events", "autopay_enabled", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureColumn("recurring_events", "payment_account", "VARCHAR(100) NULL");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_category", "category");
   await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
@@ -1001,28 +1013,79 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
 const findRecurringEventById = (id: number, userId: number) =>
   queryOne("SELECT * FROM recurring_events WHERE id = ? AND user_id = ?", [id, userId]);
 
-const getNextRecurringDueDate = (dayOfMonth: number, today = new Date()) => {
+const isValidRecurringFrequency = (frequency: string) => ["monthly", "yearly"].includes(frequency);
+const isValidRecurringPaymentMode = (paymentMode: string) => ["manual", "auto"].includes(paymentMode);
+
+const getDateOnly = (date: Date) => {
+  const dateOnly = new Date(date);
+  dateOnly.setHours(0, 0, 0, 0);
+  return dateOnly;
+};
+
+const toDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getDueDateForMonth = (year: number, month: number, dayOfMonth: number) => {
+  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(dayOfMonth, lastDayOfMonth));
+};
+
+const getLegacyNextRecurringDueDate = (dayOfMonth: number, today = new Date()) => {
   const year = today.getFullYear();
   const month = today.getMonth();
-  const currentMonthLastDay = new Date(year, month + 1, 0).getDate();
-  const currentDue = new Date(year, month, Math.min(dayOfMonth, currentMonthLastDay));
+  const currentDue = getDueDateForMonth(year, month, dayOfMonth);
 
-  if (currentDue >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+  if (currentDue >= getDateOnly(today)) {
     return currentDue;
   }
 
-  const nextMonthLastDay = new Date(year, month + 2, 0).getDate();
-  return new Date(year, month + 1, Math.min(dayOfMonth, nextMonthLastDay));
+  return getDueDateForMonth(year, month + 1, dayOfMonth);
+};
+
+const getNextRecurringDueDate = (event: any, today = new Date()) => {
+  const dayOfMonth = Number(event.day_of_month);
+  const frequency = isValidRecurringFrequency(String(event.frequency || "")) ? String(event.frequency) : "monthly";
+  const intervalCount = Math.max(1, Number(event.interval_count) || 1);
+  const monthStep = frequency === "yearly" ? intervalCount * 12 : intervalCount;
+  const todayStart = getDateOnly(today);
+
+  if (!event.start_date) {
+    return getLegacyNextRecurringDueDate(dayOfMonth, todayStart);
+  }
+
+  const parsedStart = new Date(`${event.start_date}T00:00:00`);
+  if (Number.isNaN(parsedStart.getTime())) {
+    return getLegacyNextRecurringDueDate(dayOfMonth, todayStart);
+  }
+
+  const startDate = getDateOnly(parsedStart);
+  const anchorMonth = startDate.getMonth();
+  const anchorYear = startDate.getFullYear();
+  let candidate = getDueDateForMonth(anchorYear, anchorMonth, dayOfMonth);
+  if (candidate < startDate) {
+    candidate = getDueDateForMonth(anchorYear, anchorMonth + monthStep, dayOfMonth);
+  }
+
+  let guard = 0;
+  while (candidate < todayStart && guard < 240) {
+    candidate = getDueDateForMonth(candidate.getFullYear(), candidate.getMonth() + monthStep, dayOfMonth);
+    guard += 1;
+  }
+
+  return candidate;
 };
 
 const addRecurringDueInfo = (event: any) => {
-  const nextDueDate = getNextRecurringDueDate(Number(event.day_of_month));
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const nextDueDate = getNextRecurringDueDate(event);
+  const todayStart = getDateOnly(new Date());
 
   return {
     ...event,
-    next_due_date: nextDueDate.toISOString().split("T")[0],
+    next_due_date: toDateString(nextDueDate),
     days_until_due: Math.ceil((nextDueDate.getTime() - todayStart.getTime()) / (24 * 60 * 60 * 1000)),
   };
 };
@@ -1039,6 +1102,12 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
     day_of_month: body.day_of_month === undefined ? existing.day_of_month : Number(body.day_of_month),
     category: body.category === undefined ? existing.category : body.category,
     type: body.type === undefined ? existing.type : body.type,
+    frequency: body.frequency === undefined ? existing.frequency : body.frequency,
+    interval_count: body.interval_count === undefined ? existing.interval_count : Number(body.interval_count),
+    start_date: body.start_date === undefined ? existing.start_date : body.start_date,
+    payment_mode: body.payment_mode === undefined ? existing.payment_mode : body.payment_mode,
+    autopay_enabled: body.autopay_enabled === undefined ? existing.autopay_enabled : Boolean(body.autopay_enabled),
+    payment_account: body.payment_account === undefined ? existing.payment_account : body.payment_account,
   };
 
   if (!isNonEmptyString(next.name) || !isNonEmptyString(next.category) || !isNonEmptyString(next.type)) {
@@ -1053,17 +1122,40 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
     return { status: 400, body: { error: "Day of month must be between 1 and 31" } };
   }
 
+  if (!isNonEmptyString(next.frequency) || !isValidRecurringFrequency(next.frequency.trim())) {
+    return { status: 400, body: { error: "Frequency must be monthly or yearly" } };
+  }
+
+  if (!Number.isInteger(next.interval_count) || next.interval_count < 1 || next.interval_count > 120) {
+    return { status: 400, body: { error: "Interval must be between 1 and 120" } };
+  }
+
+  if (next.start_date !== null && next.start_date !== "" && !isValidDateString(next.start_date)) {
+    return { status: 400, body: { error: "Start date must use YYYY-MM-DD format" } };
+  }
+
+  const paymentMode = isNonEmptyString(next.payment_mode) ? next.payment_mode.trim() : "manual";
+  if (!isValidRecurringPaymentMode(paymentMode)) {
+    return { status: 400, body: { error: "Payment mode must be manual or auto" } };
+  }
+
   const event = {
     name: next.name.trim(),
     amount: next.amount,
     day_of_month: next.day_of_month,
     category: next.category.trim(),
     type: next.type.trim(),
+    frequency: next.frequency.trim(),
+    interval_count: next.interval_count,
+    start_date: isNonEmptyString(next.start_date) ? next.start_date.trim() : null,
+    payment_mode: paymentMode,
+    autopay_enabled: Boolean(next.autopay_enabled || paymentMode === "auto"),
+    payment_account: isNonEmptyString(next.payment_account) ? next.payment_account.trim() : null,
   };
 
   await execute(`
     UPDATE recurring_events
-    SET name = ?, amount = ?, day_of_month = ?, category = ?, type = ?
+    SET name = ?, amount = ?, day_of_month = ?, category = ?, type = ?, frequency = ?, interval_count = ?, start_date = ?, payment_mode = ?, autopay_enabled = ?, payment_account = ?
     WHERE id = ? AND user_id = ?
   `, [
     event.name,
@@ -1071,6 +1163,12 @@ const updateRecurringEvent = async (id: number, userId: number, body: any) => {
     event.day_of_month,
     event.category,
     event.type,
+    event.frequency,
+    event.interval_count,
+    event.start_date,
+    event.payment_mode,
+    event.autopay_enabled,
+    event.payment_account,
     id,
     userId,
   ]);
@@ -1769,9 +1867,24 @@ app.get("/api/recurring/upcoming", authenticateToken, async (req: any, res) => {
 });
 
 app.post("/api/recurring", authenticateToken, async (req: any, res) => {
-  const { name, amount, day_of_month, category, type } = req.body;
+  const {
+    name,
+    amount,
+    day_of_month,
+    category,
+    type,
+    frequency = "monthly",
+    interval_count = 1,
+    start_date = null,
+    payment_mode = "manual",
+    autopay_enabled,
+    payment_account = null,
+  } = req.body;
   const parsedAmount = toNumber(amount);
   const parsedDay = Number(day_of_month);
+  const parsedInterval = Number(interval_count);
+  const normalizedFrequency = isNonEmptyString(frequency) ? frequency.trim() : "monthly";
+  const normalizedPaymentMode = isNonEmptyString(payment_mode) ? payment_mode.trim() : "manual";
 
   if (!isNonEmptyString(name) || !isNonEmptyString(category) || !isNonEmptyString(type)) {
     return res.status(400).json({ error: "Name, category, and type are required" });
@@ -1785,9 +1898,29 @@ app.post("/api/recurring", authenticateToken, async (req: any, res) => {
     return res.status(400).json({ error: "Day of month must be between 1 and 31" });
   }
 
+  if (!isValidRecurringFrequency(normalizedFrequency)) {
+    return res.status(400).json({ error: "Frequency must be monthly or yearly" });
+  }
+
+  if (!Number.isInteger(parsedInterval) || parsedInterval < 1 || parsedInterval > 120) {
+    return res.status(400).json({ error: "Interval must be between 1 and 120" });
+  }
+
+  if (start_date !== null && start_date !== "" && !isValidDateString(start_date)) {
+    return res.status(400).json({ error: "Start date must use YYYY-MM-DD format" });
+  }
+
+  if (!isValidRecurringPaymentMode(normalizedPaymentMode)) {
+    return res.status(400).json({ error: "Payment mode must be manual or auto" });
+  }
+
+  const normalizedAutopay = Boolean(autopay_enabled || normalizedPaymentMode === "auto");
+  const normalizedStartDate = isNonEmptyString(start_date) ? start_date.trim() : null;
+  const normalizedPaymentAccount = isNonEmptyString(payment_account) ? payment_account.trim() : null;
+
   const info = await execute(`
-    INSERT INTO recurring_events (user_id, name, amount, day_of_month, category, type)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO recurring_events (user_id, name, amount, day_of_month, category, type, frequency, interval_count, start_date, payment_mode, autopay_enabled, payment_account)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     req.user.id,
     name.trim(),
@@ -1795,6 +1928,12 @@ app.post("/api/recurring", authenticateToken, async (req: any, res) => {
     parsedDay,
     category.trim(),
     type.trim(),
+    normalizedFrequency,
+    parsedInterval,
+    normalizedStartDate,
+    normalizedPaymentMode,
+    normalizedAutopay,
+    normalizedPaymentAccount,
   ]);
 
   res.status(201).json({
@@ -1804,6 +1943,12 @@ app.post("/api/recurring", authenticateToken, async (req: any, res) => {
     day_of_month: parsedDay,
     category: category.trim(),
     type: type.trim(),
+    frequency: normalizedFrequency,
+    interval_count: parsedInterval,
+    start_date: normalizedStartDate,
+    payment_mode: normalizedPaymentMode,
+    autopay_enabled: normalizedAutopay,
+    payment_account: normalizedPaymentAccount,
   });
 });
 
