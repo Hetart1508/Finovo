@@ -115,10 +115,6 @@ export default function StatementImport() {
       { income: 0, expense: 0 }
     );
   }, [transactions]);
-  const unresolvedVpaCount = transactions.filter(
-    (transaction) => transaction.type === 'expense' && transaction.vpa && !transaction.merchant_name?.trim()
-  ).length;
-
   const readFileAsBase64 = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -209,11 +205,6 @@ export default function StatementImport() {
 
   const handleApproveAll = async () => {
     if (!transactions.length) return;
-
-    if (unresolvedVpaCount) {
-      toast.error(`Name the company for ${unresolvedVpaCount} unresolved UPI payment${unresolvedVpaCount === 1 ? '' : 's'} before approval.`);
-      return;
-    }
 
     if (transactions.some((transaction) => isFutureTransactionDate(transaction.date))) {
       toast.error('Statement transactions cannot include future dates.');
@@ -359,7 +350,7 @@ export default function StatementImport() {
           <Button
             className="gap-2 bg-[#34C759] hover:bg-[#2EB851]"
             onClick={handleApproveAll}
-            disabled={!transactions.length || alreadyImported || previewLoading || approveLoading || unresolvedVpaCount > 0}
+            disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
           >
             <RiCheckboxCircleLine className="text-base" aria-hidden="true" />
             {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}
@@ -415,11 +406,11 @@ export default function StatementImport() {
                           <div className="flex flex-wrap items-center gap-2">
                             <code className="rounded bg-[#EEF6FF] px-2 py-1 text-xs text-[#2878D0]">{transaction.vpa}</code>
                             <Badge variant="outline" className={transaction.alias_status === 'matched' ? 'border-[#EAFBF0] text-[#34C759]' : 'border-[#FFF7E8] text-[#B87516]'}>
-                              {transaction.alias_status === 'matched' ? 'Saved match' : 'Name required'}
+                              {transaction.alias_status === 'matched' ? 'Saved match' : 'Add name (optional)'}
                             </Badge>
                           </div>
                           <Label htmlFor={`merchant-name-${index}`} className="text-xs font-semibold">
-                            Merchant/company name
+                            Merchant/company name (optional)
                           </Label>
                           <Input
                             id={`merchant-name-${index}`}
