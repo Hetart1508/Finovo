@@ -111,6 +111,8 @@ export default function Transactions() {
   const debouncedSearch = useDebouncedValue(search, 500);
 
   const handleDelete = async (id: number) => {
+    if (!window.confirm('Delete this transaction permanently? This action cannot be undone.')) return;
+
     try {
       const response = await deleteTransaction.mutateAsync(id);
       toast.success(getApiSuccessMessage(response.data, "Transaction deleted successfully"));
@@ -501,6 +503,7 @@ export default function Transactions() {
                         size="icon-sm" 
                         className="text-[#6B7280] hover:text-[#FF6B6B]"
                         onClick={() => handleDelete(t.id)}
+                        aria-label="Delete transaction"
                       >
                         <RiDeleteBin6Line className="text-base" aria-hidden="true" />
                       </Button>
