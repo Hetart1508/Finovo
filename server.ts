@@ -419,7 +419,9 @@ const normalizeGeminiCategory = (value: unknown): GeminiCategory => {
 const normalizeGeminiAmount = (value: unknown) => {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string") return null;
-  const amount = Number(value.replace(/[^\d.]/g, ""));
+  const cleaned = value.replace(/[^\d.]/g, "");
+  if (!cleaned) return null;
+  const amount = Number(cleaned);
   return Number.isFinite(amount) ? amount : null;
 };
 
@@ -506,20 +508,46 @@ const normalizeGeminiStatementTransactions = (text: string) => {
     throw new Error("Gemini returned no statement transactions");
   }
 
-  return transactions
-    .map((transaction: any): GeminiStatementTransaction | null => {
-      if (isStatementBalanceRow(transaction)) return null;
+  const normalized: GeminiStatementTransaction[] = [];
+  let previousBalance: number | null = null;
 
-      const amount = normalizeGeminiAmount(transaction.amount);
-      const type = transaction.type === "income" ? "income" : transaction.type === "expense" ? "expense" : null;
+  for (const transaction of transactions) {
+      const debitAmount = normalizeGeminiAmount(transaction.debit_amount);
+      const creditAmount = normalizeGeminiAmount(transaction.credit_amount);
+      const currentBalance = normalizeGeminiAmount(transaction.balance);
+      const balanceDelta = previousBalance !== null && currentBalance !== null
+        ? currentBalance - previousBalance
+        : null;
+
+      let type: "income" | "expense" | null = null;
+      let amount = normalizeGeminiAmount(transaction.amount);
+
+      // Running balance is the strongest signal because OCR can shift values between
+      // visually adjacent Debit and Credit columns.
+      if (balanceDelta !== null && Math.abs(balanceDelta) >= 0.005) {
+        type = balanceDelta > 0 ? "income" : "expense";
+        amount = Math.abs(balanceDelta);
+      } else if (debitAmount !== null && debitAmount > 0 && !(creditAmount !== null && creditAmount > 0)) {
+        type = "expense";
+        amount = debitAmount;
+      } else if (creditAmount !== null && creditAmount > 0 && !(debitAmount !== null && debitAmount > 0)) {
+        type = "income";
+        amount = creditAmount;
+      } else if (transaction.type === "income" || transaction.type === "expense") {
+        type = transaction.type;
+      }
+
+      if (currentBalance !== null) previousBalance = currentBalance;
+      if (isStatementBalanceRow(transaction)) continue;
+
       const date = isValidDateString(transaction.date) ? transaction.date : null;
       const description = isNonEmptyString(transaction.description) ? transaction.description.trim() : "";
 
       if (!date || isFutureDateString(date) || !type || amount === null || amount <= 0 || !description) {
-        return null;
+        continue;
       }
 
-      return {
+      normalized.push({
         date,
         description,
         amount,
@@ -534,10 +562,10 @@ const normalizeGeminiStatementTransactions = (text: string) => {
           : "Bank Statement",
         vpa: extractVpa(transaction.vpa, description),
         record_kind: "transaction",
-      };
-    })
-    .filter((transaction): transaction is GeminiStatementTransaction => transaction !== null)
-    .slice(0, 150);
+      });
+  }
+
+  return normalized.slice(0, 150);
 };
 
 const generateGemini = async (
@@ -670,16 +698,24 @@ const importStatementWithGemini = async (base64Data: string, mimeType: string) =
   const today = new Date().toISOString().split("T")[0];
   const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
 Return ONLY valid JSON with this exact shape:
-{"transactions":[{"record_kind":"transaction|balance|summary","date":"YYYY-MM-DD or null","description":"string","amount":number,"type":"income|expense|null","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
+{"transactions":[{"record_kind":"transaction|balance|summary","date":"YYYY-MM-DD or null","description":"string","debit_amount":"number or null","credit_amount":"number or null","balance":"number or null","amount":"number or null","type":"income|expense|null","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
 
 Rules:
 - Extract real money movement rows only.
 - Classify every candidate row first: transaction = an actual debit/credit; balance = opening/closing/running/available balance; summary = totals or statement metadata.
 - Opening balance is NEVER income and closing balance is NEVER an expense. They are account states, not money movements.
+- Read the statement's Debit and Credit columns by their physical header positions. Preserve which column contains the value; do not infer direction from the description.
+- Put a value under Debit into debit_amount only. Put a value under Credit into credit_amount only. A dash means null.
+- Always return the running Balance for every row when visible. The server will verify direction from balance movement.
+- For a transaction, exactly one of debit_amount or credit_amount should normally be non-null. Set amount to that same value.
 - CREDIT, CR, deposit, salary, refund, interest, received, inward UPI = type "income".
 - DEBIT, DR, withdrawal, purchase, paid, sent, outward UPI, ATM, card spend, charges = type "expense".
+- If Debit=90.00, Credit=-, Balance=15730.29, return debit_amount=90, credit_amount=null, type="expense".
+- If Debit=-, Credit=1000.00, Balance rises from 19.29 to 1019.29, return debit_amount=null, credit_amount=1000, type="income".
 - Use absolute positive amount values only. Do not use negative numbers.
-- Ignore opening balance, closing balance, available balance, account numbers, totals, summaries, page headers, and duplicate continuation rows.
+- Return the opening balance row as record_kind="balance", with its balance value, before transaction rows. It will be used only to verify the first transaction and will not be imported.
+- Preserve the exact top-to-bottom statement row order; never reverse or sort rows.
+- Ignore closing/available balances, account numbers, totals, summaries, page headers, and duplicate continuation rows.
 - Never return balance rows such as OPENING BALANCE, CLOSING BALANCE, BAL B/F, BAL C/F, BROUGHT FORWARD, or CARRIED FORWARD as transactions.
 - Also classify INITIAL BALANCE, BEGINNING BALANCE, PREVIOUS BALANCE, OP BAL, CL BAL, BALANCE AS ON, and ledger/running balances as record_kind "balance".
 - Only record_kind "transaction" rows will be imported. When uncertain whether a row is a transaction or balance, classify it as "balance".
@@ -689,7 +725,7 @@ Rules:
 - Choose a practical category. Use Salary, Refund, Interest, Transfer, Food, Transport, Shopping, Utilities, Entertainment, Health, Fees, ATM, Other.
 - Keep descriptions short but traceable to the statement narration.
 - Copy the payee UPI ID/VPA exactly into vpa when present in the narration. Otherwise return null.
-- Return up to 150 transactions, newest or statement order is fine.`;
+- Return up to 150 rows in exact statement order.`;
 
   const result = await generateGemini(
     [

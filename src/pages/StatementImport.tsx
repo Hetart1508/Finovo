@@ -191,6 +191,14 @@ export default function StatementImport() {
     setTransactions((current) => current.filter((_, index) => index !== indexToRemove));
   };
 
+  const handleToggleTransactionType = (indexToToggle: number) => {
+    setTransactions((current) => current.map((transaction, index) =>
+      index === indexToToggle
+        ? { ...transaction, type: transaction.type === 'income' ? 'expense' : 'income' }
+        : transaction
+    ));
+  };
+
   const handleMerchantNameChange = (vpa: string, companyName: string) => {
     setTransactions((current) => current.map((transaction) =>
       transaction.vpa === vpa
@@ -385,12 +393,17 @@ export default function StatementImport() {
                 transactions.map((transaction, index) => (
                   <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB] dark:border-[#E5E7EB]">
                     <TableCell>
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center",
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTransactionType(index)}
+                        title={`Change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
+                        aria-label={`Currently ${transaction.type}; change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
+                        className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110",
                         transaction.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
                       )}>
                         {transaction.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
-                      </div>
+                      </button>
                     </TableCell>
                     <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
                       {format(parseISO(transaction.date), 'dd MMM yyyy')}
