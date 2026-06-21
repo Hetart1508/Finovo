@@ -39,7 +39,6 @@ import {
   RiArrowLeftSLine,
   RiArrowRightUpLine,
   RiArrowRightSLine,
-  RiArrowUpDownLine,
   RiArrowUpSLine,
   RiDeleteBin6Line,
   RiExternalLinkLine,
@@ -214,7 +213,10 @@ export default function Transactions() {
     if (!sortKey) return filteredTransactions;
 
     const getSortValue = (transaction: any) => {
-      if (sortKey === 'amount') return Number(transaction.amount) || 0;
+      if (sortKey === 'amount') {
+        const amount = Number(transaction.amount) || 0;
+        return transaction.type === 'expense' ? -amount : amount;
+      }
       if (sortKey === 'date') return parseISO(transaction.date).getTime();
       return String(transaction[sortKey] || '').toLowerCase();
     };
@@ -253,7 +255,6 @@ export default function Transactions() {
     className?: string;
   }) => {
     const active = sortKey === sort;
-    const Icon = !active ? RiArrowUpDownLine : sortDirection === 'asc' ? RiArrowUpSLine : RiArrowDownSLine;
     const nextSortLabel = !active
       ? 'ascending'
       : sortDirection === 'asc'
@@ -261,18 +262,24 @@ export default function Transactions() {
         : 'default order';
 
     return (
-      <TableHead className={cn("font-bold text-[#4B5563] dark:text-[#CBD5E1]", className)}>
+      <TableHead
+        aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+        className={cn("font-bold text-[#4B5563] dark:text-[#CBD5E1]", className)}
+      >
         <button
           type="button"
           onClick={() => handleSort(sort)}
           className={cn(
             "inline-flex w-full min-w-0 items-center gap-1 rounded-md text-left font-semibold transition hover:text-[#4F9CF9]",
-            className?.includes('text-right') && "ml-auto"
+            className?.includes('text-right') && "justify-end",
+            className?.includes('text-center') && "justify-center"
           )}
           aria-label={`Sort ${sortLabels[sort]} ${nextSortLabel}`}
         >
           <span className="min-w-0 truncate">{children}</span>
-          <Icon className="shrink-0 text-base" aria-hidden="true" />
+          {active && (sortDirection === 'asc'
+            ? <RiArrowUpSLine className="shrink-0 text-base" aria-hidden="true" />
+            : <RiArrowDownSLine className="shrink-0 text-base" aria-hidden="true" />)}
         </button>
       </TableHead>
     );
@@ -423,11 +430,11 @@ export default function Transactions() {
               <TableRow className="border-[#D9DEE7] hover:bg-transparent dark:border-[#334155]">
                 <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">SR No</TableHead>
                 <SortableHead sort="type">Type</SortableHead>
-                <SortableHead sort="date">Date</SortableHead>
+                <SortableHead sort="date" className="text-center">Date</SortableHead>
                 <SortableHead sort="description">Description</SortableHead>
                 <SortableHead sort="category">Category</SortableHead>
                 <SortableHead sort="payment_mode">Mode</SortableHead>
-                <SortableHead sort="amount" className="text-right">Amount</SortableHead>
+                <SortableHead sort="amount" className="text-center">Amount</SortableHead>
                 <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -454,7 +461,7 @@ export default function Transactions() {
                         {t.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
                       </div>
                     </TableCell>
-                    <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
+                    <TableCell className="text-center text-[#6B7280] dark:text-[#6B7280]">
                       {format(parseISO(t.date), 'dd MMM yyyy')}
                     </TableCell>
                     <TableCell className="min-w-0">
@@ -470,7 +477,7 @@ export default function Transactions() {
                       <span className="block truncate" title={t.payment_mode}>{t.payment_mode}</span>
                     </TableCell>
                     <TableCell className={cn(
-                      "truncate text-right font-bold",
+                      "truncate text-center font-bold",
                       t.type === 'income' ? "text-[#34C759]" : "text-[#1F2937] text-[#FF6B6B]"
                     )}>
                       {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
