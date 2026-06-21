@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import api from '@/src/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/src/lib/serverState';
 import { toast } from 'react-toastify';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -44,6 +46,14 @@ const getTodayDateString = () => {
 const isFutureTransactionDate = (date: string) => date > getTodayDateString();
 
 export default function StatementImport() {
+  const queryClient = useQueryClient();
+  const previewStatement = useMutation({
+    mutationFn: (payload: { base64Data: string; mimeType: string }) => api.post('/statement-import/preview', payload),
+  });
+  const approveStatement = useMutation({
+    mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string }) => api.post('/statement-import/approve', payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [transactions, setTransactions] = useState<StatementTransaction[]>([]);
@@ -97,7 +107,7 @@ export default function StatementImport() {
 
     try {
       const base64Data = await readFileAsBase64(selectedFile);
-      const { data } = await api.post('/statement-import/preview', {
+      const { data } = await previewStatement.mutateAsync({
         base64Data,
         mimeType: selectedFile.type,
       });
@@ -147,7 +157,7 @@ export default function StatementImport() {
 
     setApproveLoading(true);
     try {
-      const response = await api.post('/statement-import/approve', { transactions, statementHash });
+      const response = await approveStatement.mutateAsync({ transactions, statementHash });
       const savedCount = response.data.savedCount || 0;
       const skippedCount = response.data.skippedCount || 0;
 

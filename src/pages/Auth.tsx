@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
 import { cn } from '@/lib/utils';
@@ -74,6 +75,10 @@ function AuthNote({ icon: Icon, title, description }: AuthNoteProps) {
 }
 
 export default function Auth() {
+  const queryClient = useQueryClient();
+  const { mutateAsync: authRequest } = useMutation({
+    mutationFn: ({ path, payload }: { path: string; payload: unknown }) => api.post(path, payload),
+  });
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState(() => (
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'
@@ -114,7 +119,8 @@ export default function Auth() {
     const toastId = toast.loading('Signing in with Google...');
 
     try {
-      const response = await api.post('/auth/google', { credential });
+      const response = await authRequest({ path: '/auth/google', payload: { credential } });
+      queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome, ${response.data.user.name}!`,
@@ -133,7 +139,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [authRequest, navigate, queryClient]);
 
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) return;
@@ -184,7 +190,7 @@ export default function Auth() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const response = await api.post('/auth/register', data);
+      const response = await authRequest({ path: '/auth/register', payload: data });
       toast.update(toastId, {
         render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
@@ -214,7 +220,8 @@ export default function Auth() {
     setLoading(true);
     const toastId = toast.loading('Verifying email...');
     try {
-      const response = await api.post('/auth/register/verify-otp', { email: registerEmail, otp: otpCode });
+      const response = await authRequest({ path: '/auth/register/verify-otp', payload: { email: registerEmail, otp: otpCode } });
+      queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome, ${response.data.user.name}!`,
@@ -245,7 +252,8 @@ export default function Auth() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const response = await api.post('/auth/login', data);
+      const response = await authRequest({ path: '/auth/login', payload: data });
+      queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome back, ${response.data.user.name}!`,
@@ -276,7 +284,7 @@ export default function Auth() {
     const email = String(formData.get('email') || '').trim();
 
     try {
-      const response = await api.post('/auth/forgot-password', { email });
+      const response = await authRequest({ path: '/auth/forgot-password', payload: { email } });
       setResetEmail(email);
       setOtpCode('');
       setResetPassword('');
@@ -308,7 +316,7 @@ export default function Auth() {
     const toastId = toast.loading('Resetting password...');
 
     try {
-      const response = await api.post('/auth/reset-password', { email: resetEmail, otp: otpCode, password: resetPassword });
+      const response = await authRequest({ path: '/auth/reset-password', payload: { email: resetEmail, otp: otpCode, password: resetPassword } });
       toast.update(toastId, {
         render: getApiSuccessMessage(response.data, 'Password reset successfully.'),
         type: 'success',
@@ -338,7 +346,7 @@ export default function Auth() {
 
     setLoading(true);
     const toastId = toast.loading('Resending verification OTP...');
-    api.post('/auth/register', lastRegisterForm)
+    authRequest({ path: '/auth/register', payload: lastRegisterForm })
       .then((response) => {
         setOtpCode('');
         setResendTimer(300);
@@ -365,7 +373,7 @@ export default function Auth() {
 
     setLoading(true);
     const toastId = toast.loading('Resending password reset OTP...');
-    api.post('/auth/forgot-password', { email: resetEmail })
+    authRequest({ path: '/auth/forgot-password', payload: { email: resetEmail } })
       .then((response) => {
         setOtpCode('');
         setResendTimer(300);

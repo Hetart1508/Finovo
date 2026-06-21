@@ -22,6 +22,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import api from '@/src/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys, recurringQuery, upcomingRecurringQuery } from '@/src/lib/serverState';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -96,9 +98,21 @@ const getAmountClassName = (type: string) => (
 );
 
 export default function Recurring() {
-  const [events, setEvents] = useState<RecurringEvent[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<RecurringEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const eventsResult = useQuery(recurringQuery());
+  const upcomingResult = useQuery(upcomingRecurringQuery());
+  const events = (eventsResult.data ?? []) as RecurringEvent[];
+  const upcomingEvents = (upcomingResult.data ?? []) as RecurringEvent[];
+  const loading = eventsResult.isPending || upcomingResult.isPending;
+  const saveRecurring = useMutation({
+    mutationFn: ({ id, payload }: { id?: number; payload: Record<string, unknown> }) =>
+      id ? api.patch(`/recurring/${id}`, payload) : api.post('/recurring', payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.recurring }),
+  });
+  const deleteRecurring = useMutation({
+    mutationFn: (id: number) => api.delete(`/recurring/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.recurring }),
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<RecurringEvent | null>(null);
   const [dueDate, setDueDate] = useState<Date | null>(new Date());
@@ -123,25 +137,10 @@ export default function Recurring() {
 
   const nextDueEvent = upcomingEvents[0];
 
-  const fetchRecurring = async () => {
-    setLoading(true);
-    try {
-      const [eventsResponse, upcomingResponse] = await Promise.all([
-        api.get('/recurring'),
-        api.get('/recurring/upcoming?days=365'),
-      ]);
-      setEvents(eventsResponse.data);
-      setUpcomingEvents(upcomingResponse.data);
-    } catch (error: any) {
-      toast.error(getApiMessage(error, 'Failed to load recurring payments.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRecurring();
-  }, []);
+    const error = eventsResult.error || upcomingResult.error;
+    if (error) toast.error(getApiMessage(error, 'Failed to load recurring payments.'), { toastId: 'recurring-query-error' });
+  }, [eventsResult.error, upcomingResult.error]);
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -172,13 +171,10 @@ export default function Recurring() {
     };
 
     try {
-      const response = editingEvent
-        ? await api.patch(`/recurring/${editingEvent.id}`, payload)
-        : await api.post('/recurring', payload);
+      const response = await saveRecurring.mutateAsync({ id: editingEvent?.id, payload });
 
       toast.success(getApiSuccessMessage(response.data, editingEvent ? 'Recurring payment updated.' : 'Recurring payment added.'));
       closeDialog();
-      fetchRecurring();
     } catch (error: any) {
       toast.error(getApiMessage(error, 'Failed to save recurring payment.'));
     }
@@ -186,9 +182,8 @@ export default function Recurring() {
 
   const handleDelete = async (id: number) => {
     try {
-      const response = await api.delete(`/recurring/${id}`);
+      const response = await deleteRecurring.mutateAsync(id);
       toast.success(getApiSuccessMessage(response.data, 'Recurring payment deleted.'));
-      fetchRecurring();
     } catch (error: any) {
       toast.error(getApiMessage(error, 'Failed to delete recurring payment.'));
     }

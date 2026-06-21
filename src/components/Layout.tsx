@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   RiDashboard2Line,
   RiFileUploadLine,
@@ -26,6 +27,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -36,6 +38,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const finishLogout = (message: string) => {
     clearSession();
+    queryClient.clear();
     toast.success(message);
     navigate('/auth');
   };
@@ -47,6 +50,7 @@ export default function Layout({ children }: LayoutProps) {
   useEffect(() => {
     const handleSessionExpired = () => {
       clearSession();
+      queryClient.clear();
       toast.info('Session expired. Please login again.');
       navigate('/auth');
     };
@@ -62,7 +66,7 @@ export default function Layout({ children }: LayoutProps) {
       window.removeEventListener('session-expired', handleSessionExpired);
       if (timeout) window.clearTimeout(timeout);
     };
-  }, [navigate]);
+  }, [navigate, queryClient]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');

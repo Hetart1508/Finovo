@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'react-toastify';
 import api from '@/src/lib/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { transactionsQuery } from '@/src/lib/serverState';
 import { addMonths, format, getDaysInMonth, isSameDay, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -40,26 +42,24 @@ const getBalanceColorStyle = (netBalance: number, maxAbsBalance: number, isSelec
 export default function CalendarView() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(new Date()));
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [threshold, setThreshold] = useState(1000);
+  const transactionsResult = useQuery(transactionsQuery());
+  const transactions = transactionsResult.data ?? [];
+  const [threshold, setThreshold] = useState(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user.daily_threshold || 1000;
+  });
+  const updateThreshold = useMutation({
+    mutationFn: (nextThreshold: number) => api.patch('/user/threshold', { threshold: nextThreshold }),
+  });
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const tRes = await api.get('/transactions');
-        setTransactions(tRes.data);
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        setThreshold(user.daily_threshold || 1000);
-      } catch (error: any) {
-        console.error(error);
-        toast.error(getApiMessage(error, "Failed to fetch calendar transactions."));
-      }
-    };
-    fetchData();
-  }, []);
+    if (transactionsResult.error) {
+      toast.error(getApiMessage(transactionsResult.error, "Failed to fetch calendar transactions."), { toastId: 'calendar-query-error' });
+    }
+  }, [transactionsResult.error]);
   const handleUpdateThreshold = async () => {
     try {
-      const response = await api.patch('/user/threshold', { threshold });
+      const response = await updateThreshold.mutateAsync(threshold);
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       localStorage.setItem('user', JSON.stringify({ ...user, daily_threshold: threshold }));
       toast.success(getApiSuccessMessage(response.data, "Daily threshold updated successfully"));

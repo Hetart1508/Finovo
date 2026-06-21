@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { extractBillData } from '@/src/lib/ai';
 import api from '@/src/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/src/lib/serverState';
 import { toast } from 'react-toastify';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -40,6 +42,17 @@ interface Extracted {
   confidence: 'low' | 'medium' | 'high';
 }
 export default function SmartUpload() {
+  const queryClient = useQueryClient();
+  const extractBill = useMutation({
+    mutationFn: ({ base64, mimeType }: { base64: string; mimeType: string }) => extractBillData(base64, mimeType),
+  });
+  const uploadBill = useMutation({
+    mutationFn: (form: FormData) => api.post('/upload', form),
+  });
+  const createTransaction = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => api.post('/transactions', payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+  });
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,7 +86,7 @@ export default function SmartUpload() {
     setExtractionError(null);
     try {
       const base64 = preview.split(',')[1];
-      const data = await extractBillData(base64, file.type);
+      const data = await extractBill.mutateAsync({ base64, mimeType: file.type });
       if (data.date > todayDateString) {
         throw new Error('Bill date cannot be in the future.');
       }
@@ -108,11 +121,11 @@ export default function SmartUpload() {
       if (file) {
         const uploadForm = new FormData();
         uploadForm.append('file', file);
-        const { data: uploadedBill } = await api.post('/upload', uploadForm);
+        const { data: uploadedBill } = await uploadBill.mutateAsync(uploadForm);
         billUrl = uploadedBill.url;
       }
 
-      const response = await api.post('/transactions', {
+      const response = await createTransaction.mutateAsync({
         ...extractedData.data,
         type: 'expense',
         payment_mode: 'UPI',

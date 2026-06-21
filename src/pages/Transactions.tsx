@@ -21,6 +21,8 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import api from '@/src/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys, transactionsQuery } from '@/src/lib/serverState';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
@@ -75,8 +77,28 @@ const getBillUrl = (url: string) => {
 };
 
 export default function Transactions() {
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const transactionsResult = useQuery(transactionsQuery());
+  const transactions = transactionsResult.data ?? [];
+  const loading = transactionsResult.isPending;
+  const deleteTransaction = useMutation({
+    mutationFn: (id: number) => api.delete(`/transactions/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+  });
+  const addTransaction = useMutation({
+    mutationFn: (payload: Record<string, unknown>) => api.post('/transactions', payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+  });
+  const updateTransaction = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => api.put(`/transactions/${id}`, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+  });
+
+  useEffect(() => {
+    if (transactionsResult.error) {
+      toast.error(getApiMessage(transactionsResult.error, "Failed to fetch transactions."), { toastId: 'transactions-query-error' });
+    }
+  }, [transactionsResult.error]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -88,26 +110,9 @@ export default function Transactions() {
   const todayDateString = format(new Date(), 'yyyy-MM-dd');
   const debouncedSearch = useDebouncedValue(search, 500);
 
-  const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get('/transactions');
-      setTransactions(data);
-    } catch (error: any) {
-      toast.error(getApiMessage(error, "Failed to fetch transactions."));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
   const handleDelete = async (id: number) => {
     try {
-      const response = await api.delete(`/transactions/${id}`);
-      setTransactions(transactions.filter(t => t.id !== id));
+      const response = await deleteTransaction.mutateAsync(id);
       toast.success(getApiSuccessMessage(response.data, "Transaction deleted successfully"));
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to delete transaction."));
@@ -133,14 +138,13 @@ export default function Transactions() {
     }
     
     try {
-      const response = await api.post('/transactions', {
+      const response = await addTransaction.mutateAsync({
         ...data,
         amount: parseFloat(data.amount as string),
         date: selectedDate,
       });
       toast.success(getApiSuccessMessage(response.data, "Transaction added successfully"));
       setTransactionDate(new Date());
-      fetchTransactions();
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to add transaction."));
     }
@@ -160,15 +164,10 @@ export default function Transactions() {
     }
 
     try {
-      const response = await api.put(`/transactions/${editingTransaction.id}`, {
-        ...data,
-        amount: parseFloat(data.amount as string),
+      const response = await updateTransaction.mutateAsync({
+        id: editingTransaction.id,
+        payload: { ...data, amount: parseFloat(data.amount as string) },
       });
-      setTransactions((current) =>
-        current.map((transaction) =>
-          transaction.id === editingTransaction.id ? response.data : transaction
-        )
-      );
       setEditingTransaction(null);
       toast.success(getApiSuccessMessage(response.data, "Transaction updated successfully"));
     } catch (error: any) {

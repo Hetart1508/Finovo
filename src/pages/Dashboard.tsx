@@ -17,7 +17,8 @@ import {
   LineChart,
   Line
 } from 'recharts';
-import api from '@/src/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardTransactionsQuery, recurringQuery } from '@/src/lib/serverState';
 import { endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'react-toastify';
@@ -90,9 +91,11 @@ const getDateRange = (preset: AnalysisRange, customStart: string, customEnd: str
 };
 
 export default function Dashboard() {
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [recurring, setRecurring] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const transactionsResult = useQuery(dashboardTransactionsQuery());
+  const recurringResult = useQuery(recurringQuery());
+  const transactions = transactionsResult.data ?? [];
+  const recurring = recurringResult.data ?? [];
+  const loading = transactionsResult.isPending || recurringResult.isPending;
   const [selectedPreset, setSelectedPreset] = useState<RangePreset>('this-month');
   const [activeRange, setActiveRange] = useState<AnalysisRange>('this-month');
   const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -100,23 +103,9 @@ export default function Dashboard() {
   const todayDateString = format(new Date(), 'yyyy-MM-dd');
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [tRes, rRes] = await Promise.all([
-          api.get('/transactions?limit=10000&offset=0'),
-          api.get('/recurring')
-        ]);
-        setTransactions(tRes.data);
-        setRecurring(rRes.data);
-      } catch (error: any) {
-        console.error("Failed to fetch dashboard data", error);
-        toast.error(getApiMessage(error, "Failed to fetch dashboard data."));
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+    const error = transactionsResult.error || recurringResult.error;
+    if (error) toast.error(getApiMessage(error, "Failed to fetch dashboard data."), { toastId: 'dashboard-query-error' });
+  }, [recurringResult.error, transactionsResult.error]);
 
   const selectedRange = useMemo(
     () => getDateRange(activeRange, customStartDate, customEndDate),

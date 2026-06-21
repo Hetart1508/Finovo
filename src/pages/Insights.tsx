@@ -15,7 +15,8 @@ import {
   Tooltip, 
   ResponsiveContainer
 } from 'recharts';
-import api from '@/src/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { transactionsQuery, upcomingRecurringQuery } from '@/src/lib/serverState';
 import { toast } from 'react-toastify';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -71,8 +72,10 @@ const getPresetRange = (mode: RangeMode, selectedMonth: Date, customStartDate: D
 export default function Insights() {
   const [insights, setInsights] = useState<any>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [transactionsLoading, setTransactionsLoading] = useState(true);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const queryClient = useQueryClient();
+  const transactionsResult = useQuery(transactionsQuery());
+  const transactionsLoading = transactionsResult.isPending || transactionsResult.isFetching;
+  const transactions = transactionsResult.data ?? [];
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [rangeMode, setRangeMode] = useState<RangeMode>('currentMonth');
   const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
@@ -80,6 +83,12 @@ export default function Insights() {
   const [customEndDate, setCustomEndDate] = useState<Date | null>(new Date());
   const today = new Date();
   const currentMonthStart = startOfMonth(today);
+
+  useEffect(() => {
+    if (transactionsResult.error) {
+      toast.error(getApiMessage(transactionsResult.error, "Failed to load transactions."), { toastId: 'insights-query-error' });
+    }
+  }, [transactionsResult.error]);
   
   const selectedRange = useMemo(
     () => getPresetRange(rangeMode, selectedMonth, customStartDate, customEndDate),
@@ -128,25 +137,10 @@ export default function Insights() {
     }
   });
 
-  const fetchTransactions = async () => {
-    setTransactionsLoading(true);
-    try {
-      const { data } = await api.get('/transactions');
-      setTransactions(data);
-      return data;
-    } catch (error: any) {
-      console.error(error);
-      toast.error(getApiMessage(error, "Failed to load transactions."));
-      throw error;
-    } finally {
-      setTransactionsLoading(false);
-    }
-  };
-
   const generateInsights = async () => {
     setInsightsLoading(true);
     try {
-      const data = await fetchTransactions();
+      const { data = [] } = await transactionsResult.refetch();
       const start = selectedRange.start <= selectedRange.end ? selectedRange.start : selectedRange.end;
       const end = selectedRange.start <= selectedRange.end ? selectedRange.end : selectedRange.start;
       const transactionsInRange = data.filter((transaction: any) =>
@@ -159,7 +153,7 @@ export default function Insights() {
         return;
       }
 
-      const { data: recurringEvents } = await api.get('/recurring/upcoming?days=365');
+      const recurringEvents = await queryClient.fetchQuery(upcomingRecurringQuery());
       const aiInsights = await getFinancialInsights(transactionsInRange, recurringEvents);
       setInsights(aiInsights);
       toast.success('AI suggestions generated!');
@@ -170,10 +164,6 @@ export default function Insights() {
       setInsightsLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchTransactions().catch(() => undefined);
-  }, []);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">

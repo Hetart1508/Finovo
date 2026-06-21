@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -11,6 +12,7 @@ import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { clearSession, hasValidSession } from './lib/session';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!hasValidSession()) {
@@ -26,6 +28,14 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default function App() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const clearServerState = () => queryClient.clear();
+    window.addEventListener('session-expired', clearServerState);
+    return () => window.removeEventListener('session-expired', clearServerState);
+  }, [queryClient]);
+
   return (
     <Router>
       <Routes>
