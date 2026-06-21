@@ -337,6 +337,7 @@ type GeminiStatementTransaction = {
   category: string;
   payment_mode: string;
   vpa: string | null;
+  record_kind: "transaction";
 };
 type NormalizedTransaction = {
   amount: number;
@@ -423,6 +424,12 @@ const normalizeGeminiAmount = (value: unknown) => {
 };
 
 const isStatementBalanceRow = (transaction: any) => {
+  const recordKind = isNonEmptyString(transaction?.record_kind)
+    ? transaction.record_kind.trim().toLowerCase()
+    : "";
+  if (["balance", "summary", "header", "total", "non_transaction"].includes(recordKind)) return true;
+  if (transaction?.is_balance === true || transaction?.isBalance === true) return true;
+
   const text = [
     transaction?.description,
     transaction?.narration,
@@ -434,9 +441,13 @@ const isStatementBalanceRow = (transaction: any) => {
     .replace(/\s+/g, " ")
     .trim();
 
-  return /\b(?:opening|closing|available|ledger|running)\s+bal(?:ance)?\b/i.test(text)
+  return /\b(?:opening|closing|available|ledger|running|initial|beginning|previous)\s+(?:account\s+)?bal(?:ance)?\b/i.test(text)
+    || /\b(?:opening|closing)\s+(?:account|ledger)\s+bal(?:ance)?\b/i.test(text)
+    || /\bbal(?:ance)?\s+(?:as\s+(?:on|of)|at\s+(?:the\s+)?(?:start|end)|forward)\b/i.test(text)
+    || /\b(?:op|cl)\.?\s*bal(?:ance)?\b/i.test(text)
     || /\bbal(?:ance)?\s*(?:b\/?f|c\/?f|brought forward|carried forward)\b/i.test(text)
-    || /\b(?:b\/?f|c\/?f|brought forward|carried forward)\s*bal(?:ance)?\b/i.test(text);
+    || /\b(?:b\/?f|c\/?f|brought forward|carried forward)\s*bal(?:ance)?\b/i.test(text)
+    || /^bal(?:ance)?$/i.test(text);
 };
 
 const normalizeGeminiBillData = (text: string) => {
@@ -522,6 +533,7 @@ const normalizeGeminiStatementTransactions = (text: string) => {
           ? transaction.payment_mode.trim()
           : "Bank Statement",
         vpa: extractVpa(transaction.vpa, description),
+        record_kind: "transaction",
       };
     })
     .filter((transaction): transaction is GeminiStatementTransaction => transaction !== null)
@@ -658,15 +670,19 @@ const importStatementWithGemini = async (base64Data: string, mimeType: string) =
   const today = new Date().toISOString().split("T")[0];
   const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
 Return ONLY valid JSON with this exact shape:
-{"transactions":[{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"income|expense","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
+{"transactions":[{"record_kind":"transaction|balance|summary","date":"YYYY-MM-DD or null","description":"string","amount":number,"type":"income|expense|null","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
 
 Rules:
 - Extract real money movement rows only.
+- Classify every candidate row first: transaction = an actual debit/credit; balance = opening/closing/running/available balance; summary = totals or statement metadata.
+- Opening balance is NEVER income and closing balance is NEVER an expense. They are account states, not money movements.
 - CREDIT, CR, deposit, salary, refund, interest, received, inward UPI = type "income".
 - DEBIT, DR, withdrawal, purchase, paid, sent, outward UPI, ATM, card spend, charges = type "expense".
 - Use absolute positive amount values only. Do not use negative numbers.
 - Ignore opening balance, closing balance, available balance, account numbers, totals, summaries, page headers, and duplicate continuation rows.
 - Never return balance rows such as OPENING BALANCE, CLOSING BALANCE, BAL B/F, BAL C/F, BROUGHT FORWARD, or CARRIED FORWARD as transactions.
+- Also classify INITIAL BALANCE, BEGINNING BALANCE, PREVIOUS BALANCE, OP BAL, CL BAL, BALANCE AS ON, and ledger/running balances as record_kind "balance".
+- Only record_kind "transaction" rows will be imported. When uncertain whether a row is a transaction or balance, classify it as "balance".
 - Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
 - If a date is unreadable, omit that row rather than using ${today}.
 - Omit rows dated after ${today}; future transactions must not be imported.
