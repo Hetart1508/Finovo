@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -11,8 +13,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import api from '@/src/lib/api';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/src/lib/serverState';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { merchantAliasesQuery, queryKeys } from '@/src/lib/serverState';
 import { toast } from 'react-toastify';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -24,6 +26,8 @@ import {
   RiDeleteBin6Line,
   RiErrorWarningLine,
   RiFileTextLine,
+  RiSave3Line,
+  RiStore2Line,
   RiUploadCloudLine,
 } from 'react-icons/ri';
 
@@ -34,6 +38,10 @@ type StatementTransaction = {
   type: 'income' | 'expense';
   category: string;
   payment_mode: string;
+  vpa: string | null;
+  merchant_name: string | null;
+  original_description: string;
+  alias_status: 'matched' | 'unknown' | 'not_applicable';
 };
 
 const getTodayDateString = () => {
@@ -45,14 +53,46 @@ const getTodayDateString = () => {
 
 const isFutureTransactionDate = (date: string) => date > getTodayDateString();
 
+const getDisplayDescription = (transaction: StatementTransaction) => {
+  const description = transaction.original_description || transaction.description || '';
+  if (!transaction.vpa) return description || '-';
+  const escapedVpa = transaction.vpa.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const withoutVpa = description.replace(new RegExp(escapedVpa, 'i'), '').replace(/[\s/|:;-]+$/g, '').trim();
+  return !withoutVpa || /^upi(?:\s+(?:gpay|paytm|phonepe))?$/i.test(withoutVpa)
+    ? 'UPI payment'
+    : withoutVpa;
+};
+
 export default function StatementImport() {
   const queryClient = useQueryClient();
+  const aliasesResult = useQuery(merchantAliasesQuery());
   const previewStatement = useMutation({
     mutationFn: (payload: { base64Data: string; mimeType: string }) => api.post('/statement-import/preview', payload),
   });
   const approveStatement = useMutation({
     mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string }) => api.post('/statement-import/approve', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases });
+    },
+  });
+  const deleteAlias = useMutation({
+    mutationFn: (id: number) => api.delete(`/merchant-aliases/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases }),
+  });
+  const updateAlias = useMutation({
+    mutationFn: ({ id, company_name }: { id: number; company_name: string }) => api.patch(`/merchant-aliases/${id}`, { company_name }),
+    onSuccess: (_response, variables) => {
+      setAliasEdits((current) => {
+        const next = { ...current };
+        delete next[variables.id];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases });
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      toast.success('Merchant name updated.');
+    },
+    onError: (error) => toast.error(getApiMessage(error, 'Failed to update merchant name.')),
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statementFile, setStatementFile] = useState<File | null>(null);
@@ -63,6 +103,7 @@ export default function StatementImport() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [approveLoading, setApproveLoading] = useState(false);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [aliasEdits, setAliasEdits] = useState<Record<number, string>>({});
 
   const totals = useMemo(() => {
     return transactions.reduce(
@@ -74,6 +115,9 @@ export default function StatementImport() {
       { income: 0, expense: 0 }
     );
   }, [transactions]);
+  const unresolvedVpaCount = transactions.filter(
+    (transaction) => transaction.type === 'expense' && transaction.vpa && !transaction.merchant_name?.trim()
+  ).length;
 
   const readFileAsBase64 = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -147,8 +191,21 @@ export default function StatementImport() {
     setTransactions((current) => current.filter((_, index) => index !== indexToRemove));
   };
 
+  const handleMerchantNameChange = (vpa: string, companyName: string) => {
+    setTransactions((current) => current.map((transaction) =>
+      transaction.vpa === vpa
+        ? { ...transaction, merchant_name: companyName, alias_status: companyName.trim() ? 'matched' : 'unknown' }
+        : transaction
+    ));
+  };
+
   const handleApproveAll = async () => {
     if (!transactions.length) return;
+
+    if (unresolvedVpaCount) {
+      toast.error(`Name the company for ${unresolvedVpaCount} unresolved UPI payment${unresolvedVpaCount === 1 ? '' : 's'} before approval.`);
+      return;
+    }
 
     if (transactions.some((transaction) => isFutureTransactionDate(transaction.date))) {
       toast.error('Statement transactions cannot include future dates.');
@@ -228,6 +285,64 @@ export default function StatementImport() {
       </div>
 
       <Card className="border-none shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <RiStore2Line className="text-[#4F9CF9]" aria-hidden="true" />
+            Saved UPI Merchant Names
+          </CardTitle>
+          <CardDescription>These names are private to your account and reused whenever the same VPA appears again.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {aliasesResult.isPending ? (
+            <p className="text-sm text-[#6B7280]">Loading saved merchants...</p>
+          ) : !aliasesResult.data?.length ? (
+            <p className="text-sm text-[#6B7280]">No saved merchants yet. Import a statement to teach Finovo its first VPA.</p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {aliasesResult.data.map((alias) => (
+                <div key={alias.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] p-3">
+                  <div className="min-w-0">
+                    <Input
+                      value={aliasEdits[alias.id] ?? alias.company_name}
+                      maxLength={255}
+                      onChange={(event) => setAliasEdits((current) => ({ ...current, [alias.id]: event.target.value }))}
+                      aria-label={`Company name for ${alias.vpa}`}
+                      className="h-8 font-semibold"
+                    />
+                    <p className="truncate text-xs text-[#6B7280]">{alias.vpa}</p>
+                  </div>
+                  <div className="flex shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-[#6B7280] hover:text-[#34C759]"
+                      disabled={updateAlias.isPending || !(aliasEdits[alias.id] ?? alias.company_name).trim()}
+                      onClick={() => updateAlias.mutate({ id: alias.id, company_name: aliasEdits[alias.id] ?? alias.company_name })}
+                      aria-label={`Save ${alias.vpa}`}
+                    >
+                      <RiSave3Line className="text-base" aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-[#6B7280] hover:text-[#FF6B6B]"
+                      disabled={deleteAlias.isPending}
+                      onClick={() => deleteAlias.mutate(alias.id)}
+                      aria-label={`Forget ${alias.company_name}`}
+                    >
+                      <RiDeleteBin6Line className="text-base" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-none shadow-sm">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="text-lg">Preview Transactions</CardTitle>
@@ -236,7 +351,7 @@ export default function StatementImport() {
           <Button
             className="gap-2 bg-[#34C759] hover:bg-[#2EB851]"
             onClick={handleApproveAll}
-            disabled={!transactions.length || alreadyImported || previewLoading || approveLoading}
+            disabled={!transactions.length || alreadyImported || previewLoading || approveLoading || unresolvedVpaCount > 0}
           >
             <RiCheckboxCircleLine className="text-base" aria-hidden="true" />
             {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}
@@ -280,7 +395,31 @@ export default function StatementImport() {
                     <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
                       {format(parseISO(transaction.date), 'dd MMM yyyy')}
                     </TableCell>
-                    <TableCell className="font-medium">{transaction.description || '-'}</TableCell>
+                    <TableCell className="min-w-[260px] font-medium">
+                      <p>{getDisplayDescription(transaction)}</p>
+                      {transaction.type === 'expense' && transaction.vpa ? (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <code className="rounded bg-[#EEF6FF] px-2 py-1 text-xs text-[#2878D0]">{transaction.vpa}</code>
+                            <Badge variant="outline" className={transaction.alias_status === 'matched' ? 'border-[#EAFBF0] text-[#34C759]' : 'border-[#FFF7E8] text-[#B87516]'}>
+                              {transaction.alias_status === 'matched' ? 'Saved match' : 'Name required'}
+                            </Badge>
+                          </div>
+                          <Label htmlFor={`merchant-name-${index}`} className="text-xs font-semibold">
+                            Merchant/company name
+                          </Label>
+                          <Input
+                            id={`merchant-name-${index}`}
+                            value={transaction.merchant_name || ''}
+                            maxLength={255}
+                            placeholder="Enter merchant name"
+                            onChange={(event) => handleMerchantNameChange(transaction.vpa!, event.target.value)}
+                            aria-label={`Company name for ${transaction.vpa}`}
+                            className="h-9"
+                          />
+                        </div>
+                      ) : null}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-normal">{transaction.category}</Badge>
                     </TableCell>
@@ -312,7 +451,7 @@ export default function StatementImport() {
       <div className="flex items-start gap-2 rounded-lg bg-[#FFF7E8] p-3 ">
         <RiErrorWarningLine className="mt-0.5 text-base text-[#FFB84D]" aria-hidden="true" />
         <p className="text-xs text-[#B87516] ">
-          Statement extraction uses AI when you upload the file. Saving approved rows does not call AI again.
+          Statement extraction uses AI when you upload the file. Merchant names are matched locally by exact VPA—Finovo never guesses them.
         </p>
       </div>
     </div>

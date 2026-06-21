@@ -185,6 +185,21 @@ const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS merchant_aliases (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      vpa VARCHAR(320) NOT NULL,
+      company_name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_merchant_alias_user_vpa (user_id, vpa),
+      CONSTRAINT fk_merchant_aliases_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS recurring_events (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -216,6 +231,8 @@ const runMigrations = async () => {
   await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
   await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
   await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
+  await ensureColumn("transactions", "payee_vpa", "VARCHAR(320) NULL");
+  await ensureColumn("transactions", "merchant_name", "VARCHAR(255) NULL");
   await ensureColumn("recurring_events", "frequency", "VARCHAR(50) NOT NULL DEFAULT 'monthly'");
   await ensureColumn("recurring_events", "interval_count", "INT NOT NULL DEFAULT 1");
   await ensureColumn("recurring_events", "start_date", "DATE NULL");
@@ -225,6 +242,8 @@ const runMigrations = async () => {
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_category", "category");
   await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
+  await ensureIndex("transactions", "idx_transactions_user_payee_vpa", "user_id, payee_vpa");
+  await ensureIndex("merchant_aliases", "idx_merchant_aliases_user", "user_id");
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
@@ -317,6 +336,7 @@ type GeminiStatementTransaction = {
   type: "income" | "expense";
   category: string;
   payment_mode: string;
+  vpa: string | null;
 };
 type NormalizedTransaction = {
   amount: number;
@@ -328,6 +348,8 @@ type NormalizedTransaction = {
   bill_url: string | null;
   source_statement_hash: string | null;
   import_fingerprint: string | null;
+  payee_vpa: string | null;
+  merchant_name: string | null;
 };
 
 const isNonEmptyString = (value: unknown): value is string =>
@@ -359,6 +381,24 @@ const getTodayDateString = () => {
 
 const isFutureDateString = (value: string) => value > getTodayDateString();
 
+const VPA_PATTERN = /\b[a-z0-9][a-z0-9._-]{0,255}@[a-z][a-z0-9.-]{1,63}\b/i;
+const VPA_VALUE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,255}@[a-z][a-z0-9.-]{1,63}$/i;
+const normalizeVpa = (value: unknown) => {
+  if (!isNonEmptyString(value)) return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length <= 320 && VPA_VALUE_PATTERN.test(normalized) ? normalized : null;
+};
+const extractVpa = (...values: unknown[]) => {
+  for (const value of values) {
+    if (!isNonEmptyString(value)) continue;
+    const match = value.toLowerCase().match(VPA_PATTERN);
+    if (match) return normalizeVpa(match[0]);
+  }
+  return null;
+};
+const normalizeCompanyName = (value: unknown) =>
+  isNonEmptyString(value) && value.trim().length <= 255 ? value.trim() : null;
+
 const sha256 = (value: string | Buffer) =>
   crypto.createHash("sha256").update(value).digest("hex");
 
@@ -380,6 +420,23 @@ const normalizeGeminiAmount = (value: unknown) => {
   if (typeof value !== "string") return null;
   const amount = Number(value.replace(/[^\d.]/g, ""));
   return Number.isFinite(amount) ? amount : null;
+};
+
+const isStatementBalanceRow = (transaction: any) => {
+  const text = [
+    transaction?.description,
+    transaction?.narration,
+    transaction?.particulars,
+    transaction?.details,
+  ]
+    .filter(isNonEmptyString)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return /\b(?:opening|closing|available|ledger|running)\s+bal(?:ance)?\b/i.test(text)
+    || /\bbal(?:ance)?\s*(?:b\/?f|c\/?f|brought forward|carried forward)\b/i.test(text)
+    || /\b(?:b\/?f|c\/?f|brought forward|carried forward)\s*bal(?:ance)?\b/i.test(text);
 };
 
 const normalizeGeminiBillData = (text: string) => {
@@ -440,6 +497,8 @@ const normalizeGeminiStatementTransactions = (text: string) => {
 
   return transactions
     .map((transaction: any): GeminiStatementTransaction | null => {
+      if (isStatementBalanceRow(transaction)) return null;
+
       const amount = normalizeGeminiAmount(transaction.amount);
       const type = transaction.type === "income" ? "income" : transaction.type === "expense" ? "expense" : null;
       const date = isValidDateString(transaction.date) ? transaction.date : null;
@@ -462,6 +521,7 @@ const normalizeGeminiStatementTransactions = (text: string) => {
         payment_mode: isNonEmptyString(transaction.payment_mode)
           ? transaction.payment_mode.trim()
           : "Bank Statement",
+        vpa: extractVpa(transaction.vpa, description),
       };
     })
     .filter((transaction): transaction is GeminiStatementTransaction => transaction !== null)
@@ -598,7 +658,7 @@ const importStatementWithGemini = async (base64Data: string, mimeType: string) =
   const today = new Date().toISOString().split("T")[0];
   const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
 Return ONLY valid JSON with this exact shape:
-{"transactions":[{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"income|expense","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet"}]}
+{"transactions":[{"date":"YYYY-MM-DD","description":"string","amount":number,"type":"income|expense","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
 
 Rules:
 - Extract real money movement rows only.
@@ -606,11 +666,13 @@ Rules:
 - DEBIT, DR, withdrawal, purchase, paid, sent, outward UPI, ATM, card spend, charges = type "expense".
 - Use absolute positive amount values only. Do not use negative numbers.
 - Ignore opening balance, closing balance, available balance, account numbers, totals, summaries, page headers, and duplicate continuation rows.
+- Never return balance rows such as OPENING BALANCE, CLOSING BALANCE, BAL B/F, BAL C/F, BROUGHT FORWARD, or CARRIED FORWARD as transactions.
 - Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
 - If a date is unreadable, omit that row rather than using ${today}.
 - Omit rows dated after ${today}; future transactions must not be imported.
 - Choose a practical category. Use Salary, Refund, Interest, Transfer, Food, Transport, Shopping, Utilities, Entertainment, Health, Fees, ATM, Other.
 - Keep descriptions short but traceable to the statement narration.
+- Copy the payee UPI ID/VPA exactly into vpa when present in the narration. Otherwise return null.
 - Return up to 150 transactions, newest or statement order is fine.`;
 
   const result = await generateGemini(
@@ -681,7 +743,7 @@ const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo>
 };
 
 const normalizeTransactionBody = (body: any) => {
-  const { amount, type, category, date, payment_mode, description, bill_url, source_statement_hash, import_fingerprint } = body;
+  const { amount, type, category, date, payment_mode, description, bill_url, source_statement_hash, import_fingerprint, payee_vpa, merchant_name } = body;
   const parsedAmount = toNumber(amount);
 
   if (parsedAmount === null || parsedAmount <= 0) {
@@ -710,6 +772,8 @@ const normalizeTransactionBody = (body: any) => {
     bill_url: isNonEmptyString(bill_url) ? bill_url.trim() : null,
     source_statement_hash: isNonEmptyString(source_statement_hash) ? source_statement_hash.trim() : null,
     import_fingerprint: isNonEmptyString(import_fingerprint) ? import_fingerprint.trim() : null,
+    payee_vpa: normalizeVpa(payee_vpa),
+    merchant_name: normalizeCompanyName(merchant_name),
   };
 
   return { transaction };
@@ -737,9 +801,11 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
       description,
       bill_url,
       source_statement_hash,
-      import_fingerprint
+      import_fingerprint,
+      payee_vpa,
+      merchant_name
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     userId,
     transaction.amount,
@@ -751,6 +817,8 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
     transaction.bill_url,
     transaction.source_statement_hash,
     transaction.import_fingerprint,
+    transaction.payee_vpa,
+    transaction.merchant_name,
   ]);
 
   return {
@@ -843,6 +911,63 @@ const recordStatementImport = async (userId: number, fileHash: string, transacti
   }
 };
 
+const getMerchantAliases = (userId: number) =>
+  queryAll(
+    "SELECT id, vpa, company_name, created_at, updated_at FROM merchant_aliases WHERE user_id = ? ORDER BY company_name, vpa",
+    [userId]
+  );
+
+const getMerchantAliasMap = async (userId: number, vpas: Array<string | null>) => {
+  const uniqueVpas = [...new Set(vpas.filter((vpa): vpa is string => Boolean(vpa)))];
+  if (!uniqueVpas.length) return new Map<string, string>();
+
+  const placeholders = uniqueVpas.map(() => "?").join(", ");
+  const aliases: any[] = await queryAll(
+    `SELECT vpa, company_name FROM merchant_aliases WHERE user_id = ? AND vpa IN (${placeholders})`,
+    [userId, ...uniqueVpas]
+  );
+  return new Map(aliases.map((alias) => [alias.vpa, alias.company_name]));
+};
+
+const upsertMerchantAlias = async (userId: number, vpaValue: unknown, companyNameValue: unknown) => {
+  const vpa = normalizeVpa(vpaValue);
+  const companyName = normalizeCompanyName(companyNameValue);
+  if (!vpa) return { status: 400, body: { error: "A valid UPI VPA is required" } };
+  if (!companyName) return { status: 400, body: { error: "Company name is required and must be 255 characters or fewer" } };
+
+  await execute(
+    `
+      INSERT INTO merchant_aliases (user_id, vpa, company_name)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE company_name = VALUES(company_name), updated_at = CURRENT_TIMESTAMP
+    `,
+    [userId, vpa, companyName]
+  );
+  await execute(
+    "UPDATE transactions SET merchant_name = ? WHERE user_id = ? AND payee_vpa = ?",
+    [companyName, userId, vpa]
+  );
+  const alias = await queryOne(
+    "SELECT id, vpa, company_name, created_at, updated_at FROM merchant_aliases WHERE user_id = ? AND vpa = ?",
+    [userId, vpa]
+  );
+  return { status: 200, body: alias };
+};
+
+const enrichStatementTransactionsWithAliases = async (userId: number, transactions: GeminiStatementTransaction[]) => {
+  const withVpas = transactions.map((transaction) => ({
+    ...transaction,
+    vpa: extractVpa(transaction.vpa, transaction.description),
+  }));
+  const aliases = await getMerchantAliasMap(userId, withVpas.map(({ vpa }) => vpa));
+  return withVpas.map((transaction) => ({
+    ...transaction,
+    original_description: transaction.description,
+    merchant_name: transaction.vpa ? aliases.get(transaction.vpa) || null : null,
+    alias_status: transaction.vpa && aliases.has(transaction.vpa) ? "matched" : transaction.vpa ? "unknown" : "not_applicable",
+  }));
+};
+
 const skipAllStatementTransactions = (transactions: any[], error: string) =>
   transactions.map((transaction) => ({ transaction, error }));
 
@@ -866,18 +991,41 @@ const saveStatementTransactions = async (
     }
   }
 
+  for (const transaction of transactions) {
+    const vpa = extractVpa(transaction.vpa, transaction.payee_vpa, transaction.original_description, transaction.description);
+    const companyName = normalizeCompanyName(transaction.merchant_name);
+    if (vpa && companyName) {
+      await upsertMerchantAlias(userId, vpa, companyName);
+    }
+  }
+  const aliasMap = await getMerchantAliasMap(
+    userId,
+    transactions.map((transaction) => extractVpa(transaction.vpa, transaction.payee_vpa, transaction.original_description, transaction.description))
+  );
+
   for (const [index, transaction] of transactions.entries()) {
     const sourceStatementHash = options.fileHash || null;
+    const payeeVpa = extractVpa(transaction.vpa, transaction.payee_vpa, transaction.original_description, transaction.description);
+    const merchantName = payeeVpa ? aliasMap.get(payeeVpa) || null : null;
+    const originalDescription = isNonEmptyString(transaction.original_description)
+      ? transaction.original_description.trim()
+      : isNonEmptyString(transaction.description)
+        ? transaction.description.trim()
+        : "";
     const normalized = normalizeTransactionBody({
       amount: transaction.amount,
       type: transaction.type,
       category: transaction.category,
       date: transaction.date,
       payment_mode: transaction.payment_mode || "Bank Statement",
-      description: isNonEmptyString(transaction.description)
-        ? `Statement Import: ${transaction.description.trim()}`
-        : "Statement Import",
+      description: merchantName
+        ? `Statement Import: ${merchantName}`
+        : originalDescription
+          ? `Statement Import: ${originalDescription}`
+          : "Statement Import",
       source_statement_hash: sourceStatementHash,
+      payee_vpa: payeeVpa,
+      merchant_name: merchantName,
     });
 
     if ("status" in normalized) {
@@ -980,6 +1128,8 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
     payment_mode: body.payment_mode === undefined ? existing.payment_mode : body.payment_mode,
     description: body.description === undefined ? existing.description : body.description,
     bill_url: body.bill_url === undefined ? existing.bill_url : body.bill_url,
+    payee_vpa: body.payee_vpa === undefined ? existing.payee_vpa : body.payee_vpa,
+    merchant_name: body.merchant_name === undefined ? existing.merchant_name : body.merchant_name,
   };
 
   if (next.amount === null || next.amount <= 0) {
@@ -1006,11 +1156,13 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
     payment_mode: next.payment_mode.trim(),
     description: isNonEmptyString(next.description) ? next.description.trim() : null,
     bill_url: isNonEmptyString(next.bill_url) ? next.bill_url.trim() : null,
+    payee_vpa: normalizeVpa(next.payee_vpa),
+    merchant_name: normalizeCompanyName(next.merchant_name),
   };
 
   await execute(`
     UPDATE transactions
-    SET amount = ?, type = ?, category = ?, date = ?, payment_mode = ?, description = ?, bill_url = ?
+    SET amount = ?, type = ?, category = ?, date = ?, payment_mode = ?, description = ?, bill_url = ?, payee_vpa = ?, merchant_name = ?
     WHERE id = ? AND user_id = ?
   `, [
     transaction.amount,
@@ -1020,6 +1172,8 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
     transaction.payment_mode,
     transaction.description,
     transaction.bill_url,
+    transaction.payee_vpa,
+    transaction.merchant_name,
     id,
     userId,
   ]);
@@ -1685,6 +1839,35 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // --- Transaction Routes ---
+app.get("/api/merchant-aliases", authenticateToken, async (req: any, res) => {
+  res.json(await getMerchantAliases(req.user.id));
+});
+
+app.post("/api/merchant-aliases", authenticateToken, async (req: any, res) => {
+  const result = await upsertMerchantAlias(req.user.id, req.body?.vpa, req.body?.company_name);
+  res.status(result.status).json(result.body);
+});
+
+app.patch("/api/merchant-aliases/:id", authenticateToken, async (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  const companyName = normalizeCompanyName(req.body?.company_name);
+  if (!id) return res.status(400).json({ error: "A valid merchant alias id is required" });
+  if (!companyName) return res.status(400).json({ error: "Company name is required and must be 255 characters or fewer" });
+
+  const alias: any = await queryOne("SELECT * FROM merchant_aliases WHERE id = ? AND user_id = ?", [id, req.user.id]);
+  if (!alias) return res.status(404).json({ error: "Merchant alias not found" });
+  const result = await upsertMerchantAlias(req.user.id, alias.vpa, companyName);
+  res.json(result.body);
+});
+
+app.delete("/api/merchant-aliases/:id", authenticateToken, async (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: "A valid merchant alias id is required" });
+  const result = await execute("DELETE FROM merchant_aliases WHERE id = ? AND user_id = ?", [id, req.user.id]);
+  if (!result.affectedRows) return res.status(404).json({ error: "Merchant alias not found" });
+  res.json({ message: "Merchant alias deleted" });
+});
+
 app.get("/api/transactions", authenticateToken, async (req: any, res) => {
   const filters = getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
@@ -2086,7 +2269,8 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       });
     }
 
-    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
+    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,
       statementHash,
@@ -2134,7 +2318,8 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
       });
     }
 
-    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
+    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,
       statementHash,
@@ -2277,7 +2462,8 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
       });
     }
 
-    const transactions = await importStatementWithGemini(base64Data, mimeType);
+    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
+    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
 
     res.json({
       transactions,

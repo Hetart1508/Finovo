@@ -199,6 +199,8 @@ export default function Transactions() {
     return transactions.filter(t => {
       const matchesSearch = !normalizedSearch ||
         (t.description || '').toLowerCase().includes(normalizedSearch) ||
+        (t.merchant_name || '').toLowerCase().includes(normalizedSearch) ||
+        (t.payee_vpa || '').toLowerCase().includes(normalizedSearch) ||
         (t.category || '').toLowerCase().includes(normalizedSearch) ||
         (t.payment_mode || '').toLowerCase().includes(normalizedSearch);
       const matchesFilter = filter === 'all' || t.type === filter;
@@ -404,7 +406,7 @@ export default function Transactions() {
 
       <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)] dark:border-[#334155]">
         <CardContent className="p-0">
-          <Table className="table-fixed border-separate border-spacing-0 [&_td]:border-r [&_td]:border-[#E5E7EB] [&_td:last-child]:border-r-0 [&_th]:border-r [&_th]:border-[#D9DEE7] [&_th:last-child]:border-r-0 dark:[&_td]:border-[#334155] dark:[&_th]:border-[#334155]">
+          <Table className="table-fixed">
             <colgroup>
               <col className="w-[52px]" />
               <col className="w-[60px]" />
@@ -454,9 +456,10 @@ export default function Transactions() {
                       {format(parseISO(t.date), 'dd MMM yyyy')}
                     </TableCell>
                     <TableCell className="min-w-0">
-                      <span className="block truncate font-medium" title={t.description || '-'}>
-                        {t.description || '-'}
+                      <span className="block truncate font-medium" title={t.merchant_name || t.description || '-'}>
+                        {t.merchant_name || t.description || '-'}
                       </span>
+                      {t.payee_vpa ? <span className="block truncate text-xs text-[#6B7280]">{t.payee_vpa}</span> : null}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="max-w-full truncate font-normal" title={t.category}>{t.category}</Badge>
