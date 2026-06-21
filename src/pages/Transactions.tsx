@@ -26,6 +26,7 @@ import { toast } from 'react-toastify';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { useDebouncedValue } from '@/src/lib/useDebouncedValue';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -85,6 +86,7 @@ export default function Transactions() {
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [viewingBill, setViewingBill] = useState<any | null>(null);
   const todayDateString = format(new Date(), 'yyyy-MM-dd');
+  const debouncedSearch = useDebouncedValue(search, 500);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -193,7 +195,7 @@ export default function Transactions() {
   };
 
   const filteredTransactions = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch = debouncedSearch.trim().toLowerCase();
 
     return transactions.filter(t => {
       const matchesSearch = !normalizedSearch ||
@@ -203,7 +205,7 @@ export default function Transactions() {
       const matchesFilter = filter === 'all' || t.type === filter;
       return matchesSearch && matchesFilter;
     });
-  }, [filter, search, transactions]);
+  }, [debouncedSearch, filter, transactions]);
 
   const sortedTransactions = useMemo(() => {
     if (!sortKey) return filteredTransactions;
@@ -230,7 +232,7 @@ export default function Transactions() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, search]);
+  }, [debouncedSearch, filter]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
