@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
@@ -665,7 +666,7 @@ export default function Transactions() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-date">Date</Label>
-                <Input id="edit-date" name="date" type="date" max={todayDateString} defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
+                <AppDatePicker id="edit-date" name="date" max={todayDateString} defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-payment-mode">Payment Mode</Label>

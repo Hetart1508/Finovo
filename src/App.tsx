@@ -8,6 +8,7 @@ import StatementImport from './pages/StatementImport';
 import CalendarView from './pages/Calendar';
 import Insights from './pages/Insights';
 import Recurring from './pages/Recurring';
+import Investments from './pages/Investments';
 import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
         <Route path="/recurring" element={<ProtectedRoute><Recurring /></ProtectedRoute>} />
+        <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
         <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

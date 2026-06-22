@@ -323,15 +323,15 @@ export default function CalendarView() {
 
         <div className="space-y-6">
           <Card className="border-none shadow-sm">
-            <CardHeader>
+            <CardHeader className="text-center">
               <CardTitle className="text-lg">
                 {date ? format(date, 'dd MMMM yyyy') : 'Select a date'}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 text-center">
               <div className="space-y-4 rounded-xl bg-[#FAFBFC] p-4 dark:bg-[#FAFBFC]">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1 text-center">
                     <p className="text-sm text-[#6B7280]">Net Balance</p>
                     <h3
                       className={cn(
@@ -363,7 +363,7 @@ export default function CalendarView() {
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm font-semibold uppercase tracking-wider text-[#6B7280]">Transactions</p>
+                <p className="text-center text-sm font-semibold uppercase tracking-wider text-[#6B7280]">Transactions</p>
                 {selectedDayTransactions.length > 0 ? (
                   selectedDayTransactions.map(t => (
                     <div key={t.id} className="flex items-center justify-between py-2 border-b border-[#E5E7EB] dark:border-[#E5E7EB] last:border-0">

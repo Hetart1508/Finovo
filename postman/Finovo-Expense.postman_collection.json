@@ -61,6 +61,11 @@
       "type": "string"
     },
     {
+      "key": "investmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
       "key": "fromDate",
       "value": "2026-01-01",
       "type": "string"
@@ -741,6 +746,157 @@
             "header": [],
             "url": "{{baseUrl}}/recurring/{{recurringId}}",
             "description": "Deletes a recurring event."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Investments",
+      "description": "Authenticated Mutual Fund and SIP investment planning APIs. Run Create Investment first to populate investmentId for ID-based requests.",
+      "item": [
+        {
+          "name": "Create Investment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investment created', function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('investmentId', String(json.id));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sip_name\": \"Retirement SIP\",\n  \"fund_name\": \"Example Equity Fund\",\n  \"monthly_sip_amount\": 5000,\n  \"total_invested_amount\": 120000,\n  \"current_value\": 138500,\n  \"expected_cagr\": 12,\n  \"start_date\": \"2024-01-01\",\n  \"end_date\": \"2034-01-01\",\n  \"notes\": \"Long-term retirement investment\"\n}"
+            },
+            "url": "{{baseUrl}}/investments",
+            "description": "Creates a SIP investment and saves the returned id as investmentId. The response includes months, future_value, and estimated_capital_gain."
+          }
+        },
+        {
+          "name": "List Investments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investments returned', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/investments",
+            "description": "Lists only the authenticated user's investments with calculated projection fields."
+          }
+        },
+        {
+          "name": "Get Investment Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investment summary returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/investments/summary",
+            "description": "Returns investment count, total SIP, invested/current values, and projected gains."
+          }
+        },
+        {
+          "name": "Get Investment By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investment returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/investments/{{investmentId}}",
+            "description": "Gets one investment owned by the authenticated user."
+          }
+        },
+        {
+          "name": "Update Investment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investment updated', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sip_name\": \"Updated Retirement SIP\",\n  \"fund_name\": \"Example Equity Fund\",\n  \"monthly_sip_amount\": 7500,\n  \"total_invested_amount\": 150000,\n  \"current_value\": 172000,\n  \"expected_cagr\": 13,\n  \"start_date\": \"2024-01-01\",\n  \"end_date\": \"2034-01-01\",\n  \"notes\": \"Monthly SIP increased\"\n}"
+            },
+            "url": "{{baseUrl}}/investments/{{investmentId}}",
+            "description": "Fully updates an investment. All required fields must be included."
+          }
+        },
+        {
+          "name": "Delete Investment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Investment deleted', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/investments/{{investmentId}}",
+            "description": "Deletes the selected investment owned by the authenticated user."
           }
         }
       ]

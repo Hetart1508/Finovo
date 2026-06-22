@@ -222,6 +222,32 @@ const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS mutual_fund_sip_investments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      sip_name VARCHAR(255) NOT NULL,
+      fund_name VARCHAR(255) NOT NULL,
+      monthly_sip_amount DECIMAL(14,2) NOT NULL,
+      total_invested_amount DECIMAL(14,2) NOT NULL,
+      current_value DECIMAL(14,2) NOT NULL,
+      expected_cagr DECIMAL(7,4) NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      notes TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT chk_investment_monthly_sip CHECK (monthly_sip_amount > 0),
+      CONSTRAINT chk_investment_total_invested CHECK (total_invested_amount >= 0),
+      CONSTRAINT chk_investment_current_value CHECK (current_value >= 0),
+      CONSTRAINT chk_investment_expected_cagr CHECK (expected_cagr >= 0),
+      CONSTRAINT chk_investment_dates CHECK (end_date >= start_date),
+      CONSTRAINT fk_investments_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INT PRIMARY KEY
     )
@@ -245,6 +271,8 @@ const runMigrations = async () => {
   await ensureIndex("transactions", "idx_transactions_user_payee_vpa", "user_id, payee_vpa");
   await ensureIndex("merchant_aliases", "idx_merchant_aliases_user", "user_id");
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
+  await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
+  await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
   logger.info("MySQL schema is ready.");
@@ -371,6 +399,104 @@ const toPositiveInteger = (value: unknown) => {
 
 const isValidDateString = (value: unknown) =>
   isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+type InvestmentInput = {
+  sip_name: string;
+  fund_name: string;
+  monthly_sip_amount: number;
+  total_invested_amount: number;
+  current_value: number;
+  expected_cagr: number;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+};
+
+const isValidCalendarDate = (value: unknown): value is string => {
+  if (!isValidDateString(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
+const validateInvestmentInput = (body: any): { data: InvestmentInput } | { error: string } => {
+  const sipName = isNonEmptyString(body?.sip_name) ? body.sip_name.trim() : "";
+  const fundName = isNonEmptyString(body?.fund_name) ? body.fund_name.trim() : "";
+  const monthlySipAmount = toNumber(body?.monthly_sip_amount);
+  const totalInvestedAmount = toNumber(body?.total_invested_amount);
+  const currentValue = toNumber(body?.current_value);
+  const expectedCagr = toNumber(body?.expected_cagr);
+  const startDate = body?.start_date;
+  const endDate = body?.end_date;
+
+  if (!sipName || !fundName) {
+    return { error: "SIP name and fund name are required" };
+  }
+  if (sipName.length > 255 || fundName.length > 255) {
+    return { error: "SIP name and fund name must be 255 characters or fewer" };
+  }
+  if (monthlySipAmount === null || monthlySipAmount <= 0) {
+    return { error: "Monthly SIP amount must be a positive number" };
+  }
+  if (totalInvestedAmount === null || totalInvestedAmount < 0) {
+    return { error: "Total invested amount must be a non-negative number" };
+  }
+  if (currentValue === null || currentValue < 0) {
+    return { error: "Current value must be a non-negative number" };
+  }
+  if (expectedCagr === null || expectedCagr < 0 || expectedCagr > 999.9999) {
+    return { error: "Expected CAGR must be between 0 and 999.9999" };
+  }
+  if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate)) {
+    return { error: "Start date and end date are required in YYYY-MM-DD format" };
+  }
+  if (endDate < startDate) {
+    return { error: "End date must be on or after start date" };
+  }
+  if (body?.notes !== undefined && body.notes !== null && typeof body.notes !== "string") {
+    return { error: "Notes must be text" };
+  }
+
+  return {
+    data: {
+      sip_name: sipName,
+      fund_name: fundName,
+      monthly_sip_amount: monthlySipAmount,
+      total_invested_amount: totalInvestedAmount,
+      current_value: currentValue,
+      expected_cagr: expectedCagr,
+      start_date: startDate,
+      end_date: endDate,
+      notes: isNonEmptyString(body?.notes) ? body.notes.trim() : null,
+    },
+  };
+};
+
+const getInvestmentMonths = (startDate: string, endDate: string) => {
+  const [startYear, startMonth] = startDate.split("-").map(Number);
+  const [endYear, endMonth] = endDate.split("-").map(Number);
+  return Math.max(0, (endYear - startYear) * 12 + endMonth - startMonth);
+};
+
+const getInvestmentProjection = (investment: any) => {
+  const monthlySipAmount = Number(investment.monthly_sip_amount);
+  const totalInvestedAmount = Number(investment.total_invested_amount);
+  const monthlyRate = Number(investment.expected_cagr) / 12 / 100;
+  const months = getInvestmentMonths(investment.start_date, investment.end_date);
+  const futureValue = monthlyRate === 0
+    ? monthlySipAmount * months
+    : monthlySipAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
+
+  return {
+    months,
+    future_value: Number(futureValue.toFixed(2)),
+    estimated_capital_gain: Number((futureValue - totalInvestedAmount).toFixed(2)),
+  };
+};
+
+const withInvestmentProjection = (investment: any) => ({
+  ...investment,
+  ...getInvestmentProjection(investment),
+});
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -2247,6 +2373,188 @@ app.delete("/api/recurring/:id", authenticateToken, async (req: any, res) => {
   }
 
   res.json({ message: "Recurring event deleted successfully", id });
+});
+
+// --- Mutual Fund SIP Investments ---
+app.post("/api/investments", authenticateToken, async (req: any, res) => {
+  const validated = validateInvestmentInput(req.body);
+  if ("error" in validated) {
+    return res.status(400).json({ error: validated.error });
+  }
+
+  const investment = validated.data;
+  try {
+    const info = await execute(`
+      INSERT INTO mutual_fund_sip_investments (
+        user_id, sip_name, fund_name, monthly_sip_amount, total_invested_amount,
+        current_value, expected_cagr, start_date, end_date, notes
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      req.user.id,
+      investment.sip_name,
+      investment.fund_name,
+      investment.monthly_sip_amount,
+      investment.total_invested_amount,
+      investment.current_value,
+      investment.expected_cagr,
+      investment.start_date,
+      investment.end_date,
+      investment.notes,
+    ]);
+
+    const created: any = await queryOne(
+      "SELECT * FROM mutual_fund_sip_investments WHERE id = ? AND user_id = ?",
+      [info.insertId, req.user.id]
+    );
+    res.status(201).json(withInvestmentProjection(created));
+  } catch (error) {
+    logger.error("Create investment error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to create investment" });
+  }
+});
+
+app.get("/api/investments", authenticateToken, async (req: any, res) => {
+  try {
+    const investments = await queryAll(`
+      SELECT *
+      FROM mutual_fund_sip_investments
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+    `, [req.user.id]);
+    res.json(investments.map(withInvestmentProjection));
+  } catch (error) {
+    logger.error("List investments error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to load investments" });
+  }
+});
+
+app.get("/api/investments/summary", authenticateToken, async (req: any, res) => {
+  try {
+    const investments = await queryAll(`
+      SELECT *
+      FROM mutual_fund_sip_investments
+      WHERE user_id = ?
+    `, [req.user.id]);
+
+    const summary = investments.reduce((totals, investment: any) => {
+      const projection = getInvestmentProjection(investment);
+      totals.total_monthly_sip += Number(investment.monthly_sip_amount);
+      totals.total_invested_amount += Number(investment.total_invested_amount);
+      totals.current_value += Number(investment.current_value);
+      totals.projected_future_value += projection.future_value;
+      totals.estimated_capital_gain += projection.estimated_capital_gain;
+      return totals;
+    }, {
+      total_monthly_sip: 0,
+      total_invested_amount: 0,
+      current_value: 0,
+      projected_future_value: 0,
+      estimated_capital_gain: 0,
+    });
+
+    res.json({
+      investment_count: investments.length,
+      total_monthly_sip: Number(summary.total_monthly_sip.toFixed(2)),
+      total_invested_amount: Number(summary.total_invested_amount.toFixed(2)),
+      current_value: Number(summary.current_value.toFixed(2)),
+      current_capital_gain: Number((summary.current_value - summary.total_invested_amount).toFixed(2)),
+      projected_future_value: Number(summary.projected_future_value.toFixed(2)),
+      estimated_capital_gain: Number(summary.estimated_capital_gain.toFixed(2)),
+    });
+  } catch (error) {
+    logger.error("Investment summary error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to load investment summary" });
+  }
+});
+
+app.get("/api/investments/:id", authenticateToken, async (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid investment id is required" });
+  }
+
+  try {
+    const investment: any = await queryOne(
+      "SELECT * FROM mutual_fund_sip_investments WHERE id = ? AND user_id = ?",
+      [id, req.user.id]
+    );
+    if (!investment) {
+      return res.status(404).json({ error: "Investment not found" });
+    }
+    res.json(withInvestmentProjection(investment));
+  } catch (error) {
+    logger.error("Get investment error", { error, userId: req.user.id, investmentId: id });
+    res.status(500).json({ error: "Failed to load investment" });
+  }
+});
+
+app.put("/api/investments/:id", authenticateToken, async (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid investment id is required" });
+  }
+
+  const validated = validateInvestmentInput(req.body);
+  if ("error" in validated) {
+    return res.status(400).json({ error: validated.error });
+  }
+
+  const investment = validated.data;
+  try {
+    const info = await execute(`
+      UPDATE mutual_fund_sip_investments
+      SET sip_name = ?, fund_name = ?, monthly_sip_amount = ?, total_invested_amount = ?,
+          current_value = ?, expected_cagr = ?, start_date = ?, end_date = ?, notes = ?
+      WHERE id = ? AND user_id = ?
+    `, [
+      investment.sip_name,
+      investment.fund_name,
+      investment.monthly_sip_amount,
+      investment.total_invested_amount,
+      investment.current_value,
+      investment.expected_cagr,
+      investment.start_date,
+      investment.end_date,
+      investment.notes,
+      id,
+      req.user.id,
+    ]);
+
+    if (!info.affectedRows) {
+      return res.status(404).json({ error: "Investment not found" });
+    }
+
+    const updated: any = await queryOne(
+      "SELECT * FROM mutual_fund_sip_investments WHERE id = ? AND user_id = ?",
+      [id, req.user.id]
+    );
+    res.json(withInvestmentProjection(updated));
+  } catch (error) {
+    logger.error("Update investment error", { error, userId: req.user.id, investmentId: id });
+    res.status(500).json({ error: "Failed to update investment" });
+  }
+});
+
+app.delete("/api/investments/:id", authenticateToken, async (req: any, res) => {
+  const id = toPositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: "Valid investment id is required" });
+  }
+
+  try {
+    const info = await execute(
+      "DELETE FROM mutual_fund_sip_investments WHERE id = ? AND user_id = ?",
+      [id, req.user.id]
+    );
+    if (!info.affectedRows) {
+      return res.status(404).json({ error: "Investment not found" });
+    }
+    res.json({ message: "Investment deleted successfully", id });
+  } catch (error) {
+    logger.error("Delete investment error", { error, userId: req.user.id, investmentId: id });
+    res.status(500).json({ error: "Failed to delete investment" });
+  }
 });
 
 // --- AI Routes (Gemini primary, client keeps Ollama fallback) ---

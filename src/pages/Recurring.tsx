@@ -355,7 +355,7 @@ export default function Recurring() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="metric-card">
-          <CardContent className="p-6">
+          <CardContent className="p-6 text-center">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
               <RiRepeatLine className="text-lg" aria-hidden="true" />
             </div>
@@ -365,7 +365,7 @@ export default function Recurring() {
         </Card>
 
         <Card className="metric-card">
-          <CardContent className="p-6">
+          <CardContent className="p-6 text-center">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#FFF7E8] text-[#FFB84D]">
               <RiCalendarCheckLine className="text-lg" aria-hidden="true" />
             </div>
@@ -376,7 +376,7 @@ export default function Recurring() {
         </Card>
 
         <Card className="metric-card">
-          <CardContent className="p-6">
+          <CardContent className="p-6 text-center">
             <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EAFBF0] text-[#34C759]">
               <RiRefreshLine className="text-lg" aria-hidden="true" />
             </div>

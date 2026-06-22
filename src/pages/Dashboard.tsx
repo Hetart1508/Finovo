@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
@@ -208,29 +208,26 @@ export default function Dashboard() {
               </Select>
 
               <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="date"
+                <AppDatePicker
                   max={todayDateString}
                   value={customStartDate}
-                  onChange={(event) => {
-                    setCustomStartDate(event.target.value);
+                  onChange={(value) => {
+                    setCustomStartDate(value);
                     setSelectedPreset('Custom');
                     setActiveRange('Custom');
                   }}
-                  aria-label="Custom start date"
-                  className="h-10 bg-white"
+                  placeholder="Start date"
                 />
-                <Input
-                  type="date"
+                <AppDatePicker
                   max={todayDateString}
+                  min={customStartDate || undefined}
                   value={customEndDate}
-                  onChange={(event) => {
-                    setCustomEndDate(event.target.value);
+                  onChange={(value) => {
+                    setCustomEndDate(value);
                     setSelectedPreset('Custom');
                     setActiveRange('Custom');
                   }}
-                  aria-label="Custom end date"
-                  className="h-10 bg-white"
+                  placeholder="End date"
                 />
               </div>
             </div>
@@ -242,11 +239,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="metric-card">
-          <CardContent className="p-6">
+          <CardContent className="p-6 text-center">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-income">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg icon-income">
                 <RiArrowRightUpLine className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="border-[#EAFBF0] text-[#34C759]">{rangeLabels[activeRange]}</Badge>
@@ -257,9 +254,9 @@ export default function Dashboard() {
         </Card>
 
         <Card className="metric-card">
-          <CardContent className="p-6">
+          <CardContent className="p-6 text-center">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg icon-expense">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg icon-expense">
                 <RiArrowLeftDownLine className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="border-[#FFF1F1] text-[#FF6B6B]">{rangeLabels[activeRange]}</Badge>
@@ -269,10 +266,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-none bg-[#4F9CF9] text-white shadow-[0_18px_45px_rgba(79,156,249,0.24)]">
-          <CardContent className="p-6">
+        <Card className="compact-metric-card border-none bg-[#4F9CF9] text-white shadow-[0_18px_45px_rgba(79,156,249,0.24)]">
+          <CardContent className="p-6 text-center">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/20 text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white">
                 <RiWallet3Line className="text-lg" aria-hidden="true" />
               </div>
               <Badge variant="outline" className="text-white border-white/30">Current</Badge>

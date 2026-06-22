@@ -7,6 +7,8 @@ export const queryKeys = {
   recurring: ['recurring'] as const,
   upcomingRecurring: (days = 365) => ['recurring', 'upcoming', { days }] as const,
   merchantAliases: ['merchant-aliases'] as const,
+  investments: ['investments'] as const,
+  investmentSummary: ['investments', 'summary'] as const,
 };
 
 const getData = async <T>(request: Promise<{ data: T }>) => (await request).data;
@@ -34,4 +36,14 @@ export const upcomingRecurringQuery = (days = 365) => queryOptions({
 export const merchantAliasesQuery = () => queryOptions({
   queryKey: queryKeys.merchantAliases,
   queryFn: () => getData<Array<{ id: number; vpa: string; company_name: string }>>(api.get('/merchant-aliases')),
+});
+
+export const investmentsQuery = () => queryOptions({
+  queryKey: queryKeys.investments,
+  queryFn: () => getData<any[]>(api.get('/investments')),
+});
+
+export const investmentSummaryQuery = () => queryOptions({
+  queryKey: queryKeys.investmentSummary,
+  queryFn: () => getData<any>(api.get('/investments/summary')),
 });

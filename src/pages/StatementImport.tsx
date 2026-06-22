@@ -268,15 +268,15 @@ export default function StatementImport() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardContent className="p-5">
+        <Card className="compact-metric-card border-none shadow-sm">
+          <CardContent className="p-5 text-center">
             <p className="text-sm text-[#6B7280]">Income Found</p>
             <p className="mt-2 text-2xl font-black text-[#34C759]">₹{totals.income.toLocaleString()}</p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm">
-          <CardContent className="p-5">
+        <Card className="compact-metric-card border-none shadow-sm">
+          <CardContent className="p-5 text-center">
             <p className="text-sm text-[#6B7280]">Expense Found</p>
             <p className="mt-2 text-2xl font-black text-[#FF6B6B]">₹{totals.expense.toLocaleString()}</p>
           </CardContent>

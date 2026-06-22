@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -283,11 +284,10 @@ export default function SmartUpload() {
                       </div>
                       <div className="space-y-2">
                         <Label>Date</Label>
-                        <Input 
-                          type="date"
+                        <AppDatePicker
                           max={todayDateString}
                           value={extractedData.data.date || ''} 
-                          onChange={(e) => setExtractedData({...extractedData, data: {...extractedData.data, date: e.target.value}})}
+                          onChange={(value) => setExtractedData({...extractedData, data: {...extractedData.data, date: value}})}
                           required
                         />
                       </div>
