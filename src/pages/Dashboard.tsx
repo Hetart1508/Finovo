@@ -96,7 +96,7 @@ export default function Dashboard() {
   const transactions = transactionsResult.data ?? [];
   const recurring = recurringResult.data ?? [];
   const loading = transactionsResult.isPending || recurringResult.isPending;
-  const [selectedPreset, setSelectedPreset] = useState<RangePreset>('this-month');
+  const [selectedPreset, setSelectedPreset] = useState<AnalysisRange>('this-month');
   const [activeRange, setActiveRange] = useState<AnalysisRange>('this-month');
   const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [customEndDate, setCustomEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -182,9 +182,14 @@ export default function Dashboard() {
               <Select
                 value={selectedPreset}
                 onValueChange={(value) => {
-                  const preset = value as RangePreset;
+                  const preset = value as AnalysisRange;
+                  const presetRange = getDateRange(preset, customStartDate, customEndDate);
                   setSelectedPreset(preset);
                   setActiveRange(preset);
+                  if (preset !== 'custom') {
+                    setCustomStartDate(presetRange ? format(presetRange.start, 'yyyy-MM-dd') : '');
+                    setCustomEndDate(presetRange ? format(presetRange.end, 'yyyy-MM-dd') : '');
+                  }
                 }}
               >
                 <SelectTrigger className="h-10 w-full bg-white sm:w-44">
@@ -198,6 +203,7 @@ export default function Dashboard() {
                   <SelectItem value="last-3-months">Last-3-Months</SelectItem>
                   <SelectItem value="last-6-months">Last-6-Months</SelectItem>
                   <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -208,6 +214,7 @@ export default function Dashboard() {
                   value={customStartDate}
                   onChange={(event) => {
                     setCustomStartDate(event.target.value);
+                    setSelectedPreset('custom');
                     setActiveRange('custom');
                   }}
                   aria-label="Custom start date"
@@ -219,6 +226,7 @@ export default function Dashboard() {
                   value={customEndDate}
                   onChange={(event) => {
                     setCustomEndDate(event.target.value);
+                    setSelectedPreset('custom');
                     setActiveRange('custom');
                   }}
                   aria-label="Custom end date"
