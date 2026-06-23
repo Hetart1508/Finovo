@@ -18,7 +18,6 @@ import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import {
   RiCheckboxCircleLine,
   RiCloseCircleLine,
-  RiFileTextLine,
   RiRefreshLine,
   RiUploadCloudLine,
 } from 'react-icons/ri';
@@ -74,7 +73,6 @@ export default function SmartUpload() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'application/pdf': ['.pdf'],
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
     },
@@ -157,7 +155,7 @@ export default function SmartUpload() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Smart Bill Upload</h1>
-        <p className="text-[#6B7280]">Upload a receipt or invoice PDF/image, and Gemini will extract the details for you.</p>
+        <p className="text-[#6B7280]">Upload a receipt or invoice image, and Gemini will extract the details for you.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -177,18 +175,11 @@ export default function SmartUpload() {
                   <RiUploadCloudLine className="text-3xl text-[#4F9CF9]" aria-hidden="true" />
                 </div>
                 <p className="text-lg font-medium">Click or drag bill here</p>
-                <p className="text-sm text-[#6B7280] mt-2">Supports PDF, JPG, JPEG, and PNG</p>
+                <p className="text-sm text-[#6B7280] mt-2">Supports JPG, JPEG, and PNG</p>
               </div>
             ) : (
               <div className="relative h-[400px] group">
-                {file?.type === 'application/pdf' ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-[#EEF6FF] dark:bg-[#EEF6FF] rounded-lg">
-                    <RiFileTextLine className="mb-2 text-5xl text-[#6B7280]" aria-hidden="true" />
-                    <p className="font-medium">{file.name}</p>
-                  </div>
-                ) : (
-                  <img src={preview} alt="Preview" className="w-full h-full object-contain rounded-lg" />
-                )}
+                <img src={preview} alt="Preview" className="w-full h-full object-contain rounded-lg" />
                 <Button 
                   variant="destructive" 
                   size="icon" 

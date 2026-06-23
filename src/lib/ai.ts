@@ -29,6 +29,11 @@ export const extractBillData = async (base64Data: string, mimeType: string): Pro
     const { data } = await api.post('/ai/extract-bill', { base64Data, mimeType });
     return data;
   } catch (error) {
+    const status = (error as any)?.response?.status;
+    if (status && status < 500) {
+      throw error;
+    }
+
     console.warn('Gemini bill extraction failed, falling back to local Ollama/OCR:', error);
     const ollama = await import('./ollama');
     return ollama.extractBillData(base64Data, mimeType);

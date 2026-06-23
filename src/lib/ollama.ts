@@ -4,6 +4,32 @@ const OLLAMA_URL = (import.meta as any).env?.VITE_OLLAMA_URL || 'http://localhos
 const DEFAULT_VISION_MODEL = 'llava:13b'; // Upgrade to 'llava:34b' or 'qwen2-vl:7b' if available
 const DEFAULT_TEXT_MODEL = 'llama3.2:1b';
 const CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'] as const;
+const MONTHS: Record<string, string> = {
+  jan: '01',
+  january: '01',
+  feb: '02',
+  february: '02',
+  mar: '03',
+  march: '03',
+  apr: '04',
+  april: '04',
+  may: '05',
+  jun: '06',
+  june: '06',
+  jul: '07',
+  july: '07',
+  aug: '08',
+  august: '08',
+  sep: '09',
+  sept: '09',
+  september: '09',
+  oct: '10',
+  october: '10',
+  nov: '11',
+  november: '11',
+  dec: '12',
+  december: '12',
+};
 
 type BillCategory = typeof CATEGORIES[number];
 
@@ -88,6 +114,14 @@ const normalizeDate = (value: unknown) => {
     return toValidIsoDate(year, month, day);
   }
 
+  const namedMonthMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{2,4})$/);
+  if (namedMonthMatch) {
+    const [, day, rawMonth, rawYear] = namedMonthMatch;
+    const month = MONTHS[rawMonth.toLowerCase()];
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    return month ? toValidIsoDate(year, month, day) : null;
+  }
+
   return null;
 };
 
@@ -143,7 +177,9 @@ const lineHasNoiseNumber = (line: string) =>
   /\b(gstin|gst\s*no|invoice\s*(?:no|#)|bill\s*(?:no|#)|order\s*(?:id|no|#)|mobile|phone|tel|fssai|hsn|sac|cin|pan|qty|quantity|items?)\b/i.test(line);
 
 const looksLikeDateLine = (line: string) =>
-  /\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/.test(line) || /\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b/.test(line);
+  /\b\d{1,2}[-/]\d{1,2}[-/]\d{2,4}\b/.test(line) ||
+  /\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b/.test(line) ||
+  /\b\d{1,2}\s+(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\.?,?\s+\d{2,4}\b/i.test(line);
 
 const getLineAmounts = (line: string) =>
   [...line.matchAll(/(?:\b(?:rs|inr)\.?\s*)?(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)(?!\s*%)/gi)]
@@ -201,11 +237,29 @@ const getFallbackMerchant = (text: string) => {
 };
 
 const getFallbackDate = (text: string) => {
-  const dateMatch =
-    text.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/) ||
-    text.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
-  return normalizeDate(dateMatch?.[1]) || new Date().toISOString().split('T')[0];
+  return getDateFromText(text) || new Date().toISOString().split('T')[0];
 };
+
+const getDateFromText = (text: string) => {
+  const dateLine = cleanOcrText(text)
+    .split('\n')
+    .find((line) => /\bdate\b/i.test(line));
+  const candidates = dateLine ? [dateLine, text] : [text];
+
+  for (const candidate of candidates) {
+    const match =
+      candidate.match(/(\d{1,2}\s+(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\.?,?\s+\d{2,4})/i) ||
+      candidate.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/) ||
+      candidate.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+    const date = normalizeDate(match?.[1]);
+    if (date) return date;
+  }
+
+  return null;
+};
+
+const getTodayDateString = () => new Date().toISOString().split('T')[0];
+const isFutureDate = (date: string) => date > getTodayDateString();
 
 const normalizeAmount = (value: unknown) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -230,6 +284,11 @@ const validateAndParse = (text: string, sourceText = text): BillData => {
       throw new Error('Invalid amount');
     }
 
+    const sourceDate = sourceText === text ? null : getDateFromText(sourceText);
+    if (sourceDate && isFutureDate(sourceDate)) {
+      throw new Error('Bill date cannot be in the future.');
+    }
+
     return {
       merchant: String(data.merchant).trim(),
       amount,
@@ -237,13 +296,21 @@ const validateAndParse = (text: string, sourceText = text): BillData => {
       category: normalizeCategory(data.category),
       rawText: sourceText === text ? undefined : cleanOcrText(sourceText)
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && /future/i.test(error.message)) {
+      throw error;
+    }
+
     const amount = getFallbackAmount(sourceText);
+    const date = getFallbackDate(sourceText);
+    if (isFutureDate(date)) {
+      throw new Error('Bill date cannot be in the future.');
+    }
 
     return {
       merchant: getFallbackMerchant(sourceText),
       amount: Math.max(amount, 0.01),
-      date: getFallbackDate(sourceText),
+      date,
       category: getFallbackCategory(sourceText),
       rawText: cleanOcrText(sourceText)
     };
@@ -262,14 +329,14 @@ const runImageOcr = async (base64Data: string, mimeType: string) => {
 };
 
 const parseBillText = async (ocrText: string) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDateString();
   const prompt = `You extract expense transaction data from OCR text of Indian bills and invoices.
 Return ONLY valid JSON. Do not include markdown.
 
 Rules:
 1. MERCHANT: Store/restaurant name (e.g. "Swiggy", "Zomato", "Reliance Petrol").
 2. AMOUNT: FINAL total amount in Rs only (ignore tax/CGST, pick largest, remove ₹/Rs symbol). Number like 245.50.
-3. DATE: Convert to YYYY-MM-DD (DD/MM/YYYY -> YYYY-MM-DD). Use ${today} if unclear.
+3. DATE: Convert to YYYY-MM-DD (DD/MM/YYYY or "15 Aug 2026" -> YYYY-MM-DD). Use ${today} only if no bill date is visible. Return the visible bill date even if it is after ${today}; the app will reject future dates.
 4. CATEGORY: Exactly one: Food, Transport, Shopping, Utilities, Entertainment, Health, Other.
 
 Examples:
@@ -291,9 +358,9 @@ ${ocrText}`;
 };
 
 const parseBillImageWithVision = async (base64Data: string) => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDateString();
   const prompt = `Analyze this Indian bill/receipt image and extract exactly these fields as valid JSON.
-Use ${today} if the date is unclear. Category must be exactly one of Food, Transport, Shopping, Utilities, Entertainment, Health, Other.
+Use ${today} only if no bill date is visible. Return the visible bill date even if it is after ${today}; the app will reject future dates. Category must be exactly one of Food, Transport, Shopping, Utilities, Entertainment, Health, Other.
 
 {"merchant":"string","amount":number,"date":"YYYY-MM-DD","category":"Food|Transport|Shopping|Utilities|Entertainment|Health|Other"}`;
 

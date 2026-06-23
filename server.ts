@@ -606,6 +606,97 @@ const getTodayDateString = () => {
 
 const isFutureDateString = (value: string) => value > getTodayDateString();
 
+const MONTH_NAME_TO_NUMBER: Record<string, string> = {
+  jan: "01",
+  january: "01",
+  feb: "02",
+  february: "02",
+  mar: "03",
+  march: "03",
+  apr: "04",
+  april: "04",
+  may: "05",
+  jun: "06",
+  june: "06",
+  jul: "07",
+  july: "07",
+  aug: "08",
+  august: "08",
+  sep: "09",
+  sept: "09",
+  september: "09",
+  oct: "10",
+  october: "10",
+  nov: "11",
+  november: "11",
+  dec: "12",
+  december: "12",
+};
+
+const toValidIsoDate = (year: string, month: string, day: string) => {
+  const normalized = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== Number(year) ||
+    parsed.getUTCMonth() + 1 !== Number(month) ||
+    parsed.getUTCDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return normalized;
+};
+
+const normalizeBillDate = (value: unknown) => {
+  if (!isNonEmptyString(value)) return null;
+  const trimmed = value.trim();
+
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return toValidIsoDate(year, month, day);
+  }
+
+  const indianMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+  if (indianMatch) {
+    const [, day, month, rawYear] = indianMatch;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    return toValidIsoDate(year, month, day);
+  }
+
+  const namedMonthMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{2,4})$/);
+  if (namedMonthMatch) {
+    const [, day, rawMonth, rawYear] = namedMonthMatch;
+    const month = MONTH_NAME_TO_NUMBER[rawMonth.toLowerCase()];
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    return month ? toValidIsoDate(year, month, day) : null;
+  }
+
+  return null;
+};
+
+const getBillDateFromText = (text: string) => {
+  const normalizedText = text.replace(/\r/g, "\n").replace(/[^\S\n]+/g, " ");
+  const dateLine = normalizedText
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => /\bdate\b/i.test(line));
+  const candidates = dateLine ? [dateLine, normalizedText] : [normalizedText];
+
+  for (const candidate of candidates) {
+    const match =
+      candidate.match(/(\d{1,2}\s+(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)\.?,?\s+\d{2,4})/i) ||
+      candidate.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/) ||
+      candidate.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+    const date = normalizeBillDate(match?.[1]);
+    if (date) return date;
+  }
+
+  return null;
+};
+
 const VPA_PATTERN = /\b[a-z0-9][a-z0-9._-]{0,255}@[a-z][a-z0-9.-]{1,63}\b/i;
 const VPA_VALUE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,255}@[a-z][a-z0-9.-]{1,63}$/i;
 const normalizeVpa = (value: unknown) => {
@@ -679,19 +770,21 @@ const isStatementBalanceRow = (transaction: any) => {
 const normalizeGeminiBillData = (text: string) => {
   const parsed = JSON.parse(extractJsonObject(text));
   const amount = normalizeGeminiAmount(parsed.amount);
+  const date = normalizeBillDate(parsed.date);
 
-  if (!isNonEmptyString(parsed.merchant) || amount === null || amount <= 0 || !isValidDateString(parsed.date)) {
+  if (!isNonEmptyString(parsed.merchant) || amount === null || amount <= 0 || !date) {
     throw new Error("Gemini returned incomplete bill data");
   }
 
-  if (isFutureDateString(parsed.date)) {
+  const visibleBillDate = isNonEmptyString(parsed.rawText) ? getBillDateFromText(parsed.rawText) : null;
+  if (isFutureDateString(date) || (visibleBillDate && isFutureDateString(visibleBillDate))) {
     throw new Error("Bill date cannot be in the future");
   }
 
   return {
     merchant: parsed.merchant.trim(),
     amount,
-    date: parsed.date,
+    date,
     category: normalizeGeminiCategory(parsed.category),
     rawText: isNonEmptyString(parsed.rawText) ? parsed.rawText.trim() : undefined,
   };
@@ -851,16 +944,17 @@ const generateGemini = async (
 };
 
 const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getTodayDateString();
   const prompt = `Extract expense transaction data from this Indian receipt or invoice file.
 Return ONLY valid JSON with this exact shape:
 {"merchant":"string","amount":number,"date":"YYYY-MM-DD","category":"Food|Transport|Shopping|Utilities|Entertainment|Health|Other","rawText":"short OCR text you used"}
 
 Rules:
 - Pick the final payable amount only. Ignore GST, CGST, SGST, discounts, invoice numbers, phone numbers, GSTIN, item counts, and dates.
-- Convert DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD.
-- Use ${today} only if the bill date is unreadable.
-- Do not return a date after ${today}; if the bill appears future-dated, treat it as invalid.
+- Convert DD/MM/YYYY, DD-MM-YYYY, or dates like "15 Aug 2026" to YYYY-MM-DD.
+- Use ${today} only if no bill date is visible.
+- Return the visible bill date even if it is after ${today}; the app will reject future-dated bills.
+- In rawText, include the exact bill date line if it is visible.
 - Category must be exactly one of: Food, Transport, Shopping, Utilities, Entertainment, Health, Other.`;
 
   const result = await generateGemini(
@@ -2993,10 +3087,15 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
     const data = await extractBillDataWithGemini(base64Data, mimeType);
     res.json({ ...data, provider: "gemini", model: GEMINI_MODEL });
   } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/future/i.test(message)) {
+      return res.status(400).json({ error: message });
+    }
+
     logger.error("Gemini bill extraction error", { error });
     res.status(502).json({
       error: "Gemini bill extraction failed",
-      detail: IS_PRODUCTION ? undefined : error.message,
+      detail: IS_PRODUCTION ? undefined : message,
     });
   }
 });
