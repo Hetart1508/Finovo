@@ -225,6 +225,7 @@ const runMigrations = async () => {
     CREATE TABLE IF NOT EXISTS mutual_fund_sip_investments (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
+      investment_type VARCHAR(20) NOT NULL DEFAULT 'sip',
       sip_name VARCHAR(255) NOT NULL,
       fund_name VARCHAR(255) NOT NULL,
       monthly_sip_amount DECIMAL(14,2) NOT NULL,
@@ -265,6 +266,7 @@ const runMigrations = async () => {
   await ensureColumn("recurring_events", "payment_mode", "VARCHAR(50) NOT NULL DEFAULT 'manual'");
   await ensureColumn("recurring_events", "autopay_enabled", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("recurring_events", "payment_account", "VARCHAR(100) NULL");
+  await ensureColumn("mutual_fund_sip_investments", "investment_type", "VARCHAR(20) NOT NULL DEFAULT 'sip'");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_category", "category");
   await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
@@ -401,6 +403,7 @@ const isValidDateString = (value: unknown) =>
   isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 type InvestmentInput = {
+  investment_type: "sip" | "lumpsum";
   sip_name: string;
   fund_name: string;
   monthly_sip_amount: number;
@@ -419,28 +422,31 @@ const isValidCalendarDate = (value: unknown): value is string => {
 };
 
 const validateInvestmentInput = (body: any): { data: InvestmentInput } | { error: string } => {
+  const investmentType = body?.investment_type === undefined || body?.investment_type === null || body?.investment_type === ""
+    ? "sip"
+    : String(body.investment_type).toLowerCase();
   const sipName = isNonEmptyString(body?.sip_name) ? body.sip_name.trim() : "";
   const fundName = isNonEmptyString(body?.fund_name) ? body.fund_name.trim() : "";
   const monthlySipAmount = toNumber(body?.monthly_sip_amount);
-  const totalInvestedAmount = toNumber(body?.total_invested_amount);
-  const currentValue = toNumber(body?.current_value);
+  const totalInvestedAmountInput = toNumber(body?.total_invested_amount);
+  const currentValueInput = toNumber(body?.current_value);
   const expectedCagr = toNumber(body?.expected_cagr);
   const startDate = body?.start_date;
   const endDate = body?.end_date;
 
+  if (investmentType !== "sip" && investmentType !== "lumpsum") {
+    return { error: "Investment type must be SIP or Lumpsum" };
+  }
   if (!sipName || !fundName) {
-    return { error: "SIP name and fund name are required" };
+    return { error: "Investment name and fund name are required" };
   }
   if (sipName.length > 255 || fundName.length > 255) {
-    return { error: "SIP name and fund name must be 255 characters or fewer" };
+    return { error: "Investment name and fund name must be 255 characters or fewer" };
   }
   if (monthlySipAmount === null || monthlySipAmount <= 0) {
-    return { error: "Monthly SIP amount must be a positive number" };
+    return { error: investmentType === "lumpsum" ? "Lumpsum amount must be a positive number" : "Monthly SIP amount must be a positive number" };
   }
-  if (totalInvestedAmount === null || totalInvestedAmount < 0) {
-    return { error: "Total invested amount must be a non-negative number" };
-  }
-  if (currentValue === null || currentValue < 0) {
+  if (currentValueInput !== null && currentValueInput < 0) {
     return { error: "Current value must be a non-negative number" };
   }
   if (expectedCagr === null || expectedCagr < 0 || expectedCagr > 999.9999) {
@@ -452,12 +458,30 @@ const validateInvestmentInput = (body: any): { data: InvestmentInput } | { error
   if (endDate < startDate) {
     return { error: "End date must be on or after start date" };
   }
+  const totalInvestedAmount = totalInvestedAmountInput === null
+    ? investmentType === "lumpsum"
+      ? monthlySipAmount
+      : monthlySipAmount * getInvestmentMonths(startDate, endDate)
+    : totalInvestedAmountInput;
+  if (totalInvestedAmount < 0) {
+    return { error: "Total invested amount must be a non-negative number" };
+  }
+  const currentValue = currentValueInput === null
+    ? getInvestmentCurrentValue({
+      investment_type: investmentType,
+      monthly_sip_amount: monthlySipAmount,
+      total_invested_amount: totalInvestedAmount,
+      expected_cagr: expectedCagr,
+      start_date: startDate,
+    })
+    : currentValueInput;
   if (body?.notes !== undefined && body.notes !== null && typeof body.notes !== "string") {
     return { error: "Notes must be text" };
   }
 
   return {
     data: {
+      investment_type: investmentType,
       sip_name: sipName,
       fund_name: fundName,
       monthly_sip_amount: monthlySipAmount,
@@ -477,14 +501,55 @@ const getInvestmentMonths = (startDate: string, endDate: string) => {
   return Math.max(0, (endYear - startYear) * 12 + endMonth - startMonth);
 };
 
+const getDateFromString = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const getInvestmentElapsedYears = (startDate: string, endDate: string) => {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const elapsedDays = (getDateFromString(endDate).getTime() - getDateFromString(startDate).getTime()) / millisecondsPerDay;
+  return Math.max(0, elapsedDays / 365);
+};
+
+const getInvestmentCurrentValue = (investment: Pick<InvestmentInput, "investment_type" | "monthly_sip_amount" | "total_invested_amount" | "expected_cagr" | "start_date">) => {
+  const today = getTodayDateString();
+  if (investment.start_date > today) return 0;
+
+  const rate = investment.expected_cagr / 100;
+
+  if (investment.investment_type === "lumpsum") {
+    const elapsedYears = getInvestmentElapsedYears(investment.start_date, today);
+    const currentValue = rate === 0
+      ? investment.total_invested_amount
+      : investment.total_invested_amount * Math.pow(1 + rate, elapsedYears);
+
+    return Number(currentValue.toFixed(2));
+  }
+
+  const months = getInvestmentMonths(investment.start_date, today);
+  const monthlyRate = investment.expected_cagr / 12 / 100;
+  const currentValue = monthlyRate === 0
+    ? investment.monthly_sip_amount * months
+    : investment.monthly_sip_amount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
+
+  return Number(currentValue.toFixed(2));
+};
+
 const getInvestmentProjection = (investment: any) => {
+  const investmentType = investment.investment_type === "lumpsum" ? "lumpsum" : "sip";
   const monthlySipAmount = Number(investment.monthly_sip_amount);
   const totalInvestedAmount = Number(investment.total_invested_amount);
   const monthlyRate = Number(investment.expected_cagr) / 12 / 100;
+  const annualRate = Number(investment.expected_cagr) / 100;
   const months = getInvestmentMonths(investment.start_date, investment.end_date);
-  const futureValue = monthlyRate === 0
-    ? monthlySipAmount * months
-    : monthlySipAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
+  const futureValue = investmentType === "lumpsum"
+    ? annualRate === 0
+      ? totalInvestedAmount
+      : totalInvestedAmount * Math.pow(1 + annualRate, months / 12)
+    : monthlyRate === 0
+      ? monthlySipAmount * months
+      : monthlySipAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) * (1 + monthlyRate);
 
   return {
     months,
@@ -2386,12 +2451,13 @@ app.post("/api/investments", authenticateToken, async (req: any, res) => {
   try {
     const info = await execute(`
       INSERT INTO mutual_fund_sip_investments (
-        user_id, sip_name, fund_name, monthly_sip_amount, total_invested_amount,
+        user_id, investment_type, sip_name, fund_name, monthly_sip_amount, total_invested_amount,
         current_value, expected_cagr, start_date, end_date, notes
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       req.user.id,
+      investment.investment_type,
       investment.sip_name,
       investment.fund_name,
       investment.monthly_sip_amount,
@@ -2438,15 +2504,25 @@ app.get("/api/investments/summary", authenticateToken, async (req: any, res) => 
     `, [req.user.id]);
 
     const summary = investments.reduce((totals, investment: any) => {
+      const investmentType = investment.investment_type === "lumpsum" ? "lumpsum" : "sip";
       const projection = getInvestmentProjection(investment);
-      totals.total_monthly_sip += Number(investment.monthly_sip_amount);
+      if (investmentType === "lumpsum") {
+        totals.lumpsum_count += 1;
+        totals.total_lumpsum_amount += Number(investment.total_invested_amount);
+      } else {
+        totals.sip_count += 1;
+        totals.total_monthly_sip += Number(investment.monthly_sip_amount);
+      }
       totals.total_invested_amount += Number(investment.total_invested_amount);
       totals.current_value += Number(investment.current_value);
       totals.projected_future_value += projection.future_value;
       totals.estimated_capital_gain += projection.estimated_capital_gain;
       return totals;
     }, {
+      sip_count: 0,
+      lumpsum_count: 0,
       total_monthly_sip: 0,
+      total_lumpsum_amount: 0,
       total_invested_amount: 0,
       current_value: 0,
       projected_future_value: 0,
@@ -2455,7 +2531,10 @@ app.get("/api/investments/summary", authenticateToken, async (req: any, res) => 
 
     res.json({
       investment_count: investments.length,
+      sip_count: summary.sip_count,
+      lumpsum_count: summary.lumpsum_count,
       total_monthly_sip: Number(summary.total_monthly_sip.toFixed(2)),
+      total_lumpsum_amount: Number(summary.total_lumpsum_amount.toFixed(2)),
       total_invested_amount: Number(summary.total_invested_amount.toFixed(2)),
       current_value: Number(summary.current_value.toFixed(2)),
       current_capital_gain: Number((summary.current_value - summary.total_invested_amount).toFixed(2)),
@@ -2504,10 +2583,11 @@ app.put("/api/investments/:id", authenticateToken, async (req: any, res) => {
   try {
     const info = await execute(`
       UPDATE mutual_fund_sip_investments
-      SET sip_name = ?, fund_name = ?, monthly_sip_amount = ?, total_invested_amount = ?,
+      SET investment_type = ?, sip_name = ?, fund_name = ?, monthly_sip_amount = ?, total_invested_amount = ?,
           current_value = ?, expected_cagr = ?, start_date = ?, end_date = ?, notes = ?
       WHERE id = ? AND user_id = ?
     `, [
+      investment.investment_type,
       investment.sip_name,
       investment.fund_name,
       investment.monthly_sip_amount,

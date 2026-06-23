@@ -35,6 +35,18 @@ export const calculateSipFutureValue = (monthlySipAmount: number, expectedCagr: 
   return monthlySipAmount * (((1 + monthlyRate) ** months - 1) / monthlyRate) * (1 + monthlyRate);
 };
 
+export const calculateLumpsumFutureValue = (principalAmount: number, expectedCagr: number, months: number) => {
+  if (!Number.isFinite(principalAmount) || principalAmount <= 0 || !Number.isFinite(expectedCagr) || expectedCagr < 0 || months < 0) {
+    return 0;
+  }
+  if (months === 0) return principalAmount;
+
+  const annualRate = expectedCagr / 100;
+  if (annualRate === 0) return principalAmount;
+
+  return principalAmount * ((1 + annualRate) ** (months / 12));
+};
+
 export const calculateEstimatedCapitalGain = (futureValue: number, totalInvestedAmount: number) =>
   futureValue - totalInvestedAmount;
 

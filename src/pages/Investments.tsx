@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addYears, format, parseISO } from 'date-fns';
+import { addYears, differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import api from '@/src/lib/api';
 import { investmentSummaryQuery, investmentsQuery, queryKeys } from '@/src/lib/serverState';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import {
+  calculateLumpsumFutureValue,
   calculateEstimatedCapitalGain,
   calculateSipFutureValue,
   generateSipGrowthData,
@@ -56,6 +58,7 @@ import {
 
 type Investment = {
   id: number;
+  investment_type?: InvestmentType;
   sip_name: string;
   fund_name: string;
   monthly_sip_amount: number;
@@ -70,9 +73,14 @@ type Investment = {
   estimated_capital_gain: number;
 };
 
+type InvestmentType = 'sip' | 'lumpsum';
+
 type InvestmentSummary = {
   investment_count: number;
+  sip_count: number;
+  lumpsum_count: number;
   total_monthly_sip: number;
+  total_lumpsum_amount: number;
   total_invested_amount: number;
   current_value: number;
   current_capital_gain: number;
@@ -89,6 +97,11 @@ const currency = new Intl.NumberFormat('en-IN', {
 const today = format(new Date(), 'yyyy-MM-dd');
 const defaultEndDate = format(addYears(new Date(), 10), 'yyyy-MM-dd');
 
+const getInvestmentType = (investment?: Pick<Investment, 'investment_type'> | null): InvestmentType =>
+  investment?.investment_type === 'lumpsum' ? 'lumpsum' : 'sip';
+
+const getInvestmentTypeLabel = (type: InvestmentType) => type === 'lumpsum' ? 'Lumpsum' : 'SIP';
+
 export default function Investments() {
   const queryClient = useQueryClient();
   const investmentsResult = useQuery(investmentsQuery());
@@ -97,6 +110,11 @@ export default function Investments() {
   const summary = summaryResult.data as InvestmentSummary | undefined;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
+  const [selectedInvestmentType, setSelectedInvestmentType] = useState<InvestmentType>('sip');
+  const [investmentAmount, setInvestmentAmount] = useState('');
+  const [formExpectedCagr, setFormExpectedCagr] = useState('12');
+  const [formStartDate, setFormStartDate] = useState(today);
+  const [formEndDate, setFormEndDate] = useState(defaultEndDate);
   const [calculatorMonthlySip, setCalculatorMonthlySip] = useState('5000');
   const [calculatorCagr, setCalculatorCagr] = useState('12');
   const [calculatorStartDate, setCalculatorStartDate] = useState(today);
@@ -116,6 +134,27 @@ export default function Investments() {
       growthData: generateSipGrowthData(monthlySip, cagr, calculatorStartDate, calculatorEndDate),
     };
   }, [calculatorCagr, calculatorEndDate, calculatorMonthlySip, calculatorStartDate]);
+
+  const formTotalInvested = useMemo(() => {
+    const amount = Number(investmentAmount);
+    if (selectedInvestmentType === 'lumpsum') return Number.isFinite(amount) ? amount : 0;
+    const months = getSipDurationMonths(formStartDate, formEndDate);
+    return Number.isFinite(amount) ? amount * months : 0;
+  }, [formEndDate, formStartDate, investmentAmount, selectedInvestmentType]);
+
+  const formCurrentValue = useMemo(() => {
+    const amount = Number(investmentAmount);
+    const cagr = Number(formExpectedCagr);
+    if (formStartDate > today) return 0;
+
+    const elapsedSipMonths = getSipDurationMonths(formStartDate, today);
+    const elapsedLumpsumMonths = Math.max(0, differenceInCalendarDays(parseISO(today), parseISO(formStartDate)) / 365 * 12);
+    const calculatedValue = selectedInvestmentType === 'lumpsum'
+      ? calculateLumpsumFutureValue(amount, cagr, elapsedLumpsumMonths)
+      : calculateSipFutureValue(amount, cagr, elapsedSipMonths);
+
+    return Number.isFinite(calculatedValue) ? Number(calculatedValue.toFixed(2)) : 0;
+  }, [formExpectedCagr, formStartDate, investmentAmount, selectedInvestmentType]);
 
   const refreshInvestments = async () => {
     await Promise.all([
@@ -147,6 +186,15 @@ export default function Investments() {
     }
   }, [summaryResult.error]);
 
+  useEffect(() => {
+    if (!dialogOpen) return;
+    setSelectedInvestmentType(getInvestmentType(editingInvestment));
+    setInvestmentAmount(editingInvestment?.monthly_sip_amount ? String(editingInvestment.monthly_sip_amount) : '');
+    setFormExpectedCagr(editingInvestment?.expected_cagr !== undefined ? String(editingInvestment.expected_cagr) : '12');
+    setFormStartDate(editingInvestment?.start_date || today);
+    setFormEndDate(editingInvestment?.end_date || defaultEndDate);
+  }, [dialogOpen, editingInvestment]);
+
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingInvestment(null);
@@ -154,6 +202,11 @@ export default function Investments() {
 
   const openCreateDialog = () => {
     setEditingInvestment(null);
+    setSelectedInvestmentType('sip');
+    setInvestmentAmount('');
+    setFormExpectedCagr('12');
+    setFormStartDate(today);
+    setFormEndDate(defaultEndDate);
     setDialogOpen(true);
   };
 
@@ -168,12 +221,15 @@ export default function Investments() {
       return;
     }
 
+    const investmentType = data.investment_type === 'lumpsum' ? 'lumpsum' : 'sip';
+    const amount = Number(data.monthly_sip_amount);
     const payload = {
+      investment_type: investmentType,
       sip_name: String(data.sip_name || '').trim(),
       fund_name: String(data.fund_name || '').trim(),
-      monthly_sip_amount: Number(data.monthly_sip_amount),
-      total_invested_amount: Number(data.total_invested_amount),
-      current_value: Number(data.current_value),
+      monthly_sip_amount: amount,
+      total_invested_amount: investmentType === 'lumpsum' ? amount : formTotalInvested,
+      current_value: formCurrentValue,
       expected_cagr: Number(data.expected_cagr),
       start_date: startDate,
       end_date: endDate,
@@ -205,10 +261,27 @@ export default function Investments() {
 
   const form = (
     <form key={editingInvestment?.id ?? 'new'} onSubmit={handleSave} className="space-y-5 py-2">
+      <div className="space-y-2">
+        <Label htmlFor="investment-type">Investment Type</Label>
+        <Select
+          name="investment_type"
+          value={selectedInvestmentType}
+          onValueChange={(value) => setSelectedInvestmentType(value as InvestmentType)}
+        >
+          <SelectTrigger id="investment-type" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sip">SIP</SelectItem>
+            <SelectItem value="lumpsum">Lumpsum</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="investment-sip-name">SIP Name</Label>
-          <Input id="investment-sip-name" name="sip_name" defaultValue={editingInvestment?.sip_name || ''} placeholder="Retirement SIP" maxLength={255} required />
+          <Label htmlFor="investment-sip-name">Investment Name</Label>
+          <Input id="investment-sip-name" name="sip_name" defaultValue={editingInvestment?.sip_name || ''} placeholder={selectedInvestmentType === 'lumpsum' ? 'Long-term corpus' : 'Retirement SIP'} maxLength={255} required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="investment-fund-name">Fund Name</Label>
@@ -218,31 +291,72 @@ export default function Investments() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-2">
-          <Label htmlFor="investment-monthly-sip">Monthly SIP Amount (₹)</Label>
-          <Input id="investment-monthly-sip" name="monthly_sip_amount" type="number" min="0.01" step="0.01" defaultValue={editingInvestment?.monthly_sip_amount || ''} required />
+          <Label htmlFor="investment-monthly-sip">{selectedInvestmentType === 'lumpsum' ? 'Lumpsum Amount (₹)' : 'Monthly SIP Amount (₹)'}</Label>
+          <Input
+            id="investment-monthly-sip"
+            name="monthly_sip_amount"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={investmentAmount}
+            onChange={(event) => setInvestmentAmount(event.target.value)}
+            required
+          />
         </div>
+        {selectedInvestmentType === 'sip' ? (
+          <div className="space-y-2">
+            <Label htmlFor="investment-total">Total Invested Amount (₹)</Label>
+            <Input
+              id="investment-total"
+              name="total_invested_amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={Number.isFinite(formTotalInvested) ? formTotalInvested : ''}
+              readOnly
+              className="bg-[#FAFBFC] dark:bg-[#111827]"
+              required
+            />
+          </div>
+        ) : null}
         <div className="space-y-2">
-          <Label htmlFor="investment-total">Total Invested Amount (₹)</Label>
-          <Input id="investment-total" name="total_invested_amount" type="number" min="0" step="0.01" defaultValue={editingInvestment?.total_invested_amount ?? ''} required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="investment-current">Current Value (₹)</Label>
-          <Input id="investment-current" name="current_value" type="number" min="0" step="0.01" defaultValue={editingInvestment?.current_value ?? ''} required />
+          <Label htmlFor="investment-current">Calculated Current Value (₹)</Label>
+          <Input
+            id="investment-current"
+            name="current_value"
+            type="number"
+            min="0"
+            step="0.01"
+            value={formCurrentValue}
+            readOnly
+            className="bg-[#FAFBFC] dark:bg-[#111827]"
+            required
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="investment-cagr">Expected CAGR %</Label>
-          <Input id="investment-cagr" name="expected_cagr" type="number" min="0" max="999.9999" step="0.0001" defaultValue={editingInvestment?.expected_cagr ?? 12} required />
+          <Input
+            id="investment-cagr"
+            name="expected_cagr"
+            type="number"
+            min="0"
+            max="999.9999"
+            step="0.0001"
+            value={formExpectedCagr}
+            onChange={(event) => setFormExpectedCagr(event.target.value)}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="investment-start">Start Date</Label>
-          <AppDatePicker id="investment-start" name="start_date" defaultValue={editingInvestment?.start_date || today} required />
+          <AppDatePicker id="investment-start" name="start_date" value={formStartDate} onChange={setFormStartDate} required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="investment-end">End Date</Label>
-          <AppDatePicker id="investment-end" name="end_date" defaultValue={editingInvestment?.end_date || defaultEndDate} min={editingInvestment?.start_date || today} required />
+          <AppDatePicker id="investment-end" name="end_date" value={formEndDate} onChange={setFormEndDate} min={formStartDate} required />
         </div>
       </div>
 
@@ -272,9 +386,9 @@ export default function Investments() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Investment planner</p>
-          <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Mutual Funds & SIPs</h1>
+          <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Mutual Funds & Investments</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#6B7280] dark:text-[#CBD5E1]">
-            Track SIP commitments, invested capital, current portfolio value, and expected growth.
+            Track SIP commitments, lumpsum capital, current portfolio value, and expected growth.
           </p>
         </div>
 
@@ -290,7 +404,7 @@ export default function Investments() {
           </DialogTrigger>
           <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>{editingInvestment ? 'Edit Investment' : 'Add SIP / Mutual Fund'}</DialogTitle>
+              <DialogTitle>{editingInvestment ? 'Edit Investment' : 'Add SIP / Lumpsum Investment'}</DialogTitle>
             </DialogHeader>
             {form}
           </DialogContent>
@@ -303,7 +417,7 @@ export default function Investments() {
             <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
               <RiFundsLine className="text-lg" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-[#6B7280]">Total SIPs</p>
+            <p className="text-sm font-medium text-[#6B7280]">Total Investments</p>
             <h3 className="mt-1 text-2xl font-bold">{summary?.investment_count || 0}</h3>
           </CardContent>
         </Card>
@@ -312,7 +426,7 @@ export default function Investments() {
             <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#FFF7E8] text-[#FFB84D]">
               <RiWallet3Line className="text-lg" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-[#6B7280]">Total Monthly SIP</p>
+            <p className="text-sm font-medium text-[#6B7280]">Monthly SIP Total</p>
             <h3 className="mt-1 text-2xl font-bold">{currency.format(summary?.total_monthly_sip || 0)}</h3>
           </CardContent>
         </Card>
@@ -453,14 +567,19 @@ export default function Investments() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {investments.map((investment) => (
+              {investments.map((investment) => {
+                const investmentType = getInvestmentType(investment);
+                return (
                 <div key={investment.id} className="rounded-lg border border-[#E5E7EB] bg-white p-5 dark:border-[#334155] dark:bg-[#111827]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{investment.sip_name}</p>
                       <p className="mt-1 truncate text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.fund_name}</p>
                     </div>
-                    <Badge variant="outline" className="shrink-0 border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <Badge variant="secondary">{getInvestmentTypeLabel(investmentType)}</Badge>
+                      <Badge variant="outline" className="border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge>
+                    </div>
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-4 text-center">
                     <div>
@@ -472,9 +591,12 @@ export default function Investments() {
                       <p className={`mt-1 font-bold ${Number(investment.estimated_capital_gain) < 0 ? 'text-[#FF6B6B]' : 'text-[#34C759]'}`}>{currency.format(Number(investment.estimated_capital_gain))}</p>
                     </div>
                   </div>
-                  <p className="mt-4 text-center text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.months} months • {currency.format(Number(investment.monthly_sip_amount))}/month</p>
+                  <p className="mt-4 text-center text-xs text-[#6B7280] dark:text-[#CBD5E1]">
+                    {investment.months} months • {investmentType === 'lumpsum' ? currency.format(Number(investment.total_invested_amount)) : `${currency.format(Number(investment.monthly_sip_amount))}/month`}
+                  </p>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -486,15 +608,15 @@ export default function Investments() {
             <CardTitle className="text-lg font-semibold">Your Investments</CardTitle>
             <p className="mt-1 text-sm text-[#6B7280] dark:text-[#CBD5E1]">{investments.length} fund{investments.length === 1 ? '' : 's'} tracked</p>
           </div>
-          <Badge variant="secondary">{summary?.investment_count || 0} SIPs</Badge>
+          <Badge variant="secondary">{summary?.sip_count || 0} SIPs • {summary?.lumpsum_count || 0} Lumpsums</Badge>
         </CardHeader>
         <CardContent>
           <div className="hidden lg:block">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>SIP / Fund</TableHead>
-                  <TableHead className="text-right">Monthly SIP</TableHead>
+                  <TableHead>Investment / Fund</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-right">Invested</TableHead>
                   <TableHead className="text-right">Current Value</TableHead>
                   <TableHead className="text-center">CAGR</TableHead>
@@ -507,14 +629,21 @@ export default function Investments() {
                   <TableRow><TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">Loading investments…</TableCell></TableRow>
                 ) : investments.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">No investments added yet.</TableCell></TableRow>
-                ) : investments.map((investment) => (
+                ) : investments.map((investment) => {
+                  const investmentType = getInvestmentType(investment);
+                  return (
                   <TableRow key={investment.id}>
                     <TableCell className="max-w-[16rem] whitespace-normal">
-                      <p className="font-semibold text-[#1F2937] dark:text-[#F8FAFC]">{investment.sip_name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-[#1F2937] dark:text-[#F8FAFC]">{investment.sip_name}</p>
+                        <Badge variant="secondary">{getInvestmentTypeLabel(investmentType)}</Badge>
+                      </div>
                       <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.fund_name}</p>
                       {investment.notes ? <p className="mt-1 truncate text-xs text-[#6B7280]" title={investment.notes}>{investment.notes}</p> : null}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{currency.format(Number(investment.monthly_sip_amount))}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {investmentType === 'lumpsum' ? currency.format(Number(investment.total_invested_amount)) : `${currency.format(Number(investment.monthly_sip_amount))}/mo`}
+                    </TableCell>
                     <TableCell className="text-right">{currency.format(Number(investment.total_invested_amount))}</TableCell>
                     <TableCell className="text-right font-semibold text-[#34C759]">{currency.format(Number(investment.current_value))}</TableCell>
                     <TableCell className="text-center"><Badge variant="outline" className="border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge></TableCell>
@@ -532,7 +661,8 @@ export default function Investments() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -542,17 +672,25 @@ export default function Investments() {
               <p className="py-10 text-center text-sm text-[#6B7280]">Loading investments…</p>
             ) : investments.length === 0 ? (
               <p className="py-10 text-center text-sm text-[#6B7280]">No investments added yet.</p>
-            ) : investments.map((investment) => (
+            ) : investments.map((investment) => {
+              const investmentType = getInvestmentType(investment);
+              return (
               <div key={investment.id} className="rounded-lg border border-[#E5E7EB] bg-white p-4 dark:border-[#334155] dark:bg-[#111827]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{investment.sip_name}</p>
                     <p className="mt-1 truncate text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.fund_name}</p>
                   </div>
-                  <Badge variant="outline" className="shrink-0 border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <Badge variant="secondary">{getInvestmentTypeLabel(investmentType)}</Badge>
+                    <Badge variant="outline" className="border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div><p className="text-xs text-[#6B7280]">Monthly SIP</p><p className="mt-1 font-semibold">{currency.format(Number(investment.monthly_sip_amount))}</p></div>
+                  <div>
+                    <p className="text-xs text-[#6B7280]">{investmentType === 'lumpsum' ? 'Lumpsum Amount' : 'Monthly SIP'}</p>
+                    <p className="mt-1 font-semibold">{investmentType === 'lumpsum' ? currency.format(Number(investment.total_invested_amount)) : currency.format(Number(investment.monthly_sip_amount))}</p>
+                  </div>
                   <div><p className="text-xs text-[#6B7280]">Current Value</p><p className="mt-1 font-semibold text-[#34C759]">{currency.format(Number(investment.current_value))}</p></div>
                   <div className="col-span-2"><p className="text-xs text-[#6B7280]">Period</p><p className="mt-1">{format(parseISO(investment.start_date), 'dd MMM yyyy')} – {format(parseISO(investment.end_date), 'dd MMM yyyy')}</p></div>
                 </div>
@@ -562,7 +700,8 @@ export default function Investments() {
                   <Button variant="outline" size="sm" className="text-[#FF6B6B]" onClick={() => handleDelete(investment)} disabled={deleteInvestment.isPending}><RiDeleteBin6Line className="mr-2" />Delete</Button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
