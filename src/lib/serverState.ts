@@ -9,6 +9,8 @@ export const queryKeys = {
   merchantAliases: ['merchant-aliases'] as const,
   investments: ['investments'] as const,
   investmentSummary: ['investments', 'summary'] as const,
+  aiAdvisorSessions: ['ai-advisor', 'sessions'] as const,
+  aiAdvisorMessages: (sessionId = 'default') => ['ai-advisor', 'messages', { sessionId }] as const,
 };
 
 const getData = async <T>(request: Promise<{ data: T }>) => (await request).data;

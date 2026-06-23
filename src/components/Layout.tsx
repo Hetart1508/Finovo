@@ -21,6 +21,7 @@ import {
   RiMenu3Line,
   RiRepeatLine,
   RiFundsLine,
+  RiRobot2Line,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -86,6 +87,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Calendar', path: '/calendar', icon: RiCalendarEventLine },
     { name: 'Recurring', path: '/recurring', icon: RiRepeatLine },
     { name: 'Investments', path: '/investments', icon: RiFundsLine },
+    { name: 'Wealth Advisor', path: '/wealth-advisor', icon: RiRobot2Line },
     { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];

@@ -249,6 +249,35 @@ const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_advisor_messages (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      session_id VARCHAR(64) NOT NULL,
+      role ENUM('user', 'assistant') NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_advisor_messages_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_advisor_sessions (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      session_id VARCHAR(64) NOT NULL,
+      title VARCHAR(160) NOT NULL DEFAULT 'New Chat',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_ai_advisor_session_user (user_id, session_id),
+      CONSTRAINT fk_ai_advisor_sessions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INT PRIMARY KEY
     )
@@ -275,6 +304,8 @@ const runMigrations = async () => {
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
+  await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");
+  await ensureIndex("ai_advisor_messages", "idx_ai_advisor_user_session", "user_id, session_id, created_at");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
   logger.info("MySQL schema is ready.");
@@ -883,6 +914,167 @@ ${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
     { responseMimeType: "application/json", maxOutputTokens: 1800 }
   );
   return normalizeGeminiInsights(result);
+};
+
+const getAdvisorFallbackReply = (message: string, investments: any[], summary: any, history: any[]) => {
+  const text = message.toLowerCase();
+  const currentValue = Number(summary?.current_value || 0);
+  const monthlySip = Number(summary?.total_monthly_sip || 0);
+  const invested = Number(summary?.total_invested_amount || 0);
+  const hasAnswerContext = history.length >= 2;
+
+  if (!investments.length) {
+    return "I can answer investment and money planning questions, but add at least one SIP or lumpsum investment to get advice based on your real portfolio. If this is a goal, also share the target amount, timeline, and monthly capacity.";
+  }
+
+  if ((text.includes("retire") || text.includes("retirement")) && !hasAnswerContext) {
+    return `Your current portfolio is about ₹${currentValue.toLocaleString("en-IN")} with monthly SIPs of ₹${monthlySip.toLocaleString("en-IN")}. To check retirement at 55, please answer: your current age, desired monthly retirement expense, existing emergency fund, and whether you want to include inflation.`;
+  }
+
+  if ((text.includes("car") || text.includes("lakh")) && !hasAnswerContext) {
+    return `For a car goal, I need 3 details: target car price, exact timeline, and whether you want to pay fully upfront or use a loan/down payment. Your current portfolio is about ₹${currentValue.toLocaleString("en-IN")}.`;
+  }
+
+  if (text.includes("sip") && !hasAnswerContext) {
+    return `To calculate the right SIP, tell me the target amount, timeline, expected annual return, and how much you can already invest monthly. Current SIP total: ₹${monthlySip.toLocaleString("en-IN")}/month.`;
+  }
+
+  return `Based on your tracked investments, you have invested about ₹${invested.toLocaleString("en-IN")} and the current value is about ₹${currentValue.toLocaleString("en-IN")}. For a better answer, share the target amount, timeline, risk comfort, and monthly capacity if relevant. Short timelines usually need lower risk; 5+ year timelines can usually handle more growth exposure. This is planning guidance, not financial advice.`;
+};
+
+const getAdvisorPortfolioContext = async (userId: number) => {
+  const investments = await queryAll(`
+    SELECT id, investment_type, sip_name, fund_name, monthly_sip_amount, total_invested_amount,
+           current_value, expected_cagr, start_date, end_date
+    FROM mutual_fund_sip_investments
+    WHERE user_id = ?
+    ORDER BY current_value DESC, id DESC
+  `, [userId]);
+
+  const summary = investments.reduce((totals, investment: any) => {
+    const type = investment.investment_type === "lumpsum" ? "lumpsum" : "sip";
+    if (type === "sip") totals.total_monthly_sip += Number(investment.monthly_sip_amount);
+    if (type === "lumpsum") totals.total_lumpsum_amount += Number(investment.total_invested_amount);
+    totals.total_invested_amount += Number(investment.total_invested_amount);
+    totals.current_value += Number(investment.current_value);
+    return totals;
+  }, {
+    total_monthly_sip: 0,
+    total_lumpsum_amount: 0,
+    total_invested_amount: 0,
+    current_value: 0,
+  });
+
+  return {
+    investments: investments.slice(0, 20),
+    summary: {
+      investment_count: investments.length,
+      total_monthly_sip: Number(summary.total_monthly_sip.toFixed(2)),
+      total_lumpsum_amount: Number(summary.total_lumpsum_amount.toFixed(2)),
+      total_invested_amount: Number(summary.total_invested_amount.toFixed(2)),
+      current_value: Number(summary.current_value.toFixed(2)),
+    },
+  };
+};
+
+const getWealthAdvisorReply = async (message: string, investments: any[], summary: any, history: any[]) => {
+  if (!GEMINI_API_KEY || AI_PROVIDER !== "gemini") {
+    return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
+  }
+
+  const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's portfolio and chat history to answer any investment, wealth, goal, SIP, retirement, or money planning question.
+
+Rules:
+- Ask focused follow-up questions when important data is missing.
+- When enough data exists, give practical calculations, required SIP/lumpsum, feasibility, assumptions, and next steps.
+- Use INR formatting like ₹15,00,000.
+- Do not recommend specific stocks, funds, crypto, or guaranteed returns.
+- Keep the answer concise, under 170 words.
+- End with a short disclaimer that this is planning guidance, not financial advice.
+
+Portfolio summary:
+${JSON.stringify(summary)}
+
+Investments:
+${JSON.stringify(investments)}
+
+Recent chat:
+${JSON.stringify(history.slice(-8))}
+
+User message:
+${message}`;
+
+  const reply = await generateGemini([{ text: prompt }], { responseMimeType: "text/plain", maxOutputTokens: 700 });
+  return { reply, provider: "gemini", model: GEMINI_MODEL };
+};
+
+const getAdvisorTitle = (message: string) => {
+  const cleaned = message
+    .replace(/\s+/g, " ")
+    .replace(/[?!.]+$/g, "")
+    .trim();
+  const renameMatch = cleaned.match(/^(?:please\s+)?(?:name|rename|title)\s+(?:this\s+)?chat\s+(?:as|to)?\s+(.+)$/i);
+  if (renameMatch?.[1]) {
+    return renameMatch[1]
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .slice(0, 80) || "New Chat";
+  }
+  const lower = cleaned.toLowerCase();
+  const amountMatch = cleaned.match(/₹\s*[\d,.]+\s*(?:lakh|lac|cr|crore|k)?|(?:\d+(?:\.\d+)?)\s*(?:lakh|lac|cr|crore)/i);
+  const timelineMatch = cleaned.match(/\b(?:in|within|after)\s+\d+\s+(?:months?|years?|yrs?)\b/i);
+  const ageMatch = cleaned.match(/\b(?:at|by)\s+\d{2}\b/i);
+  const parts = [amountMatch?.[0], timelineMatch?.[0], ageMatch?.[0]]
+    .filter(Boolean)
+    .map((part) => String(part).replace(/\s+/g, " ").trim());
+
+  if (lower.includes("retire") || lower.includes("retirement")) {
+    return ["Retirement Planning", ...parts].join(": ").slice(0, 80);
+  }
+  if (lower.includes("car")) {
+    return ["Car Goal", ...parts].join(": ").slice(0, 80);
+  }
+  if (lower.includes("home") || lower.includes("house") || lower.includes("flat")) {
+    return ["Home Goal", ...parts].join(": ").slice(0, 80);
+  }
+  if (lower.includes("sip")) {
+    return ["SIP Planning", ...parts].join(": ").slice(0, 80);
+  }
+  if (lower.includes("tax")) {
+    return "Tax Planning";
+  }
+  if (lower.includes("emergency")) {
+    return "Emergency Fund Planning";
+  }
+  if (lower.includes("loan") || lower.includes("emi")) {
+    return ["Loan & EMI Planning", ...parts].join(": ").slice(0, 80);
+  }
+
+  return cleaned ? cleaned.slice(0, 80) : "New Chat";
+};
+
+const getAdvisorRequestedTitle = (message: string) => {
+  const cleaned = message.replace(/\s+/g, " ").replace(/[?!.]+$/g, "").trim();
+  const renameMatch = cleaned.match(/^(?:please\s+)?(?:name|rename|title)\s+(?:this\s+)?chat\s+(?:as|to)?\s+(.+)$/i);
+  return renameMatch?.[1]
+    ? renameMatch[1]
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .slice(0, 80)
+    : null;
+};
+
+const ensureAdvisorSession = async (userId: number, sessionId: string, firstMessage = "New Chat") => {
+  const title = getAdvisorTitle(firstMessage);
+  await execute(`
+    INSERT INTO ai_advisor_sessions (user_id, session_id, title)
+    VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      updated_at = CURRENT_TIMESTAMP,
+      title = IF(title = 'New Chat' OR title = 'Default Chat', VALUES(title), title)
+  `, [userId, sessionId, title]);
 };
 
 const importStatementWithGemini = async (base64Data: string, mimeType: string) => {
@@ -2634,6 +2826,147 @@ app.delete("/api/investments/:id", authenticateToken, async (req: any, res) => {
   } catch (error) {
     logger.error("Delete investment error", { error, userId: req.user.id, investmentId: id });
     res.status(500).json({ error: "Failed to delete investment" });
+  }
+});
+
+// --- AI Wealth Advisor ---
+app.get("/api/ai-advisor/sessions", authenticateToken, async (req: any, res) => {
+  try {
+    const sessions = await queryAll(`
+      SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(m.id) AS message_count
+      FROM ai_advisor_sessions s
+      LEFT JOIN ai_advisor_messages m
+        ON m.user_id = s.user_id AND m.session_id = s.session_id
+      WHERE s.user_id = ?
+      GROUP BY s.id
+      ORDER BY s.updated_at DESC, s.id DESC
+    `, [req.user.id]);
+    res.json(sessions);
+  } catch (error) {
+    logger.error("Advisor sessions load error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to load advisor chats" });
+  }
+});
+
+app.post("/api/ai-advisor/sessions", authenticateToken, async (req: any, res) => {
+  const sessionId = crypto.randomUUID();
+  const title = isNonEmptyString(req.body?.title) ? req.body.title.trim().slice(0, 160) : "New Chat";
+
+  try {
+    await execute(
+      "INSERT INTO ai_advisor_sessions (user_id, session_id, title) VALUES (?, ?, ?)",
+      [req.user.id, sessionId, title]
+    );
+    res.status(201).json({ session_id: sessionId, title, message_count: 0 });
+  } catch (error) {
+    logger.error("Advisor session create error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to create advisor chat" });
+  }
+});
+
+app.delete("/api/ai-advisor/sessions/:sessionId", authenticateToken, async (req: any, res) => {
+  const sessionId = isNonEmptyString(req.params?.sessionId) ? String(req.params.sessionId).slice(0, 64) : "";
+  if (!sessionId) return res.status(400).json({ error: "Valid session id is required" });
+
+  try {
+    await execute("DELETE FROM ai_advisor_messages WHERE user_id = ? AND session_id = ?", [req.user.id, sessionId]);
+    await execute("DELETE FROM ai_advisor_sessions WHERE user_id = ? AND session_id = ?", [req.user.id, sessionId]);
+    res.json({ message: "Advisor chat deleted", sessionId });
+  } catch (error) {
+    logger.error("Advisor session delete error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to delete advisor chat" });
+  }
+});
+
+app.get("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => {
+  const sessionId = isNonEmptyString(req.query?.sessionId) ? String(req.query.sessionId).slice(0, 64) : "default";
+
+  try {
+    const messages = await queryAll(`
+      SELECT id, session_id, role, content, created_at
+      FROM ai_advisor_messages
+      WHERE user_id = ? AND session_id = ?
+      ORDER BY created_at ASC, id ASC
+    `, [req.user.id, sessionId]);
+    res.json(messages);
+  } catch (error) {
+    logger.error("Advisor messages load error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to load advisor messages" });
+  }
+});
+
+app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
+  const message = isNonEmptyString(req.body?.message) ? req.body.message.trim() : "";
+  const sessionId = isNonEmptyString(req.body?.sessionId) ? String(req.body.sessionId).slice(0, 64) : "default";
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+  if (message.length > 2000) {
+    return res.status(400).json({ error: "Message must be 2000 characters or fewer" });
+  }
+
+  try {
+    await ensureAdvisorSession(req.user.id, sessionId, message);
+    const requestedTitle = getAdvisorRequestedTitle(message);
+    if (requestedTitle) {
+      await execute(
+        "UPDATE ai_advisor_sessions SET title = ? WHERE user_id = ? AND session_id = ?",
+        [requestedTitle, req.user.id, sessionId]
+      );
+    }
+    await execute(
+      "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'user', ?)",
+      [req.user.id, sessionId, message]
+    );
+
+    const history = await queryAll(`
+      SELECT role, content, created_at
+      FROM ai_advisor_messages
+      WHERE user_id = ? AND session_id = ?
+      ORDER BY created_at ASC, id ASC
+      LIMIT 30
+    `, [req.user.id, sessionId]);
+    const { investments, summary } = await getAdvisorPortfolioContext(req.user.id);
+    const advisor = requestedTitle
+      ? { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" }
+      : await getWealthAdvisorReply(message, investments, summary, history);
+
+    const info = await execute(
+      "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
+      [req.user.id, sessionId, advisor.reply]
+    );
+
+    res.json({
+      message: {
+        id: info.insertId,
+        session_id: sessionId,
+        role: "assistant",
+        content: advisor.reply,
+        created_at: new Date().toISOString(),
+      },
+      portfolio: summary,
+      ...advisor,
+    });
+  } catch (error: any) {
+    logger.error("Advisor chat error", { error, userId: req.user.id });
+    res.status(502).json({
+      error: "AI Wealth Advisor failed",
+      detail: IS_PRODUCTION ? undefined : error.message,
+    });
+  }
+});
+
+app.delete("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => {
+  const sessionId = isNonEmptyString(req.query?.sessionId) ? String(req.query.sessionId).slice(0, 64) : "default";
+
+  try {
+    await execute("DELETE FROM ai_advisor_messages WHERE user_id = ? AND session_id = ?", [req.user.id, sessionId]);
+    await execute("UPDATE ai_advisor_sessions SET title = 'New Chat' WHERE user_id = ? AND session_id = ?", [req.user.id, sessionId]);
+    res.json({ message: "Advisor chat cleared", sessionId });
+  } catch (error) {
+    logger.error("Advisor messages clear error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to clear advisor messages" });
   }
 });
 
