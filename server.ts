@@ -267,7 +267,7 @@ const runMigrations = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
       session_id VARCHAR(64) NOT NULL,
-      title VARCHAR(160) NOT NULL DEFAULT 'New Chat',
+      title VARCHAR(25) NOT NULL DEFAULT 'New Chat',
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY unique_ai_advisor_session_user (user_id, session_id),
@@ -304,6 +304,8 @@ const runMigrations = async () => {
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
+  await db.query("UPDATE ai_advisor_sessions SET title = TRIM(LEFT(title, 25)) WHERE CHAR_LENGTH(title) > 25");
+  await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
   await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");
   await ensureIndex("ai_advisor_messages", "idx_ai_advisor_user_session", "user_id, session_id, created_at");
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
@@ -1008,6 +1010,21 @@ ${message}`;
   return { reply, provider: "gemini", model: GEMINI_MODEL };
 };
 
+const ADVISOR_TITLE_MAX_LENGTH = 25;
+
+const toAdvisorTitleCase = (value: string) =>
+  value
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const compactAdvisorTitle = (value: string) => {
+  const title = toAdvisorTitleCase(value);
+  return title.length > ADVISOR_TITLE_MAX_LENGTH
+    ? title.slice(0, ADVISOR_TITLE_MAX_LENGTH).trim()
+    : title || "New Chat";
+};
+
 const getAdvisorTitle = (message: string) => {
   const cleaned = message
     .replace(/\s+/g, " ")
@@ -1015,11 +1032,7 @@ const getAdvisorTitle = (message: string) => {
     .trim();
   const renameMatch = cleaned.match(/^(?:please\s+)?(?:name|rename|title)\s+(?:this\s+)?chat\s+(?:as|to)?\s+(.+)$/i);
   if (renameMatch?.[1]) {
-    return renameMatch[1]
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/\b\w/g, (char) => char.toUpperCase())
-      .slice(0, 80) || "New Chat";
+    return compactAdvisorTitle(renameMatch[1]);
   }
   const lower = cleaned.toLowerCase();
   const amountMatch = cleaned.match(/₹\s*[\d,.]+\s*(?:lakh|lac|cr|crore|k)?|(?:\d+(?:\.\d+)?)\s*(?:lakh|lac|cr|crore)/i);
@@ -1030,16 +1043,16 @@ const getAdvisorTitle = (message: string) => {
     .map((part) => String(part).replace(/\s+/g, " ").trim());
 
   if (lower.includes("retire") || lower.includes("retirement")) {
-    return ["Retirement Planning", ...parts].join(": ").slice(0, 80);
+    return compactAdvisorTitle(["Retirement", ...parts].join(" "));
   }
   if (lower.includes("car")) {
-    return ["Car Goal", ...parts].join(": ").slice(0, 80);
+    return compactAdvisorTitle(["Car Goal", ...parts].join(" "));
   }
   if (lower.includes("home") || lower.includes("house") || lower.includes("flat")) {
-    return ["Home Goal", ...parts].join(": ").slice(0, 80);
+    return compactAdvisorTitle(["Home Goal", ...parts].join(" "));
   }
   if (lower.includes("sip")) {
-    return ["SIP Planning", ...parts].join(": ").slice(0, 80);
+    return compactAdvisorTitle(["SIP Plan", ...parts].join(" "));
   }
   if (lower.includes("tax")) {
     return "Tax Planning";
@@ -1048,22 +1061,16 @@ const getAdvisorTitle = (message: string) => {
     return "Emergency Fund Planning";
   }
   if (lower.includes("loan") || lower.includes("emi")) {
-    return ["Loan & EMI Planning", ...parts].join(": ").slice(0, 80);
+    return compactAdvisorTitle(["Loan EMI", ...parts].join(" "));
   }
 
-  return cleaned ? cleaned.slice(0, 80) : "New Chat";
+  return compactAdvisorTitle(cleaned);
 };
 
 const getAdvisorRequestedTitle = (message: string) => {
   const cleaned = message.replace(/\s+/g, " ").replace(/[?!.]+$/g, "").trim();
   const renameMatch = cleaned.match(/^(?:please\s+)?(?:name|rename|title)\s+(?:this\s+)?chat\s+(?:as|to)?\s+(.+)$/i);
-  return renameMatch?.[1]
-    ? renameMatch[1]
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/\b\w/g, (char) => char.toUpperCase())
-      .slice(0, 80)
-    : null;
+  return renameMatch?.[1] ? compactAdvisorTitle(renameMatch[1]) : null;
 };
 
 const ensureAdvisorSession = async (userId: number, sessionId: string, firstMessage = "New Chat") => {
@@ -2850,7 +2857,7 @@ app.get("/api/ai-advisor/sessions", authenticateToken, async (req: any, res) => 
 
 app.post("/api/ai-advisor/sessions", authenticateToken, async (req: any, res) => {
   const sessionId = crypto.randomUUID();
-  const title = isNonEmptyString(req.body?.title) ? req.body.title.trim().slice(0, 160) : "New Chat";
+  const title = isNonEmptyString(req.body?.title) ? compactAdvisorTitle(req.body.title) : "New Chat";
 
   try {
     await execute(
