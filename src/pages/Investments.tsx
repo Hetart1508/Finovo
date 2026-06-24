@@ -187,13 +187,13 @@ export default function Investments() {
   }, [summaryResult.error]);
 
   useEffect(() => {
-    if (!dialogOpen) return;
+    if (!dialogOpen || !editingInvestment) return;
     setSelectedInvestmentType(getInvestmentType(editingInvestment));
     setInvestmentAmount(editingInvestment?.monthly_sip_amount ? String(editingInvestment.monthly_sip_amount) : '');
     setFormExpectedCagr(editingInvestment?.expected_cagr !== undefined ? String(editingInvestment.expected_cagr) : '12');
     setFormStartDate(editingInvestment?.start_date || today);
     setFormEndDate(editingInvestment?.end_date || defaultEndDate);
-  }, [dialogOpen, editingInvestment]);
+  }, [dialogOpen, editingInvestment?.id]);
 
   const closeDialog = () => {
     setDialogOpen(false);
@@ -276,7 +276,7 @@ export default function Investments() {
           <SelectTrigger id="investment-type" className={`h-8 w-full px-2 text-sm sm:h-10 sm:px-3`}>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent side="bottom" align="start" alignItemWithTrigger={false}>
             <SelectItem value="sip">SIP</SelectItem>
             <SelectItem value="lumpsum">Lumpsum</SelectItem>
           </SelectContent>
@@ -309,22 +309,20 @@ export default function Investments() {
             required
           />
         </div>
-        {selectedInvestmentType === 'sip' ? (
-          <div className={compactFieldClass}>
-            <Label htmlFor="investment-total" className={compactLabelClass}>Total Invested Amount (₹)</Label>
-            <Input
-              id="investment-total"
-              name="total_invested_amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={Number.isFinite(formTotalInvested) ? formTotalInvested : ''}
-              readOnly
-              className={`${compactInputClass} bg-[#FAFBFC] dark:bg-[#111827]`}
-              required
-            />
-          </div>
-        ) : null}
+        <div className={compactFieldClass}>
+          <Label htmlFor="investment-total" className={compactLabelClass}>{selectedInvestmentType === 'sip' ? 'Total Invested Amount (₹)' : 'Invested Amount (₹)'}</Label>
+          <Input
+            id="investment-total"
+            name="total_invested_amount"
+            type="number"
+            min="0"
+            step="0.01"
+            value={Number.isFinite(formTotalInvested) ? formTotalInvested : ''}
+            readOnly
+            className={`${compactInputClass} bg-[#FAFBFC] dark:bg-[#111827]`}
+            required
+          />
+        </div>
         <div className={compactFieldClass}>
           <Label htmlFor="investment-current" className={compactLabelClass}>Calculated Current Value (₹)</Label>
           <Input

@@ -7,7 +7,7 @@ import { investmentsQuery, investmentSummaryQuery, queryKeys } from '@/src/lib/s
 import api from '@/src/lib/api';
 import { getApiMessage } from '@/src/lib/toastMessages';
 import { cn } from '@/lib/utils';
-import { RiAddLine, RiChat3Line, RiDeleteBinLine, RiSideBarLine, RiSendPlane2Line, RiSparkling2Line } from 'react-icons/ri';
+import { RiAddLine, RiChat3Line, RiCloseLine, RiDeleteBinLine, RiSideBarLine, RiSendPlane2Line, RiSparkling2Line } from 'react-icons/ri';
 
 type AdvisorMessage = {
   id: number;
@@ -37,7 +37,7 @@ export default function AIWealthAdvisor() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [sessionId, setSessionId] = useState(() => localStorage.getItem('ai-advisor-session') || defaultSessionId);
-  const [showRecentChats, setShowRecentChats] = useState(true);
+  const [showRecentChats, setShowRecentChats] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const investmentsResult = useQuery(investmentsQuery());
   const summaryResult = useQuery(investmentSummaryQuery());
@@ -55,6 +55,12 @@ export default function AIWealthAdvisor() {
   const summary = summaryResult.data;
   const investments = investmentsResult.data ?? [];
   const isLoading = investmentsResult.isPending || summaryResult.isPending || messagesResult.isPending;
+  const summaryCards = [
+    ['Portfolio Value', formatCurrency(summary?.current_value)],
+    ['Monthly SIP', formatCurrency(summary?.total_monthly_sip)],
+    ['Total Invested', formatCurrency(summary?.total_invested_amount)],
+    ['Investments', summary?.investment_count || 0],
+  ];
 
   const introMessage = useMemo<AdvisorMessage>(() => ({
     id: 0,
@@ -136,8 +142,8 @@ export default function AIWealthAdvisor() {
   };
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-3 md:h-full md:grid-rows-[auto_auto_minmax(0,1fr)] md:overflow-hidden">
-      <div className="flex min-h-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] max-w-6xl flex-col overflow-hidden md:grid md:h-full md:min-h-0 md:gap-3 md:grid-rows-[auto_auto_minmax(0,1fr)]">
+      <div className="hidden min-h-0 flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[#1F2937] sm:text-2xl">AI Wealth Advisor</h1>
           <p className="text-sm text-[#6B7280]">Goal planning based on your saved investments.</p>
@@ -153,57 +159,57 @@ export default function AIWealthAdvisor() {
         </Button>
       </div>
 
-      <div className="grid min-h-0 grid-cols-2 gap-2 md:grid-cols-4">
-        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
-          <CardHeader className="px-3 py-2 sm:py-3">
-            <CardDescription>Portfolio Value</CardDescription>
-            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.current_value)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
-          <CardHeader className="px-3 py-2 sm:py-3">
-            <CardDescription>Monthly SIP</CardDescription>
-            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.total_monthly_sip)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
-          <CardHeader className="px-3 py-2 sm:py-3">
-            <CardDescription>Total Invested</CardDescription>
-            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.total_invested_amount)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
-          <CardHeader className="px-3 py-2 sm:py-3">
-            <CardDescription>Investments</CardDescription>
-            <CardTitle className="text-lg sm:text-2xl">{summary?.investment_count || 0}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="hidden min-h-0 grid-cols-2 gap-2 md:grid md:grid-cols-4">
+        {summaryCards.map(([label, value]) => (
+          <Card key={label} className="rounded-lg py-1.5 shadow-sm sm:py-2">
+            <CardHeader className="px-3 py-2 sm:py-3">
+              <CardDescription>{label}</CardDescription>
+              <CardTitle className="text-lg sm:text-2xl">{value}</CardTitle>
+            </CardHeader>
+          </Card>
+        ))}
       </div>
 
-      <div className={cn('grid min-h-0 gap-2 md:gap-3', showRecentChats ? 'grid-cols-1 md:grid-cols-[2.5rem_16rem_minmax(0,1fr)]' : 'grid-cols-1 md:grid-cols-[2.5rem_minmax(0,1fr)]')}>
-        <div className="flex min-h-0 md:justify-center">
+      <div className={cn('grid min-h-0 flex-1 grid-cols-1 md:gap-3', showRecentChats ? 'md:grid-cols-[2.5rem_16rem_minmax(0,1fr)]' : 'md:grid-cols-[2.5rem_minmax(0,1fr)]')}>
+        <div className="hidden min-h-0 justify-center md:flex">
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="icon-sm"
             aria-label={showRecentChats ? 'Hide recent chats' : 'Show recent chats'}
             title={showRecentChats ? 'Hide recent chats' : 'Show recent chats'}
-            className="h-9 w-full justify-center gap-2 md:w-9 md:px-0"
             onClick={() => setShowRecentChats((current) => !current)}
           >
             <RiSideBarLine aria-hidden="true" />
-            <span className="md:hidden">{showRecentChats ? 'Hide Recent Chats' : 'Show Recent Chats'}</span>
           </Button>
         </div>
         {showRecentChats ? (
-        <Card className="min-h-0 rounded-lg shadow-sm">
-          <CardHeader className="shrink-0 border-b py-3">
+        <>
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-[#1F2937]/30 backdrop-blur-[1px] md:hidden"
+          aria-label="Hide recent chats"
+          onClick={() => setShowRecentChats(false)}
+        />
+        <Card className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,86vw)] min-h-0 rounded-none border-0 shadow-2xl md:static md:z-auto md:w-auto md:rounded-lg md:border md:shadow-sm">
+          <CardHeader className="shrink-0 border-b px-3 py-3">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <RiChat3Line className="text-[#4F9CF9]" aria-hidden="true" />
-                Recent Chats
+              <CardTitle className="text-sm md:flex md:items-center md:gap-2">
+                <RiChat3Line className="hidden text-[#4F9CF9] md:block" aria-hidden="true" />
+                Chats
               </CardTitle>
               <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="md:hidden"
+                  aria-label="Hide recent chats"
+                  title="Hide recent chats"
+                  onClick={() => setShowRecentChats(false)}
+                >
+                  <RiCloseLine aria-hidden="true" />
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -220,7 +226,25 @@ export default function AIWealthAdvisor() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 p-2 md:overflow-y-auto">
+          <CardContent className="min-h-0 flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-2 gap-2 pb-3 md:hidden">
+              {summaryCards.map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-2">
+                  <p className="truncate text-[0.7rem] text-[#6B7280]">{label}</p>
+                  <p className="truncate text-sm font-semibold text-[#1F2937]">{value}</p>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="mb-3 h-9 w-full justify-start gap-2 md:hidden"
+              onClick={() => clearMutation.mutate()}
+              disabled={!messages.length || clearMutation.isPending}
+            >
+              <RiDeleteBinLine aria-hidden="true" />
+              Clear current chat
+            </Button>
             <div className="space-y-1">
               {sessions.length ? sessions.map((session) => {
                 const isActive = session.session_id === sessionId;
@@ -232,7 +256,10 @@ export default function AIWealthAdvisor() {
                         'min-w-0 flex-1 truncate rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition',
                         isActive ? 'bg-[#EEF6FF] text-[#1F2937]' : 'text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]'
                       )}
-                      onClick={() => setSessionId(session.session_id)}
+                      onClick={() => {
+                        setSessionId(session.session_id);
+                        setShowRecentChats(false);
+                      }}
                       title={session.title}
                     >
                       {session.title}
@@ -256,30 +283,61 @@ export default function AIWealthAdvisor() {
             </div>
           </CardContent>
         </Card>
+        </>
         ) : null}
 
-        <Card className="min-h-[26rem] rounded-lg shadow-sm md:min-h-0">
-          <CardHeader className="shrink-0 border-b py-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="flex items-center gap-2">
-                <RiSparkling2Line className="text-[#4F9CF9]" aria-hidden="true" />
-                Advisor Chat
-              </CardTitle>
+        <Card className="flex min-h-0 flex-1 rounded-none border-0 bg-transparent py-0 shadow-none md:rounded-lg md:border md:bg-card md:py-4 md:shadow-sm">
+          <CardHeader className="shrink-0 border-b bg-white/95 px-2 py-2 md:bg-transparent md:px-4 md:py-3">
+            <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-1 md:flex md:justify-between md:gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-lg"
+                  className="md:hidden"
+                  aria-label="Show recent chats"
+                  title="Show recent chats"
+                  onClick={() => setShowRecentChats(true)}
+                >
+                  <RiSideBarLine aria-hidden="true" />
+                </Button>
+                <CardTitle className="hidden items-center gap-2 md:flex">
+                  <RiSparkling2Line className="text-[#4F9CF9]" aria-hidden="true" />
+                  Advisor Chat
+                </CardTitle>
+              </div>
+              <div className="min-w-0 text-center md:hidden">
+                <p className="truncate text-sm font-semibold text-[#1F2937]">Wealth Advisor</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-lg"
+                className="justify-self-end md:hidden"
+                aria-label="New advisor chat"
+                title="New chat"
+                onClick={() => {
+                  if (!newChatMutation.isPending) newChatMutation.mutate();
+                }}
+                disabled={newChatMutation.isPending}
+              >
+                <RiAddLine aria-hidden="true" />
+              </Button>
             </div>
-            <CardDescription>Ask freely, answer follow-ups, and get a focused plan.</CardDescription>
+            <CardDescription className="hidden md:block">Ask freely, answer follow-ups, and get a focused plan.</CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-3">
-            <div className="max-h-[42vh] flex-1 space-y-3 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3 md:max-h-none">
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-2 px-0 pt-2 md:gap-3 md:px-4 md:pt-3">
+            <div className="flex-1 space-y-4 overflow-y-auto px-2 py-2 md:space-y-3 md:rounded-lg md:border md:border-[#E5E7EB] md:bg-[#FAFBFC] md:p-3">
               {[introMessage, ...messages].map((item) => {
                 const isUser = item.role === 'user';
                 return (
                   <div key={`${item.id}-${item.role}`} className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
                     <div
                       className={cn(
-                        'max-w-[min(42rem,88%)] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-6',
+                        'max-w-[min(42rem,88%)] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-6 md:rounded-lg md:px-3',
                         isUser
                           ? 'bg-[#4F9CF9] text-white'
-                          : 'border border-[#E5E7EB] bg-white text-[#1F2937]'
+                          : 'bg-transparent text-[#1F2937] md:border md:border-[#E5E7EB] md:bg-white'
                       )}
                     >
                       {item.content}
@@ -298,20 +356,20 @@ export default function AIWealthAdvisor() {
               <div ref={messagesEndRef} />
             </div>
 
-            <form className="flex shrink-0 flex-col gap-2 sm:flex-row" onSubmit={handleSubmit}>
+            <form className="flex shrink-0 items-end gap-2 border-t bg-white/95 px-2 py-2 md:border-0 md:bg-transparent md:px-0 md:py-0" onSubmit={handleSubmit}>
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="Type any investment question..."
-                className="h-16 flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:h-20"
+                className="max-h-28 min-h-11 flex-1 resize-none rounded-2xl border border-input bg-background px-3 py-2.5 text-sm outline-none transition focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-20 md:rounded-lg md:py-2"
                 maxLength={2000}
               />
-              <Button type="submit" className="h-10 gap-2 self-end px-4" disabled={!message.trim() || sendMutation.isPending}>
+              <Button type="submit" size="icon-lg" className="rounded-full md:h-10 md:w-auto md:gap-2 md:rounded-lg md:px-4" disabled={!message.trim() || sendMutation.isPending}>
                 <RiSendPlane2Line aria-hidden="true" />
-                Send
+                <span className="hidden md:inline">Send</span>
               </Button>
             </form>
-            <p className="shrink-0 text-xs text-[#6B7280]">Planning guidance only. Please verify before making investment decisions.</p>
+            <p className="hidden shrink-0 text-xs text-[#6B7280] md:block">Planning guidance only. Please verify before making investment decisions.</p>
           </CardContent>
         </Card>
       </div>
