@@ -136,7 +136,7 @@ export default function AIWealthAdvisor() {
   };
 
   return (
-    <div className="mx-auto grid h-full max-w-6xl grid-rows-[auto_auto_minmax(0,1fr)] gap-3 overflow-hidden">
+    <div className="mx-auto grid max-w-6xl gap-3 md:h-full md:grid-rows-[auto_auto_minmax(0,1fr)] md:overflow-hidden">
       <div className="flex min-h-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[#1F2937] sm:text-2xl">AI Wealth Advisor</h1>
@@ -144,7 +144,7 @@ export default function AIWealthAdvisor() {
         </div>
         <Button
           variant="outline"
-          className="w-fit gap-2"
+          className="h-9 w-fit gap-2"
           onClick={() => clearMutation.mutate()}
           disabled={!messages.length || clearMutation.isPending}
         >
@@ -154,43 +154,45 @@ export default function AIWealthAdvisor() {
       </div>
 
       <div className="grid min-h-0 grid-cols-2 gap-2 md:grid-cols-4">
-        <Card className="rounded-lg py-2 shadow-sm">
-          <CardHeader className="px-3">
+        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
+          <CardHeader className="px-3 py-2 sm:py-3">
             <CardDescription>Portfolio Value</CardDescription>
-            <CardTitle>{formatCurrency(summary?.current_value)}</CardTitle>
+            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.current_value)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-lg py-2 shadow-sm">
-          <CardHeader className="px-3">
+        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
+          <CardHeader className="px-3 py-2 sm:py-3">
             <CardDescription>Monthly SIP</CardDescription>
-            <CardTitle>{formatCurrency(summary?.total_monthly_sip)}</CardTitle>
+            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.total_monthly_sip)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-lg py-2 shadow-sm">
-          <CardHeader className="px-3">
+        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
+          <CardHeader className="px-3 py-2 sm:py-3">
             <CardDescription>Total Invested</CardDescription>
-            <CardTitle>{formatCurrency(summary?.total_invested_amount)}</CardTitle>
+            <CardTitle className="text-lg sm:text-2xl">{formatCurrency(summary?.total_invested_amount)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card className="rounded-lg py-2 shadow-sm">
-          <CardHeader className="px-3">
+        <Card className="rounded-lg py-1.5 shadow-sm sm:py-2">
+          <CardHeader className="px-3 py-2 sm:py-3">
             <CardDescription>Investments</CardDescription>
-            <CardTitle>{summary?.investment_count || 0}</CardTitle>
+            <CardTitle className="text-lg sm:text-2xl">{summary?.investment_count || 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
 
-      <div className={cn('grid min-h-0 gap-2 md:gap-3', showRecentChats ? 'grid-cols-[2.5rem_minmax(0,1fr)] md:grid-cols-[2.5rem_16rem_minmax(0,1fr)]' : 'grid-cols-[2.5rem_minmax(0,1fr)]')}>
-        <div className="flex min-h-0 justify-center">
+      <div className={cn('grid min-h-0 gap-2 md:gap-3', showRecentChats ? 'grid-cols-1 md:grid-cols-[2.5rem_16rem_minmax(0,1fr)]' : 'grid-cols-1 md:grid-cols-[2.5rem_minmax(0,1fr)]')}>
+        <div className="flex min-h-0 md:justify-center">
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="sm"
             aria-label={showRecentChats ? 'Hide recent chats' : 'Show recent chats'}
             title={showRecentChats ? 'Hide recent chats' : 'Show recent chats'}
+            className="h-9 w-full justify-center gap-2 md:w-9 md:px-0"
             onClick={() => setShowRecentChats((current) => !current)}
           >
             <RiSideBarLine aria-hidden="true" />
+            <span className="md:hidden">{showRecentChats ? 'Hide Recent Chats' : 'Show Recent Chats'}</span>
           </Button>
         </div>
         {showRecentChats ? (
@@ -201,22 +203,24 @@ export default function AIWealthAdvisor() {
                 <RiChat3Line className="text-[#4F9CF9]" aria-hidden="true" />
                 Recent Chats
               </CardTitle>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                aria-label="New advisor chat"
-                title="New chat"
-                onClick={() => {
-                  if (!newChatMutation.isPending) newChatMutation.mutate();
-                }}
-                disabled={newChatMutation.isPending}
-              >
-                <RiAddLine aria-hidden="true" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="New advisor chat"
+                  title="New chat"
+                  onClick={() => {
+                    if (!newChatMutation.isPending) newChatMutation.mutate();
+                  }}
+                  disabled={newChatMutation.isPending}
+                >
+                  <RiAddLine aria-hidden="true" />
+                </Button>
+              </div>
             </div>
           </CardHeader>
-          <CardContent className="min-h-0 flex-1 overflow-y-auto p-2">
+          <CardContent className="min-h-0 flex-1 p-2 md:overflow-y-auto">
             <div className="space-y-1">
               {sessions.length ? sessions.map((session) => {
                 const isActive = session.session_id === sessionId;
@@ -238,7 +242,7 @@ export default function AIWealthAdvisor() {
                       variant="ghost"
                       size="icon-xs"
                       aria-label="Delete advisor chat"
-                      className="opacity-0 group-hover:opacity-100"
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100"
                       onClick={() => deleteChatMutation.mutate(session.session_id)}
                       disabled={deleteChatMutation.isPending}
                     >
@@ -254,16 +258,18 @@ export default function AIWealthAdvisor() {
         </Card>
         ) : null}
 
-        <Card className="min-h-0 rounded-lg shadow-sm">
+        <Card className="min-h-[26rem] rounded-lg shadow-sm md:min-h-0">
           <CardHeader className="shrink-0 border-b py-3">
-            <CardTitle className="flex items-center gap-2">
-              <RiSparkling2Line className="text-[#4F9CF9]" aria-hidden="true" />
-              Advisor Chat
-            </CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <RiSparkling2Line className="text-[#4F9CF9]" aria-hidden="true" />
+                Advisor Chat
+              </CardTitle>
+            </div>
             <CardDescription>Ask freely, answer follow-ups, and get a focused plan.</CardDescription>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pt-3">
-            <div className="flex-1 space-y-3 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3">
+            <div className="max-h-[42vh] flex-1 space-y-3 overflow-y-auto rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3 md:max-h-none">
               {[introMessage, ...messages].map((item) => {
                 const isUser = item.role === 'user';
                 return (
