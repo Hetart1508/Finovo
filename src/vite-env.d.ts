@@ -15,6 +15,9 @@ interface Window {
         initialize: (config: {
           client_id: string;
           callback: (response: { credential?: string }) => void;
+          login_uri?: string;
+          ux_mode?: 'popup' | 'redirect';
+          itp_support?: boolean;
         }) => void;
         renderButton: (
           parent: HTMLElement,

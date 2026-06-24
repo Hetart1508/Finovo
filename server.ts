@@ -324,6 +324,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 app.use((req, res, next) => {
   const startedAt = Date.now();
   res.on("finish", () => {
@@ -1247,6 +1248,13 @@ const createAuthResponse = (user: any) => {
   };
 };
 
+const encodeBase64UrlJson = (value: unknown) =>
+  Buffer.from(JSON.stringify(value), "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
 type GoogleTokenInfo = {
   aud?: string;
   email?: string;
@@ -1271,11 +1279,36 @@ const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo>
     throw Object.assign(new Error("Google token was issued for another client"), { status: 401 });
   }
 
-  if (!payload.email || payload.email_verified !== "true") {
+  if (!payload.email || (payload.email_verified !== "true" && payload.email_verified !== true)) {
     throw Object.assign(new Error("Google account email is not verified"), { status: 401 });
   }
 
   return payload;
+};
+
+const authenticateGoogleCredential = async (credential: string) => {
+  const googleUser = await verifyGoogleIdToken(credential);
+  const email = normalizeEmail(googleUser.email);
+  const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
+
+  let user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+
+  if (!user) {
+    const randomPasswordHash = await bcrypt.hash(`google:${googleUser.sub}:${crypto.randomUUID()}`, 10);
+    const info = await execute(
+      "INSERT INTO users (email, password, name, auth_provider, password_enabled) VALUES (?, ?, ?, 'google', FALSE)",
+      [email, randomPasswordHash, name]
+    );
+
+    user = {
+      id: info.insertId,
+      email,
+      name,
+      daily_threshold: 1000,
+    };
+  }
+
+  return createAuthResponse(user);
 };
 
 const normalizeTransactionBody = (body: any) => {
@@ -2319,32 +2352,35 @@ app.post("/api/auth/google", async (req, res) => {
   }
 
   try {
-    const googleUser = await verifyGoogleIdToken(credential);
-    const email = normalizeEmail(googleUser.email);
-    const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
-
-    let user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
-
-    if (!user) {
-      const randomPasswordHash = await bcrypt.hash(`google:${googleUser.sub}:${crypto.randomUUID()}`, 10);
-      const info = await execute(
-        "INSERT INTO users (email, password, name, auth_provider, password_enabled) VALUES (?, ?, ?, 'google', FALSE)",
-        [email, randomPasswordHash, name]
-      );
-
-      user = {
-        id: info.insertId,
-        email,
-        name,
-        daily_threshold: 1000,
-      };
-    }
-
-    res.json(createAuthResponse(user));
+    res.json(await authenticateGoogleCredential(credential));
   } catch (error: any) {
     logger.error("Google auth error", { message: error?.message });
     res.status(error?.status || 500).json({ error: error?.message || "Failed to sign in with Google" });
   }
+});
+
+app.post("/api/auth/google/redirect", async (req, res) => {
+  const credential = String(req.body.credential || "");
+  const frontendOrigin = process.env.FRONTEND_URL || allowedOrigins[0] || `${req.protocol}://${req.get("host")}`;
+  const redirectUrl = new URL("/auth", frontendOrigin);
+
+  try {
+    if (!credential) {
+      throw Object.assign(new Error("Google credential is required"), { status: 400 });
+    }
+
+    const session = await authenticateGoogleCredential(credential);
+    redirectUrl.hash = new URLSearchParams({
+      google_auth: encodeBase64UrlJson(session),
+    }).toString();
+  } catch (error: any) {
+    logger.error("Google redirect auth error", { message: error?.message });
+    redirectUrl.hash = new URLSearchParams({
+      google_auth_error: error?.message || "Failed to sign in with Google",
+    }).toString();
+  }
+
+  res.redirect(303, redirectUrl.toString());
 });
 
 app.post("/api/auth/login", async (req, res) => {

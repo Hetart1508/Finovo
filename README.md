@@ -69,6 +69,7 @@ NODE_ENV=production
 FRONTEND_URL=https://your-frontend.vercel.app
 CORS_ORIGIN=https://your-frontend.vercel.app
 JWT_SECRET=
+GOOGLE_CLIENT_ID=
 GEMINI_API_KEY=
 EMAIL_USER=
 EMAIL_PASS=
@@ -87,6 +88,13 @@ Set this Vercel environment variable without `/api` at the end:
 
 ```env
 VITE_API_URL=https://your-backend.onrender.com
+VITE_GOOGLE_CLIENT_ID=
+```
+
+For Google sign-in, use the same OAuth client ID for `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID`. In Google Cloud Console, add both your frontend origin to Authorized JavaScript origins and your backend redirect endpoint to Authorized redirect URIs:
+
+```txt
+https://your-backend.onrender.com/api/auth/google/redirect
 ```
 
 ### 4. Postman

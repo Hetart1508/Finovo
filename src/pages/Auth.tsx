@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'react-toastify';
-import api from '@/src/lib/api';
+import api, { apiBaseUrl } from '@/src/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
@@ -60,6 +60,24 @@ type AuthNoteProps = {
   description: string;
 };
 
+const isAppleMobileDevice = () => {
+  const userAgent = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  return /iPhone|iPad|iPod/.test(userAgent) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+const getGoogleRedirectLoginUri = () => {
+  const redirectPath = `${apiBaseUrl.replace(/\/$/, '')}/auth/google/redirect`;
+  return new URL(redirectPath, window.location.origin).toString();
+};
+
+const decodeGoogleRedirectPayload = (payload: string) => {
+  const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+  const paddedPayload = normalizedPayload.padEnd(normalizedPayload.length + ((4 - normalizedPayload.length % 4) % 4), '=');
+  const bytes = Uint8Array.from(atob(paddedPayload), (character) => character.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+};
+
 function AuthNote({ icon: Icon, title, description }: AuthNoteProps) {
   return (
     <div className="flex gap-3 rounded-lg border border-[#EAFBF0] bg-[#EAFBF0] p-3 text-sm sm:p-4">
@@ -105,6 +123,36 @@ export default function Auth() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const googleAuthPayload = params.get('google_auth');
+    const googleAuthError = params.get('google_auth_error');
+
+    if (!googleAuthPayload && !googleAuthError) return;
+
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+
+    if (googleAuthError) {
+      toast.error(googleAuthError);
+      return;
+    }
+
+    try {
+      const session = decodeGoogleRedirectPayload(googleAuthPayload || '');
+
+      if (!session.token || !session.user) {
+        throw new Error('Google sign-in did not return a valid session.');
+      }
+
+      queryClient.clear();
+      saveSession(session.token, session.user, session.expiresAt ?? null);
+      toast.success(`Welcome, ${session.user.name}!`);
+      navigate('/', { replace: true });
+    } catch {
+      toast.error('Failed to finish Google sign-in.');
+    }
+  }, [navigate, queryClient]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
     localStorage.setItem('theme', theme);
   }, [theme]);
@@ -148,9 +196,15 @@ export default function Auth() {
       if (!window.google || !googleButtonRef.current) return;
 
       googleButtonRef.current.innerHTML = '';
+      const useRedirectMode = isAppleMobileDevice();
       window.google.accounts.id.initialize({
         client_id: googleClientId,
         callback: (response) => handleGoogleCredential(response.credential),
+        itp_support: true,
+        ...(useRedirectMode ? {
+          ux_mode: 'redirect',
+          login_uri: getGoogleRedirectLoginUri(),
+        } : {}),
       });
       window.google.accounts.id.renderButton(googleButtonRef.current, {
         theme: 'outline',
