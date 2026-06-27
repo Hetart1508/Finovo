@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import cors from "cors";
+import compression from "compression";
 
 import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
@@ -319,6 +320,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+app.use(compression());
 app.use(cors({
   origin: allowedOrigins.length ? allowedOrigins : true,
   credentials: true,
@@ -3422,8 +3424,20 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          return;
+        }
+
+        if (path.basename(filePath) === "index.html") {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    }));
     app.get('*', (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache");
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
