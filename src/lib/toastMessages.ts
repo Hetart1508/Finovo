@@ -1,3 +1,5 @@
+export const TOAST_AUTO_CLOSE_MS = 1750;
+
 export const getApiMessage = (error: any, fallback = "Something went wrong") => {
   const data = error?.response?.data;
 

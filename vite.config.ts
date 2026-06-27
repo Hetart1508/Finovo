@@ -23,5 +23,20 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: hmrEnabled ? { port: hmrPort } : false,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: (id) => {
+            if (!id.includes('node_modules')) return undefined;
+
+            if (id.includes('/react-icons/')) {
+              return 'vendor-icons';
+            }
+
+            return undefined;
+          },
+        },
+      },
+    },
   };
 });

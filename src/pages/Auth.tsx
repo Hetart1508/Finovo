@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'react-toastify';
 import api, { apiBaseUrl } from '@/src/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { getApiMessage, getApiSuccessMessage, TOAST_AUTO_CLOSE_MS } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
 import { cn } from '@/lib/utils';
 import {
@@ -174,7 +174,7 @@ export default function Auth() {
         render: `Welcome, ${response.data.user.name}!`,
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/');
     } catch (error: any) {
@@ -182,7 +182,7 @@ export default function Auth() {
         render: getApiMessage(error, 'Failed to sign in with Google.'),
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } finally {
       setLoading(false);
@@ -249,7 +249,7 @@ export default function Auth() {
         render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
       setRegisterEmail(data.email as string);
       setLastRegisterForm(data);
@@ -262,7 +262,7 @@ export default function Auth() {
         render: message,
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } finally {
       setLoading(false);
@@ -281,7 +281,7 @@ export default function Auth() {
         render: `Welcome, ${response.data.user.name}!`,
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/');
     } catch (error: any) {
@@ -290,7 +290,7 @@ export default function Auth() {
         render: message,
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
 
     } finally {
@@ -313,7 +313,7 @@ export default function Auth() {
         render: `Welcome back, ${response.data.user.name}!`,
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/'); 
     } catch (error: any) {
@@ -322,7 +322,7 @@ export default function Auth() {
         render: message,
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } finally {
       setLoading(false);
@@ -349,14 +349,14 @@ export default function Auth() {
         render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } catch (error: any) {
       toast.update(toastId, {
         render: getApiMessage(error, 'Failed to send password reset OTP.'),
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } finally {
       setLoading(false);
@@ -375,7 +375,7 @@ export default function Auth() {
         render: getApiSuccessMessage(response.data, 'Password reset successfully.'),
         type: 'success',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
       setOtpCode('');
       setResetPassword('');
@@ -388,7 +388,7 @@ export default function Auth() {
         render: getApiMessage(error, 'Failed to reset password.'),
         type: 'error',
         isLoading: false,
-        autoClose: 3500,
+        autoClose: TOAST_AUTO_CLOSE_MS,
       });
     } finally {
       setLoading(false);
@@ -408,7 +408,7 @@ export default function Auth() {
           render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
           type: 'success',
           isLoading: false,
-          autoClose: 3500,
+          autoClose: TOAST_AUTO_CLOSE_MS,
         });
       })
       .catch((error) => {
@@ -416,7 +416,7 @@ export default function Auth() {
           render: getApiMessage(error, 'Failed to resend OTP.'),
           type: 'error',
           isLoading: false,
-          autoClose: 3500,
+          autoClose: TOAST_AUTO_CLOSE_MS,
         });
       })
       .finally(() => setLoading(false));
@@ -435,7 +435,7 @@ export default function Auth() {
           render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
           type: 'success',
           isLoading: false,
-          autoClose: 3500,
+          autoClose: TOAST_AUTO_CLOSE_MS,
         });
       })
       .catch((error) => {
@@ -443,7 +443,7 @@ export default function Auth() {
           render: getApiMessage(error, 'Failed to resend OTP.'),
           type: 'error',
           isLoading: false,
-          autoClose: 3500,
+          autoClose: TOAST_AUTO_CLOSE_MS,
         });
       })
       .finally(() => setLoading(false));
