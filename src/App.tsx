@@ -1,20 +1,27 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Transactions from './pages/Transactions';
-import SmartUpload from './pages/SmartUpload';
-import StatementImport from './pages/StatementImport';
-import CalendarView from './pages/Calendar';
-import Insights from './pages/Insights';
-import Recurring from './pages/Recurring';
-import Investments from './pages/Investments';
-import AIWealthAdvisor from './pages/AIWealthAdvisor';
-import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { clearSession, hasValidSession } from './lib/session';
 import { useQueryClient } from '@tanstack/react-query';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Transactions = lazy(() => import('./pages/Transactions'));
+const SmartUpload = lazy(() => import('./pages/SmartUpload'));
+const StatementImport = lazy(() => import('./pages/StatementImport'));
+const CalendarView = lazy(() => import('./pages/Calendar'));
+const Insights = lazy(() => import('./pages/Insights'));
+const Recurring = lazy(() => import('./pages/Recurring'));
+const Investments = lazy(() => import('./pages/Investments'));
+const AIWealthAdvisor = lazy(() => import('./pages/AIWealthAdvisor'));
+const Auth = lazy(() => import('./pages/Auth'));
+
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 text-sm font-semibold text-[#6B7280]">
+    Loading...
+  </div>
+);
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!hasValidSession()) {
@@ -40,19 +47,21 @@ export default function App() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-        <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
-        <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
-        <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
-        <Route path="/recurring" element={<ProtectedRoute><Recurring /></ProtectedRoute>} />
-        <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
-        <Route path="/wealth-advisor" element={<ProtectedRoute><AIWealthAdvisor /></ProtectedRoute>} />
-        <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+          <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
+          <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
+          <Route path="/recurring" element={<ProtectedRoute><Recurring /></ProtectedRoute>} />
+          <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
+          <Route path="/wealth-advisor" element={<ProtectedRoute><AIWealthAdvisor /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
       <ToastContainer
         aria-label="Notifications"
         position="top-right"
