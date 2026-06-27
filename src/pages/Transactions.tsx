@@ -30,9 +30,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useDebouncedValue } from '@/src/lib/useDebouncedValue';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
   RiAddCircleLine,
   RiArrowDownSLine,
@@ -104,10 +101,10 @@ export default function Transactions() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
-  const [transactionDate, setTransactionDate] = useState<Date | null>(new Date());
+  const todayDateString = format(new Date(), 'yyyy-MM-dd');
+  const [transactionDate, setTransactionDate] = useState(todayDateString);
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [viewingBill, setViewingBill] = useState<any | null>(null);
-  const todayDateString = format(new Date(), 'yyyy-MM-dd');
   const debouncedSearch = useDebouncedValue(search, 500);
 
   const handleDelete = async (id: number) => {
@@ -132,7 +129,7 @@ export default function Transactions() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
-    const selectedDate = transactionDate ? format(transactionDate, 'yyyy-MM-dd') : '';
+    const selectedDate = transactionDate;
 
     if (selectedDate > todayDateString) {
       toast.error('Transaction date cannot be in the future.');
@@ -146,7 +143,7 @@ export default function Transactions() {
         date: selectedDate,
       });
       toast.success(getApiSuccessMessage(response.data, "Transaction added successfully"));
-      setTransactionDate(new Date());
+      setTransactionDate(todayDateString);
     } catch (error: any) {
       toast.error(getApiMessage(error, "Failed to add transaction."));
     }
@@ -357,35 +354,14 @@ export default function Transactions() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="date">Date</Label>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      value={transactionDate}
-                      onChange={setTransactionDate}
-                      maxDate={new Date()}
-                      format="dd MMM yyyy"
-                      slotProps={{
-                        textField: {
-                          id: 'date',
-                          name: 'date',
-                          required: true,
-                          fullWidth: true,
-                          size: 'small',
-                          sx: {
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: '8px',
-                              backgroundColor: 'white',
-                              fontFamily: 'inherit',
-                            },
-                            '& .MuiInputBase-input': {
-                              fontSize: '0.875rem',
-                              paddingTop: '8.5px',
-                              paddingBottom: '8.5px',
-                            },
-                          },
-                        },
-                      }}
-                    />
-                  </LocalizationProvider>
+                  <AppDatePicker
+                    id="date"
+                    name="date"
+                    value={transactionDate}
+                    onChange={setTransactionDate}
+                    max={todayDateString}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="payment_mode">Payment Mode</Label>

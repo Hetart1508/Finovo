@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -27,9 +28,6 @@ import { queryKeys, recurringQuery, upcomingRecurringQuery } from '@/src/lib/ser
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { toast } from 'react-toastify';
 import {
   RiAddCircleLine,
@@ -86,6 +84,8 @@ const getDateFromEvent = (event: RecurringEvent) => (
   event.start_date ? parseISO(event.start_date) : getDateFromDayOfMonth(event.day_of_month)
 );
 
+const getDateStringFromEvent = (event: RecurringEvent) => format(getDateFromEvent(event), 'yyyy-MM-dd');
+
 const getTypeClassName = (type: string) => {
   if (type === 'income') return 'border-[#EAFBF0] text-[#34C759]';
   if (type === 'investment') return 'border-[#EEF6FF] text-[#4F9CF9]';
@@ -115,7 +115,8 @@ export default function Recurring() {
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<RecurringEvent | null>(null);
-  const [dueDate, setDueDate] = useState<Date | null>(new Date());
+  const todayDateString = format(new Date(), 'yyyy-MM-dd');
+  const [dueDate, setDueDate] = useState(todayDateString);
 
   const monthlyCashOutflow = useMemo(
     () => events
@@ -145,7 +146,7 @@ export default function Recurring() {
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingEvent(null);
-    setDueDate(new Date());
+    setDueDate(todayDateString);
   };
 
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -155,16 +156,17 @@ export default function Recurring() {
       toast.error('Please select a due date.');
       return;
     }
+    const parsedDueDate = parseISO(dueDate);
 
     const payload = {
       name: String(formData.get('name') || '').trim(),
       amount: Number(formData.get('amount')),
-      day_of_month: dueDate.getDate(),
+      day_of_month: parsedDueDate.getDate(),
       category: String(formData.get('category') || 'Other'),
       type: String(formData.get('type') || 'expense'),
       frequency: String(formData.get('frequency') || 'monthly'),
       interval_count: Number(formData.get('interval_count') || 1),
-      start_date: format(dueDate, 'yyyy-MM-dd'),
+      start_date: dueDate,
       payment_mode: String(formData.get('payment_mode') || 'manual'),
       autopay_enabled: formData.get('payment_mode') === 'auto',
       payment_account: String(formData.get('payment_account') || '').trim() || null,
@@ -204,11 +206,11 @@ export default function Recurring() {
           setDialogOpen(open);
           if (!open) {
             setEditingEvent(null);
-            setDueDate(new Date());
+            setDueDate(todayDateString);
           }
         }}>
           <DialogTrigger>
-            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={() => setDueDate(new Date())}>
+            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={() => setDueDate(todayDateString)}>
               <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
               Add Recurring
             </Button>
@@ -230,33 +232,12 @@ export default function Recurring() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="recurring-due-date">Start / Payment Date</Label>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
-                    <DatePicker
-                      value={dueDate}
-                      onChange={setDueDate}
-                      format="dd MMM yyyy"
-                      slotProps={{
-                        textField: {
-                          id: 'recurring-due-date',
-                          required: true,
-                          fullWidth: true,
-                          size: 'small',
-                          sx: {
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: '8px',
-                              backgroundColor: 'white',
-                              fontFamily: 'inherit',
-                            },
-                            '& .MuiInputBase-input': {
-                              fontSize: '0.875rem',
-                              paddingTop: '8.5px',
-                              paddingBottom: '8.5px',
-                            },
-                          },
-                        },
-                      }}
-                    />
-                  </LocalizationProvider>
+                  <AppDatePicker
+                    id="recurring-due-date"
+                    value={dueDate}
+                    onChange={setDueDate}
+                    required
+                  />
                 </div>
               </div>
 
@@ -448,7 +429,7 @@ export default function Recurring() {
                             className="text-[#6B7280] hover:text-[#4F9CF9]"
                             onClick={() => {
                               setEditingEvent(event);
-                              setDueDate(getDateFromEvent(event));
+                              setDueDate(getDateStringFromEvent(event));
                               setDialogOpen(true);
                             }}
                             aria-label="Edit recurring payment"
