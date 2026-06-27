@@ -1,13 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import type { ReactNode } from 'react';
+import Layout from './components/Layout';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { clearSession, hasValidSession } from './lib/session';
 import { TOAST_AUTO_CLOSE_MS } from './lib/toastMessages';
 import { useQueryClient } from '@tanstack/react-query';
 
-const Layout = lazy(() => import('./components/Layout'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const SmartUpload = lazy(() => import('./pages/SmartUpload'));
