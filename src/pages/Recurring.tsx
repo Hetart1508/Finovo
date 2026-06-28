@@ -1,19 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import { Input } from '@/src/components/ui/input';
-import { AppDatePicker } from '@/src/components/ui/app-date-picker';
-import { Label } from '@/src/components/ui/label';
 import { Badge } from '@/src/components/ui/badge';
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/src/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import {
   Table,
   TableBody,
@@ -38,65 +33,9 @@ import {
   RiRefreshLine,
   RiRepeatLine,
 } from 'react-icons/ri';
-
-type RecurringEvent = {
-  id: number;
-  name: string;
-  amount: number;
-  day_of_month: number;
-  category: string;
-  type: string;
-  frequency?: 'monthly' | 'yearly';
-  interval_count?: number;
-  start_date?: string | null;
-  payment_mode?: 'manual' | 'auto';
-  autopay_enabled?: boolean | number;
-  payment_account?: string | null;
-  next_due_date?: string;
-  days_until_due?: number;
-};
-
-const categories = ['Rent', 'SIP', 'Mutual Fund', 'Subscription', 'Utilities', 'Insurance', 'EMI', 'Internet', 'Education', 'Health', 'Car Service', 'Maintenance', 'Other'];
-const paymentTypes = ['expense', 'income', 'investment', 'service'];
-const frequencies = ['monthly', 'yearly'];
-
-const getScheduleLabel = (event: RecurringEvent) => {
-  const frequency = event.frequency || 'monthly';
-  const interval = Number(event.interval_count) || 1;
-  const unit = frequency === 'yearly' ? 'year' : 'month';
-  const intervalText = interval === 1 ? `Every ${unit}` : `Every ${interval} ${unit}s`;
-  return `${intervalText} on day ${event.day_of_month}`;
-};
-
-const getDueLabel = (event: RecurringEvent) => {
-  if (typeof event.days_until_due !== 'number') return getScheduleLabel(event);
-  if (event.days_until_due === 0) return 'Due today';
-  if (event.days_until_due === 1) return 'Due tomorrow';
-  return `Due in ${event.days_until_due} days`;
-};
-
-const getDateFromDayOfMonth = (dayOfMonth: number) => {
-  const today = new Date();
-  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  return new Date(today.getFullYear(), today.getMonth(), Math.min(dayOfMonth, lastDayOfMonth));
-};
-
-const getDateFromEvent = (event: RecurringEvent) => (
-  event.start_date ? parseISO(event.start_date) : getDateFromDayOfMonth(event.day_of_month)
-);
-
-const getDateStringFromEvent = (event: RecurringEvent) => format(getDateFromEvent(event), 'yyyy-MM-dd');
-
-const getTypeClassName = (type: string) => {
-  if (type === 'income') return 'border-[#EAFBF0] text-[#34C759]';
-  if (type === 'investment') return 'border-[#EEF6FF] text-[#4F9CF9]';
-  if (type === 'service') return 'border-[#FFF7E8] text-[#FFB84D]';
-  return 'border-[#FFF1F1] text-[#FF6B6B]';
-};
-
-const getAmountClassName = (type: string) => (
-  type === 'income' ? 'text-[#34C759]' : type === 'investment' ? 'text-[#4F9CF9]' : 'text-[#FF6B6B]'
-);
+import { RecurringForm } from '@/src/features/recurring/components/RecurringForm';
+import type { RecurringEvent } from '@/src/features/recurring/recurring.types';
+import { getAmountClassName, getDateStringFromEvent, getDueLabel, getScheduleLabel, getTypeClassName } from '@/src/features/recurring/recurring.utils';
 
 export default function Recurring() {
   const queryClient = useQueryClient();
@@ -220,117 +159,12 @@ export default function Recurring() {
             <DialogHeader>
               <DialogTitle>{editingEvent ? 'Edit Recurring Payment' : 'Add Recurring Payment'}</DialogTitle>
             </DialogHeader>
-            <form key={editingEvent?.id || 'new'} onSubmit={handleSave} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="recurring-name">Name</Label>
-                <Input id="recurring-name" name="name" placeholder="Rent, SIP, WiFi subscription, car service" defaultValue={editingEvent?.name || ''} required />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="recurring-amount">Amount (₹)</Label>
-                  <Input id="recurring-amount" name="amount" type="number" step="0.01" min="0.01" defaultValue={editingEvent?.amount || ''} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recurring-due-date">Start / Payment Date</Label>
-                  <AppDatePicker
-                    id="recurring-due-date"
-                    value={dueDate}
-                    onChange={setDueDate}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Select name="category" defaultValue={editingEvent?.category || 'Subscription'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>{category}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <Select name="type" defaultValue={editingEvent?.type || 'expense'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type === 'expense' ? 'Expense' : type === 'income' ? 'Income' : type === 'investment' ? 'Investment' : 'Service'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Repeats</Label>
-                  <Select name="frequency" defaultValue={editingEvent?.frequency || 'monthly'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {frequencies.map((frequency) => (
-                        <SelectItem key={frequency} value={frequency}>
-                          {frequency === 'monthly' ? 'Monthly' : 'Yearly'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recurring-interval">Every</Label>
-                  <Input
-                    id="recurring-interval"
-                    name="interval_count"
-                    type="number"
-                    min="1"
-                    max="120"
-                    defaultValue={editingEvent?.interval_count || 1}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Payment</Label>
-                  <Select name="payment_mode" defaultValue={editingEvent?.payment_mode || (editingEvent?.autopay_enabled ? 'auto' : 'manual')}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manual">Manual reminder</SelectItem>
-                      <SelectItem value="auto">Auto debit / autopay</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="recurring-account">Account / Source</Label>
-                  <Input
-                    id="recurring-account"
-                    name="payment_account"
-                    placeholder="HDFC Bank, UPI mandate"
-                    defaultValue={editingEvent?.payment_account || ''}
-                  />
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button type="submit" className="w-full">{editingEvent ? 'Save Changes' : 'Save Recurring Payment'}</Button>
-              </DialogFooter>
-            </form>
+            <RecurringForm
+              editingEvent={editingEvent}
+              dueDate={dueDate}
+              onDueDateChange={setDueDate}
+              onSubmit={handleSave}
+            />
           </DialogContent>
         </Dialog>
       </div>
