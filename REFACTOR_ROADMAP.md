@@ -181,7 +181,7 @@ Priority order:
 1. `Auth.tsx` Started: extracted auth UI components and Google helpers.
 2. `Investments.tsx` Started: extracted summary cards, SIP calculator, growth chart, form, types, and utils.
 3. `Transactions.tsx` Mostly done: extracted transaction form, toolbar, table, bill preview, hooks, types, and constants.
-4. `Recurring.tsx` Started: extracted form, types, constants, and utils.
+4. `Recurring.tsx` Started: extracted form, metrics, table, yearly schedule, types, constants, and utils.
 5. `StatementImport.tsx`
 6. `AIWealthAdvisor.tsx`
 7. `Dashboard.tsx`
@@ -226,10 +226,10 @@ Current Phase 4 status:
 - Transaction feature files now live under `src/features/transactions`.
 - Extracted shared add/edit transaction form, toolbar/filter, table/pagination, bill preview dialog, transaction hooks, transaction types, pagination constants, sort labels, categories, payment modes, and utils.
 - Remaining Transactions cleanup: optional split of table row/pagination if needed; page is now mostly composition.
-- `src/pages/Recurring.tsx` reduced from 495 lines to 329 lines.
+- `src/pages/Recurring.tsx` reduced from 495 lines to 180 lines.
 - Recurring feature files now live under `src/features/recurring`.
-- Extracted recurring add/edit form, recurring types, domain constants, and schedule/amount/date helpers.
-- Remaining Recurring cleanup: extract metric cards, payments table, yearly schedule card, and mutations/hooks.
+- Extracted recurring add/edit form, metric cards, payments table, yearly schedule card, recurring types, domain constants, and schedule/amount/date helpers.
+- Remaining Recurring cleanup: move dialog state and mutations into hooks.
 
 ## Phase 5: Shared Types And Utilities
 
