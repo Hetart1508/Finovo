@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { lazy, Suspense, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import Layout from './components/Layout';
-import Auth from './pages/Auth';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { clearSession, hasValidSession } from './lib/session';
@@ -18,6 +17,7 @@ const Insights = lazy(() => import('./pages/Insights'));
 const Recurring = lazy(() => import('./pages/Recurring'));
 const Investments = lazy(() => import('./pages/Investments'));
 const AIWealthAdvisor = lazy(() => import('./pages/AIWealthAdvisor'));
+const Auth = lazy(() => import('./pages/Auth'));
 
 const PageLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 text-sm font-semibold text-[#6B7280]">

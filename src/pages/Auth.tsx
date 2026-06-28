@@ -107,7 +107,6 @@ export default function Auth() {
   const [otpCode, setOtpCode] = useState('');
   const [resetPassword, setResetPassword] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
-  const [canLoadGoogleSignIn, setCanLoadGoogleSignIn] = useState(false);
   const navigate = useNavigate();
 
   // OTP resend timer
@@ -191,12 +190,6 @@ export default function Auth() {
   }, [authRequest, navigate, queryClient]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setCanLoadGoogleSignIn(true), 1200);
-    return () => window.clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
-    if (!canLoadGoogleSignIn) return;
     if (!googleClientId || !googleButtonRef.current) return;
 
     const renderGoogleButton = () => {
@@ -239,7 +232,7 @@ export default function Auth() {
     script.defer = true;
     script.onload = renderGoogleButton;
     document.head.appendChild(script);
-  }, [canLoadGoogleSignIn, currentTab, googleClientId, handleGoogleCredential]);
+  }, [currentTab, googleClientId, handleGoogleCredential]);
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
