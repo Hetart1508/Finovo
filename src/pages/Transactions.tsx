@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
-import { AppDatePicker } from '@/src/components/ui/app-date-picker';
-import { Label } from '@/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { 
   Table, 
@@ -19,7 +17,6 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogFooter
 } from '@/src/components/ui/dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsApi } from '@/src/api/transactionsApi';
@@ -44,25 +41,13 @@ import {
   RiEyeLine,
   RiFilter3Line,
   RiPencilLine,
-  RiSave3Line,
   RiSearchLine,
   RiSkipLeftLine,
   RiSkipRightLine,
 } from 'react-icons/ri';
-
-type SortKey = 'type' | 'date' | 'description' | 'category' | 'payment_mode' | 'amount';
-type SortDirection = 'asc' | 'desc';
-
-const ITEMS_PER_PAGE = 10;
-
-const sortLabels: Record<SortKey, string> = {
-  type: 'Type',
-  date: 'Date',
-  description: 'Description',
-  category: 'Category',
-  payment_mode: 'Mode',
-  amount: 'Amount',
-};
+import { TransactionForm } from '@/src/features/transactions/components/TransactionForm';
+import { ITEMS_PER_PAGE, sortLabels } from '@/src/features/transactions/transactions.constants';
+import type { SortDirection, SortKey, Transaction } from '@/src/features/transactions/transactions.types';
 
 const isPdfBill = (url: string) => {
   const cleanUrl = url.split('?')[0].toLowerCase();
@@ -77,7 +62,7 @@ const getBillUrl = (url: string) => {
 export default function Transactions() {
   const queryClient = useQueryClient();
   const transactionsResult = useQuery(transactionsQuery());
-  const transactions = transactionsResult.data ?? [];
+  const transactions = (transactionsResult.data ?? []) as Transaction[];
   const loading = transactionsResult.isPending;
   const deleteTransaction = useMutation({
     mutationFn: (id: number) => transactionsApi.delete(id),
@@ -104,8 +89,8 @@ export default function Transactions() {
   const [currentPage, setCurrentPage] = useState(1);
   const todayDateString = format(new Date(), 'yyyy-MM-dd');
   const [transactionDate, setTransactionDate] = useState(todayDateString);
-  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
-  const [viewingBill, setViewingBill] = useState<any | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [viewingBill, setViewingBill] = useState<Transaction | null>(null);
   const debouncedSearch = useDebouncedValue(search, 500);
 
   const handleDelete = async (id: number) => {
@@ -211,7 +196,7 @@ export default function Transactions() {
   const sortedTransactions = useMemo(() => {
     if (!sortKey) return filteredTransactions;
 
-    const getSortValue = (transaction: any) => {
+    const getSortValue = (transaction: Transaction) => {
       if (sortKey === 'amount') {
         const amount = Number(transaction.amount) || 0;
         return transaction.type === 'expense' ? -amount : amount;
@@ -321,71 +306,13 @@ export default function Transactions() {
               <DialogHeader>
                 <DialogTitle>Add New Transaction</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleAdd} className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Type</Label>
-                    <Select name="type" defaultValue="expense">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="expense">Expense</SelectItem>
-                        <SelectItem value="income">Income</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (₹)</Label>
-                    <Input id="amount" name="amount" type="number" step="0.01" required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
-                  <Select name="category" defaultValue="Food">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'].map(c => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">Date</Label>
-                  <AppDatePicker
-                    id="date"
-                    name="date"
-                    value={transactionDate}
-                    onChange={setTransactionDate}
-                    max={todayDateString}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="payment_mode">Payment Mode</Label>
-                  <Select name="payment_mode" defaultValue="UPI">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UPI">UPI</SelectItem>
-                      <SelectItem value="Card">Card</SelectItem>
-                      <SelectItem value="Cash">Cash</SelectItem>
-                      <SelectItem value="Net Banking">Net Banking</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Input id="description" name="description" placeholder="Lunch at Starbucks" />
-                </div>
-                <DialogFooter>
-                  <Button type="submit" className="w-full">Save Transaction</Button>
-                </DialogFooter>
-              </form>
+              <TransactionForm
+                mode="add"
+                dateValue={transactionDate}
+                maxDate={todayDateString}
+                onDateChange={setTransactionDate}
+                onSubmit={handleAdd}
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -609,74 +536,12 @@ export default function Transactions() {
             <DialogHeader>
               <DialogTitle>Edit Transaction</DialogTitle>
             </DialogHeader>
-            <form key={editingTransaction.id} onSubmit={handleUpdate} className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-type">Type</Label>
-                  <Select name="type" defaultValue={editingTransaction.type}>
-                    <SelectTrigger id="edit-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="expense">Expense</SelectItem>
-                      <SelectItem value="income">Income</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-amount">Amount (₹)</Label>
-                  <Input id="edit-amount" name="amount" type="number" step="0.01" min="0.01" defaultValue={editingTransaction.amount} required />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-category">Category</Label>
-                <Select name="category" defaultValue={editingTransaction.category}>
-                  <SelectTrigger id="edit-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other', 'Salary'].map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-date">Date</Label>
-                <AppDatePicker id="edit-date" name="date" max={todayDateString} defaultValue={format(parseISO(editingTransaction.date), 'yyyy-MM-dd')} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-payment-mode">Payment Mode</Label>
-                <Select name="payment_mode" defaultValue={editingTransaction.payment_mode}>
-                  <SelectTrigger id="edit-payment-mode">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UPI">UPI</SelectItem>
-                    <SelectItem value="Card">Card</SelectItem>
-                    <SelectItem value="Cash">Cash</SelectItem>
-                    <SelectItem value="Net Banking">Net Banking</SelectItem>
-                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="Bank Statement">Bank Statement</SelectItem>
-                    <SelectItem value="Wallet">Wallet</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Input id="edit-description" name="description" defaultValue={editingTransaction.description || ''} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-bill-url">Bill URL</Label>
-                <Input id="edit-bill-url" name="bill_url" defaultValue={editingTransaction.bill_url || ''} placeholder="https://..." />
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="w-full">
-                  <RiSave3Line className="mr-2 text-base" aria-hidden="true" />
-                  Save Changes
-                </Button>
-              </DialogFooter>
-            </form>
+            <TransactionForm
+              mode="edit"
+              transaction={editingTransaction}
+              maxDate={todayDateString}
+              onSubmit={handleUpdate}
+            />
           </DialogContent>
         ) : null}
       </Dialog>
