@@ -178,7 +178,7 @@ Purpose: make page files small and readable.
 
 Priority order:
 
-1. `Auth.tsx`
+1. `Auth.tsx` Started: extracted auth UI components and Google helpers.
 2. `Investments.tsx`
 3. `Transactions.tsx`
 4. `Recurring.tsx`
@@ -211,6 +211,13 @@ Done when:
 - Large helper functions move into hooks/utils.
 - Reusable UI sections are separate components.
 - `npm run lint` passes.
+
+Current Phase 4 status:
+
+- `src/pages/Auth.tsx` reduced from 825 lines to 448 lines.
+- Auth feature files now live under `src/features/auth`.
+- Extracted password input, note, brand panel, tab switch, Google section, theme toggle, login card, register card, and Google auth utilities.
+- Remaining Auth cleanup: move auth effects/handlers into hooks once the UI split has settled.
 
 ## Phase 5: Shared Types And Utilities
 
