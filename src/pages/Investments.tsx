@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addYears, differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
@@ -37,71 +37,17 @@ import {
   getSipDurationMonths,
 } from '@/src/lib/investmentCalculations';
 import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import {
   RiAddCircleLine,
-  RiBarChartBoxLine,
   RiCalendarCheckLine,
   RiDeleteBin6Line,
   RiFundsLine,
-  RiLineChartLine,
   RiPencilLine,
-  RiWallet3Line,
 } from 'react-icons/ri';
-
-type Investment = {
-  id: number;
-  investment_type?: InvestmentType;
-  sip_name: string;
-  fund_name: string;
-  monthly_sip_amount: number;
-  total_invested_amount: number;
-  current_value: number;
-  expected_cagr: number;
-  start_date: string;
-  end_date: string;
-  notes: string | null;
-  months: number;
-  future_value: number;
-  estimated_capital_gain: number;
-};
-
-type InvestmentType = 'sip' | 'lumpsum';
-
-type InvestmentSummary = {
-  investment_count: number;
-  sip_count: number;
-  lumpsum_count: number;
-  total_monthly_sip: number;
-  total_lumpsum_amount: number;
-  total_invested_amount: number;
-  current_value: number;
-  current_capital_gain: number;
-  projected_future_value: number;
-  estimated_capital_gain: number;
-};
-
-const currency = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-});
-
-const today = format(new Date(), 'yyyy-MM-dd');
-const defaultEndDate = format(addYears(new Date(), 10), 'yyyy-MM-dd');
-
-const getInvestmentType = (investment?: Pick<Investment, 'investment_type'> | null): InvestmentType =>
-  investment?.investment_type === 'lumpsum' ? 'lumpsum' : 'sip';
-
-const getInvestmentTypeLabel = (type: InvestmentType) => type === 'lumpsum' ? 'Lumpsum' : 'SIP';
+import type { Investment, InvestmentSummary, InvestmentType } from '@/src/features/investments/investments.types';
+import { currency, defaultEndDate, getInvestmentType, getInvestmentTypeLabel, today } from '@/src/features/investments/investments.utils';
+import { InvestmentSummaryCards } from '@/src/features/investments/components/InvestmentSummaryCards';
+import { SipCalculatorCard } from '@/src/features/investments/components/SipCalculatorCard';
+import { SipGrowthChartCard } from '@/src/features/investments/components/SipGrowthChartCard';
 
 export default function Investments() {
   const queryClient = useQueryClient();
@@ -412,143 +358,21 @@ export default function Investments() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
-              <RiFundsLine className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Total Investments</p>
-            <h3 className="mt-1 text-2xl font-bold">{summary?.investment_count || 0}</h3>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#FFF7E8] text-[#FFB84D]">
-              <RiWallet3Line className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Monthly SIP Total</p>
-            <h3 className="mt-1 text-2xl font-bold">{currency.format(summary?.total_monthly_sip || 0)}</h3>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
-              <RiBarChartBoxLine className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Total Invested</p>
-            <h3 className="mt-1 text-2xl font-bold">{currency.format(summary?.total_invested_amount || 0)}</h3>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EAFBF0] text-[#34C759]">
-              <RiLineChartLine className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Current Portfolio Value</p>
-            <h3 className="mt-1 text-2xl font-bold">{currency.format(summary?.current_value || 0)}</h3>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
-              <RiCalendarCheckLine className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Estimated Future Value</p>
-            <h3 className="mt-1 text-2xl font-bold">{currency.format(summary?.projected_future_value || 0)}</h3>
-          </CardContent>
-        </Card>
-        <Card className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EAFBF0] text-[#34C759]">
-              <RiLineChartLine className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">Estimated Capital Gain</p>
-            <h3 className={`mt-1 text-2xl font-bold ${(summary?.estimated_capital_gain || 0) < 0 ? 'text-[#FF6B6B]' : 'text-[#34C759]'}`}>
-              {currency.format(summary?.estimated_capital_gain || 0)}
-            </h3>
-          </CardContent>
-        </Card>
-      </div>
+      <InvestmentSummaryCards summary={summary} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[22rem_1fr]">
-        <Card className="surface-panel rounded-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">SIP Calculator</CardTitle>
-            <p className="text-sm text-[#6B7280] dark:text-[#CBD5E1]">Estimate future value using monthly compounding and expected CAGR.</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="calculator-monthly-sip">Monthly SIP Amount (₹)</Label>
-              <Input id="calculator-monthly-sip" type="number" min="0" step="100" value={calculatorMonthlySip} onChange={(event) => setCalculatorMonthlySip(event.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="calculator-cagr">Expected CAGR %</Label>
-                <Input id="calculator-cagr" type="number" min="0" step="0.1" value={calculatorCagr} onChange={(event) => setCalculatorCagr(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="calculator-invested">Total Invested (₹)</Label>
-                <Input id="calculator-invested" value={calculatorResult.totalInvested} readOnly className="bg-[#FAFBFC] dark:bg-[#111827]" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="calculator-start">Start Date</Label>
-                <AppDatePicker id="calculator-start" value={calculatorStartDate} onChange={setCalculatorStartDate} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="calculator-end">End Date</Label>
-                <AppDatePicker id="calculator-end" min={calculatorStartDate} value={calculatorEndDate} onChange={setCalculatorEndDate} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="rounded-lg bg-[#EEF6FF] p-3 text-center dark:bg-[#1E293B]">
-                <p className="text-xs font-semibold uppercase text-[#6B7280]">Future Value</p>
-                <p className="mt-1 text-lg font-bold text-[#4F9CF9]">{currency.format(calculatorResult.futureValue)}</p>
-              </div>
-              <div className="rounded-lg bg-[#EAFBF0] p-3 text-center dark:bg-[#1E293B]">
-                <p className="text-xs font-semibold uppercase text-[#6B7280]">Capital Gain</p>
-                <p className={`mt-1 text-lg font-bold ${calculatorResult.capitalGain < 0 ? 'text-[#FF6B6B]' : 'text-[#34C759]'}`}>{currency.format(calculatorResult.capitalGain)}</p>
-              </div>
-            </div>
-            <p className="text-center text-xs text-[#6B7280] dark:text-[#CBD5E1]">
-              {calculatorResult.months} months • figures are estimates, not guaranteed returns
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="surface-panel rounded-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Projected SIP Growth</CardTitle>
-            <p className="text-sm text-[#6B7280] dark:text-[#CBD5E1]">Month-wise up to 3 years, then year-wise for longer plans.</p>
-          </CardHeader>
-          <CardContent className="h-[360px]">
-            {calculatorResult.growthData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={calculatorResult.growthData} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={false} minTickGap={24} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} width={72} tickFormatter={(value) => `₹${Math.round(Number(value) / 1000)}k`} />
-                  <Tooltip
-                    formatter={(value: any, name: string) => [currency.format(Number(value)), name === 'estimatedValue' ? 'Estimated Value' : 'Contributed']}
-                    labelFormatter={(label) => `Duration: ${label}`}
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 12px 30px rgba(31,41,55,0.12)' }}
-                  />
-                  <Legend formatter={(value) => value === 'estimatedValue' ? 'Estimated Value' : 'Contributed Amount'} />
-                  <Line type="monotone" dataKey="estimatedValue" stroke="#4F9CF9" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
-                  <Line type="monotone" dataKey="contributedAmount" stroke="#FFB84D" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[#DCE3EC] bg-[#FAFBFC] px-6 text-center dark:border-[#334155] dark:bg-[#111827]">
-                <RiLineChartLine className="text-4xl text-[#4F9CF9]" aria-hidden="true" />
-                <p className="mt-3 font-semibold">Enter a valid SIP plan to see its growth</p>
-                <p className="mt-1 max-w-sm text-sm text-[#6B7280] dark:text-[#CBD5E1]">The end date must be after the start date and the monthly amount must be greater than zero.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <SipCalculatorCard
+          monthlySip={calculatorMonthlySip}
+          cagr={calculatorCagr}
+          startDate={calculatorStartDate}
+          endDate={calculatorEndDate}
+          result={calculatorResult}
+          onMonthlySipChange={setCalculatorMonthlySip}
+          onCagrChange={setCalculatorCagr}
+          onStartDateChange={setCalculatorStartDate}
+          onEndDateChange={setCalculatorEndDate}
+        />
+        <SipGrowthChartCard growthData={calculatorResult.growthData} />
       </div>
 
       <Card className="surface-panel rounded-lg">
