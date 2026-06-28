@@ -179,7 +179,7 @@ Purpose: make page files small and readable.
 Priority order:
 
 1. `Auth.tsx` Started: extracted auth UI components and Google helpers.
-2. `Investments.tsx` Started: extracted summary cards, SIP calculator, growth chart, types, and utils.
+2. `Investments.tsx` Started: extracted summary cards, SIP calculator, growth chart, form, types, and utils.
 3. `Transactions.tsx`
 4. `Recurring.tsx`
 5. `StatementImport.tsx`
@@ -218,10 +218,10 @@ Current Phase 4 status:
 - Auth feature files now live under `src/features/auth`.
 - Extracted password input, note, brand panel, tab switch, Google section, theme toggle, login card, register card, and Google auth utilities.
 - Remaining Auth cleanup: move auth effects/handlers into hooks once the UI split has settled.
-- `src/pages/Investments.tsx` reduced from 711 lines to 535 lines.
+- `src/pages/Investments.tsx` reduced from 711 lines to 422 lines.
 - Investment feature files now live under `src/features/investments`.
-- Extracted investment types, currency/date/type helpers, summary cards, SIP calculator, and growth chart.
-- Remaining Investments cleanup: extract investment form dialog, forecast cards, and investments table/mobile cards.
+- Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, and growth chart.
+- Remaining Investments cleanup: extract forecast cards and investments table/mobile cards.
 
 ## Phase 5: Shared Types And Utilities
 
