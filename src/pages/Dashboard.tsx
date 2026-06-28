@@ -1,22 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import {
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line
-} from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardTransactionsQuery, recurringQuery } from '@/src/lib/serverState';
 import { endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns';
@@ -32,6 +20,22 @@ import {
 } from 'react-icons/ri';
 
 const COLORS = ['#4F9CF9', '#34C759', '#FFB84D', '#FF6B6B', '#6B7280', '#EEF6FF', '#E5E7EB'];
+const DashboardCharts = lazy(() => import('./DashboardCharts'));
+
+const DashboardChartsSkeleton = () => (
+  <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+    {['Spending Trend', 'Spending by Category'].map((title) => (
+      <Card key={title} className="surface-panel rounded-lg">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <div className="h-full rounded-lg bg-[#EEF6FF]" />
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+);
 
 type RangePreset = 'This-Month' | 'Last-Month' | 'This-Week' | 'Last-Week' | 'Last-3-Months' | 'Last-6-Months' | 'All';
 type AnalysisRange = RangePreset | 'Custom';
@@ -95,7 +99,6 @@ export default function Dashboard() {
   const recurringResult = useQuery(recurringQuery());
   const transactions = transactionsResult.data ?? [];
   const recurring = recurringResult.data ?? [];
-  const loading = transactionsResult.isPending || recurringResult.isPending;
   const [selectedPreset, setSelectedPreset] = useState<AnalysisRange>('This-Month');
   const [activeRange, setActiveRange] = useState<AnalysisRange>('This-Month');
   const [customStartDate, setCustomStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -143,7 +146,7 @@ export default function Dashboard() {
   const categoryData = Object.entries(
     analysisTransactions
       .filter(t => t.type === 'expense')
-      .reduce((acc: any, t) => {
+      .reduce<Record<string, number>>((acc, t) => {
         acc[t.category] = (acc[t.category] || 0) + t.amount;
         return acc;
       }, {})
@@ -152,7 +155,7 @@ export default function Dashboard() {
   const dailyData = Object.entries(
     analysisTransactions
       .filter(t => t.type === 'expense')
-      .reduce((acc: any, t) => {
+      .reduce<Record<string, number>>((acc, t) => {
         const day = format(parseISO(t.date), 'dd MMM');
         acc[day] = (acc[day] || 0) + t.amount;
         return acc;
@@ -162,8 +165,6 @@ export default function Dashboard() {
   const recentAnalysisTransactions = [...analysisTransactions]
     .sort((first, second) => parseISO(second.date).getTime() - parseISO(first.date).getTime())
     .slice(0, 5);
-
-  if (loading) return <div className="flex h-full items-center justify-center text-sm font-semibold text-[#6B7280]">Loading dashboard...</div>;
 
   return (
     <div className="kt-enter space-y-8">
@@ -280,66 +281,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Spending Trend */}
-        <Card className="surface-panel rounded-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Spending Trend</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dailyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  formatter={(v: any) => [`₹${v}`, 'Amount']}
-                />
-                <Line type="monotone" dataKey="amount" stroke="#4F9CF9" strokeWidth={3} dot={{ r: 4, fill: '#4F9CF9' }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Category Breakdown */}
-        <Card className="surface-panel rounded-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Spending by Category</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px] flex items-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="w-1/2 space-y-2">
-              {categoryData.map((item, index) => (
-                <div key={item.name} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                    <span className="text-[#6B7280]">{item.name}</span>
-                  </div>
-                  <span className="font-medium">₹{item.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Suspense fallback={<DashboardChartsSkeleton />}>
+        <DashboardCharts categoryData={categoryData} colors={COLORS} dailyData={dailyData} />
+      </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Transactions */}
