@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
+import { Button } from '@/src/components/ui/button';
+import { Label } from '@/src/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { getFinancialInsights } from '@/src/lib/ai';
 import { 
   BarChart, 
@@ -18,7 +18,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsQuery, upcomingRecurringQuery } from '@/src/lib/serverState';
 import { toast } from 'react-toastify';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@/src/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { endOfMonth, format, isAfter, isWithinInterval, parseISO, startOfMonth, subDays, subMonths } from 'date-fns';
 import { getApiMessage } from '@/src/lib/toastMessages';

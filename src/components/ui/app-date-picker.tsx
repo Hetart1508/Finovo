@@ -3,7 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { format, parseISO } from 'date-fns';
 import { RiCalendarLine } from 'react-icons/ri';
-import { Input } from '@/components/ui/input';
+import { Input } from '@/src/components/ui/input';
 import { cn } from '@/lib/utils';
 
 type AppDatePickerProps = {

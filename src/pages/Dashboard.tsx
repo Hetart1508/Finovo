@@ -1,14 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AppDatePicker } from '@/components/ui/app-date-picker';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { Button } from '@/src/components/ui/button';
+import { AppDatePicker } from '@/src/components/ui/app-date-picker';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardTransactionsQuery, recurringQuery } from '@/src/lib/serverState';
 import { endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/src/components/ui/badge';
 import { toast } from 'react-toastify';
 import { getApiMessage } from '@/src/lib/toastMessages';
 import {

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { AppDatePicker } from '@/components/ui/app-date-picker';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent } from '@/src/components/ui/card';
+import { Button } from '@/src/components/ui/button';
+import { Input } from '@/src/components/ui/input';
+import { AppDatePicker } from '@/src/components/ui/app-date-picker';
+import { Label } from '@/src/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { 
   Table, 
   TableBody, 
@@ -12,7 +12,7 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from '@/components/ui/table';
+} from '@/src/components/ui/table';
 import { 
   Dialog, 
   DialogContent, 
@@ -20,13 +20,13 @@ import {
   DialogTitle, 
   DialogTrigger,
   DialogFooter
-} from '@/components/ui/dialog';
+} from '@/src/components/ui/dialog';
 import api from '@/src/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, transactionsQuery } from '@/src/lib/serverState';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'react-toastify';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/src/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useDebouncedValue } from '@/src/lib/useDebouncedValue';

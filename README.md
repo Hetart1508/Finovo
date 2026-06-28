@@ -28,6 +28,14 @@ The following variables are required:
 4. Start the development server: `npm run dev`
 5. Open `http://localhost:3000` in your browser.
 
+## Developer Docs
+
+- `docs/PROJECT_OVERVIEW.md`: product areas and entry points.
+- `docs/SETUP.md`: local setup, environment, and validation commands.
+- `docs/ARCHITECTURE.md`: frontend/backend structure and ownership rules.
+- `docs/API_FLOW.md`: request flow, auth handling, React Query, and mutation direction.
+- `REFACTOR_ROADMAP.md`: phased readability and knowledge-transfer refactor plan.
+
 ## Deployment
 
 This repo is ready for a free-tier friendly setup:

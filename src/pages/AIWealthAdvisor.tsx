@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
+import { Button } from '@/src/components/ui/button';
 import { investmentsQuery, investmentSummaryQuery, queryKeys } from '@/src/lib/serverState';
 import api from '@/src/lib/api';
 import { getApiMessage } from '@/src/lib/toastMessages';
