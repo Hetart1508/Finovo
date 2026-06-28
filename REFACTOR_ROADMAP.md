@@ -218,10 +218,10 @@ Current Phase 4 status:
 - Auth feature files now live under `src/features/auth`.
 - Extracted password input, note, brand panel, tab switch, Google section, theme toggle, login card, register card, and Google auth utilities.
 - Remaining Auth cleanup: move auth effects/handlers into hooks once the UI split has settled.
-- `src/pages/Investments.tsx` reduced from 711 lines to 272 lines.
+- `src/pages/Investments.tsx` reduced from 711 lines to 134 lines.
 - Investment feature files now live under `src/features/investments`.
-- Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, and investments list/table.
-- Remaining Investments cleanup: move investment form state/save/delete handlers into hooks.
+- Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, investments list/table, and investment hooks.
+- Remaining Investments cleanup: optional polish only; page is now mostly composition.
 
 ## Phase 5: Shared Types And Utilities
 
