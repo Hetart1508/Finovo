@@ -22,9 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/src/components/ui/table';
-import api from '@/src/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, recurringQuery, upcomingRecurringQuery } from '@/src/lib/serverState';
+import { recurringApi } from '@/src/api/recurringApi';
+import { recurringQuery, upcomingRecurringQuery } from '@/src/server-state/recurringQueries';
+import { invalidateRecurring } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -106,12 +107,12 @@ export default function Recurring() {
   const loading = eventsResult.isPending || upcomingResult.isPending;
   const saveRecurring = useMutation({
     mutationFn: ({ id, payload }: { id?: number; payload: Record<string, unknown> }) =>
-      id ? api.patch(`/recurring/${id}`, payload) : api.post('/recurring', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.recurring }),
+      recurringApi.save(id, payload),
+    onSuccess: () => invalidateRecurring(queryClient),
   });
   const deleteRecurring = useMutation({
-    mutationFn: (id: number) => api.delete(`/recurring/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.recurring }),
+    mutationFn: (id: number) => recurringApi.delete(id),
+    onSuccess: () => invalidateRecurring(queryClient),
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<RecurringEvent | null>(null);

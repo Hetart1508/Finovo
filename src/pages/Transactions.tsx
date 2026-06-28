@@ -21,9 +21,10 @@ import {
   DialogTrigger,
   DialogFooter
 } from '@/src/components/ui/dialog';
-import api from '@/src/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { queryKeys, transactionsQuery } from '@/src/lib/serverState';
+import { transactionsApi } from '@/src/api/transactionsApi';
+import { transactionsQuery } from '@/src/server-state/transactionsQueries';
+import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'react-toastify';
 import { Badge } from '@/src/components/ui/badge';
@@ -79,16 +80,16 @@ export default function Transactions() {
   const transactions = transactionsResult.data ?? [];
   const loading = transactionsResult.isPending;
   const deleteTransaction = useMutation({
-    mutationFn: (id: number) => api.delete(`/transactions/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+    mutationFn: (id: number) => transactionsApi.delete(id),
+    onSuccess: () => invalidateTransactions(queryClient),
   });
   const addTransaction = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => api.post('/transactions', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+    mutationFn: (payload: Record<string, unknown>) => transactionsApi.create(payload),
+    onSuccess: () => invalidateTransactions(queryClient),
   });
   const updateTransaction = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => api.put(`/transactions/${id}`, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+    mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => transactionsApi.update(id, payload),
+    onSuccess: () => invalidateTransactions(queryClient),
   });
 
   useEffect(() => {

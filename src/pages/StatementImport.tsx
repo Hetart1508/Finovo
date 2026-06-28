@@ -12,9 +12,11 @@ import {
   TableRow,
 } from '@/src/components/ui/table';
 import { Badge } from '@/src/components/ui/badge';
-import api from '@/src/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { merchantAliasesQuery, queryKeys } from '@/src/lib/serverState';
+import { merchantAliasesApi } from '@/src/api/merchantAliasesApi';
+import { statementImportApi } from '@/src/api/statementImportApi';
+import { merchantAliasesQuery } from '@/src/server-state/merchantAliasesQueries';
+import { invalidateMerchantAliases, invalidateTransactions } from '@/src/server-state/invalidations';
 import { toast } from 'react-toastify';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -67,29 +69,29 @@ export default function StatementImport() {
   const queryClient = useQueryClient();
   const aliasesResult = useQuery(merchantAliasesQuery());
   const previewStatement = useMutation({
-    mutationFn: (payload: { base64Data: string; mimeType: string }) => api.post('/statement-import/preview', payload),
+    mutationFn: (payload: { base64Data: string; mimeType: string }) => statementImportApi.preview(payload),
   });
   const approveStatement = useMutation({
-    mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string }) => api.post('/statement-import/approve', payload),
+    mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string }) => statementImportApi.approve(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
-      queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases });
+      invalidateTransactions(queryClient);
+      invalidateMerchantAliases(queryClient);
     },
   });
   const deleteAlias = useMutation({
-    mutationFn: (id: number) => api.delete(`/merchant-aliases/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases }),
+    mutationFn: (id: number) => merchantAliasesApi.delete(id),
+    onSuccess: () => invalidateMerchantAliases(queryClient),
   });
   const updateAlias = useMutation({
-    mutationFn: ({ id, company_name }: { id: number; company_name: string }) => api.patch(`/merchant-aliases/${id}`, { company_name }),
+    mutationFn: ({ id, company_name }: { id: number; company_name: string }) => merchantAliasesApi.update(id, company_name),
     onSuccess: (_response, variables) => {
       setAliasEdits((current) => {
         const next = { ...current };
         delete next[variables.id];
         return next;
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases });
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      invalidateMerchantAliases(queryClient);
+      invalidateTransactions(queryClient);
       toast.success('Merchant name updated.');
     },
     onError: (error) => toast.error(getApiMessage(error, 'Failed to update merchant name.')),

@@ -8,9 +8,10 @@ import { Label } from '@/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 
 import { extractBillData } from '@/src/lib/ai';
-import api from '@/src/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/src/lib/serverState';
+import { transactionsApi } from '@/src/api/transactionsApi';
+import { uploadApi } from '@/src/api/uploadApi';
+import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { toast } from 'react-toastify';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -47,11 +48,11 @@ export default function SmartUpload() {
     mutationFn: ({ base64, mimeType }: { base64: string; mimeType: string }) => extractBillData(base64, mimeType),
   });
   const uploadBill = useMutation({
-    mutationFn: (form: FormData) => api.post('/upload', form),
+    mutationFn: (form: FormData) => uploadApi.uploadBill(form),
   });
   const createTransaction = useMutation({
-    mutationFn: (payload: Record<string, unknown>) => api.post('/transactions', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.transactions }),
+    mutationFn: (payload: Record<string, unknown>) => transactionsApi.create(payload),
+    onSuccess: () => invalidateTransactions(queryClient),
   });
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);

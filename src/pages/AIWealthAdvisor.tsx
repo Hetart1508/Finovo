@@ -3,26 +3,20 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import { investmentsQuery, investmentSummaryQuery, queryKeys } from '@/src/lib/serverState';
-import api from '@/src/lib/api';
+import {
+  aiAdvisorMessagesQuery,
+  aiAdvisorSessionsQuery,
+  investmentsQuery,
+  investmentSummaryQuery,
+} from '@/src/server-state';
+import {
+  invalidateAdvisorMessages,
+  invalidateAdvisorSessions,
+} from '@/src/server-state/invalidations';
+import { aiAdvisorApi, type AdvisorMessage } from '@/src/api/aiAdvisorApi';
 import { getApiMessage } from '@/src/lib/toastMessages';
 import { cn } from '@/lib/utils';
 import { RiAddLine, RiChat3Line, RiCloseLine, RiDeleteBinLine, RiSideBarLine, RiSendPlane2Line, RiSparkling2Line } from 'react-icons/ri';
-
-type AdvisorMessage = {
-  id: number;
-  session_id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-};
-
-type AdvisorSession = {
-  session_id: string;
-  title: string;
-  message_count: number;
-  updated_at?: string;
-};
 
 const defaultSessionId = 'default';
 
@@ -41,14 +35,8 @@ export default function AIWealthAdvisor() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const investmentsResult = useQuery(investmentsQuery());
   const summaryResult = useQuery(investmentSummaryQuery());
-  const sessionsResult = useQuery({
-    queryKey: queryKeys.aiAdvisorSessions,
-    queryFn: async () => (await api.get<AdvisorSession[]>('/ai-advisor/sessions')).data,
-  });
-  const messagesResult = useQuery({
-    queryKey: queryKeys.aiAdvisorMessages(sessionId),
-    queryFn: async () => (await api.get<AdvisorMessage[]>('/ai-advisor/messages', { params: { sessionId } })).data,
-  });
+  const sessionsResult = useQuery(aiAdvisorSessionsQuery());
+  const messagesResult = useQuery(aiAdvisorMessagesQuery(sessionId));
 
   const messages = messagesResult.data ?? [];
   const sessions = sessionsResult.data ?? [];
@@ -73,13 +61,11 @@ export default function AIWealthAdvisor() {
   }), [investments.length]);
 
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => (
-      await api.post('/ai-advisor/chat', { message: content, sessionId })
-    ).data,
+    mutationFn: (content: string) => aiAdvisorApi.sendMessage(content, sessionId),
     onSuccess: () => {
       setMessage('');
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
+      invalidateAdvisorMessages(queryClient, sessionId);
+      invalidateAdvisorSessions(queryClient);
     },
     onError: (error) => {
       toast.error(getApiMessage(error, 'AI Wealth Advisor failed.'));
@@ -87,10 +73,10 @@ export default function AIWealthAdvisor() {
   });
 
   const clearMutation = useMutation({
-    mutationFn: async () => (await api.delete('/ai-advisor/messages', { params: { sessionId } })).data,
+    mutationFn: () => aiAdvisorApi.clearMessages(sessionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
+      invalidateAdvisorMessages(queryClient, sessionId);
+      invalidateAdvisorSessions(queryClient);
       toast.success('Advisor chat cleared.');
     },
     onError: (error) => {
@@ -99,12 +85,12 @@ export default function AIWealthAdvisor() {
   });
 
   const newChatMutation = useMutation({
-    mutationFn: async () => (await api.post<AdvisorSession>('/ai-advisor/sessions')).data,
+    mutationFn: () => aiAdvisorApi.createSession(),
     onSuccess: (session) => {
       setSessionId(session.session_id);
       localStorage.setItem('ai-advisor-session', session.session_id);
       setMessage('');
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
+      invalidateAdvisorSessions(queryClient);
     },
     onError: (error) => {
       toast.error(getApiMessage(error, 'Failed to create advisor chat.'));
@@ -112,14 +98,14 @@ export default function AIWealthAdvisor() {
   });
 
   const deleteChatMutation = useMutation({
-    mutationFn: async (id: string) => (await api.delete(`/ai-advisor/sessions/${id}`)).data,
+    mutationFn: (id: string) => aiAdvisorApi.deleteSession(id),
     onSuccess: (_data, deletedId) => {
       const nextSession = sessions.find((session) => session.session_id !== deletedId)?.session_id || defaultSessionId;
       setSessionId(nextSession);
       localStorage.setItem('ai-advisor-session', nextSession);
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(deletedId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(nextSession) });
+      invalidateAdvisorSessions(queryClient);
+      invalidateAdvisorMessages(queryClient, deletedId);
+      invalidateAdvisorMessages(queryClient, nextSession);
     },
     onError: (error) => {
       toast.error(getApiMessage(error, 'Failed to delete advisor chat.'));

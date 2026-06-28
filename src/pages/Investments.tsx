@@ -25,8 +25,9 @@ import {
   TableRow,
 } from '@/src/components/ui/table';
 import { Badge } from '@/src/components/ui/badge';
-import api from '@/src/lib/api';
-import { investmentSummaryQuery, investmentsQuery, queryKeys } from '@/src/lib/serverState';
+import { investmentsApi } from '@/src/api/investmentsApi';
+import { investmentSummaryQuery, investmentsQuery } from '@/src/server-state/investmentsQueries';
+import { invalidateInvestments } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import {
   calculateLumpsumFutureValue,
@@ -156,21 +157,16 @@ export default function Investments() {
     return Number.isFinite(calculatedValue) ? Number(calculatedValue.toFixed(2)) : 0;
   }, [formExpectedCagr, formStartDate, investmentAmount, selectedInvestmentType]);
 
-  const refreshInvestments = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.investments }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.investmentSummary }),
-    ]);
-  };
+  const refreshInvestments = () => invalidateInvestments(queryClient);
 
   const saveInvestment = useMutation({
     mutationFn: ({ id, payload }: { id?: number; payload: Record<string, unknown> }) =>
-      id ? api.put(`/investments/${id}`, payload) : api.post('/investments', payload),
+      investmentsApi.save(id, payload),
     onSuccess: refreshInvestments,
   });
 
   const deleteInvestment = useMutation({
-    mutationFn: (id: number) => api.delete(`/investments/${id}`),
+    mutationFn: (id: number) => investmentsApi.delete(id),
     onSuccess: refreshInvestments,
   });
 

@@ -16,7 +16,8 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { transactionsQuery, upcomingRecurringQuery } from '@/src/lib/serverState';
+import { transactionsQuery } from '@/src/server-state/transactionsQueries';
+import { upcomingRecurringQuery } from '@/src/server-state/recurringQueries';
 import { toast } from 'react-toastify';
 import { Skeleton } from '@/src/components/ui/skeleton';
 import { cn } from '@/lib/utils';

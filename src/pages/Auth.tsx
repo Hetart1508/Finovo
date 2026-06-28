@@ -5,8 +5,9 @@ import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { toast } from 'react-toastify';
-import api, { apiBaseUrl } from '@/src/lib/api';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiBaseUrl } from '@/src/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { authApi } from '@/src/api/authApi';
 import { getApiMessage, getApiSuccessMessage, TOAST_AUTO_CLOSE_MS } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
 import { cn } from '@/lib/utils';
@@ -94,9 +95,6 @@ function AuthNote({ icon: Icon, title, description }: AuthNoteProps) {
 
 export default function Auth() {
   const queryClient = useQueryClient();
-  const { mutateAsync: authRequest } = useMutation({
-    mutationFn: ({ path, payload }: { path: string; payload: unknown }) => api.post(path, payload),
-  });
   const [loading, setLoading] = useState(false);
   const [theme, setTheme] = useState(() => (
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'
@@ -167,7 +165,7 @@ export default function Auth() {
     const toastId = toast.loading('Signing in with Google...');
 
     try {
-      const response = await authRequest({ path: '/auth/google', payload: { credential } });
+      const response = await authApi.googleLogin(credential);
       queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
@@ -187,7 +185,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  }, [authRequest, navigate, queryClient]);
+  }, [navigate, queryClient]);
 
   useEffect(() => {
     if (!googleClientId || !googleButtonRef.current) return;
@@ -244,7 +242,7 @@ export default function Auth() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const response = await authRequest({ path: '/auth/register', payload: data });
+      const response = await authApi.register(data);
       toast.update(toastId, {
         render: getApiSuccessMessage(response.data, 'OTP sent to your email.'),
         type: 'success',
@@ -274,7 +272,7 @@ export default function Auth() {
     setLoading(true);
     const toastId = toast.loading('Verifying email...');
     try {
-      const response = await authRequest({ path: '/auth/register/verify-otp', payload: { email: registerEmail, otp: otpCode } });
+      const response = await authApi.verifyRegistrationOtp(registerEmail, otpCode);
       queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
@@ -306,7 +304,7 @@ export default function Auth() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const response = await authRequest({ path: '/auth/login', payload: data });
+      const response = await authApi.login(data);
       queryClient.clear();
       saveSession(response.data.token, response.data.user, response.data.expiresAt);
       toast.update(toastId, {
@@ -338,7 +336,7 @@ export default function Auth() {
     const email = String(formData.get('email') || '').trim();
 
     try {
-      const response = await authRequest({ path: '/auth/forgot-password', payload: { email } });
+      const response = await authApi.forgotPassword(email);
       setResetEmail(email);
       setOtpCode('');
       setResetPassword('');
@@ -370,7 +368,7 @@ export default function Auth() {
     const toastId = toast.loading('Resetting password...');
 
     try {
-      const response = await authRequest({ path: '/auth/reset-password', payload: { email: resetEmail, otp: otpCode, password: resetPassword } });
+      const response = await authApi.resetPassword(resetEmail, otpCode, resetPassword);
       toast.update(toastId, {
         render: getApiSuccessMessage(response.data, 'Password reset successfully.'),
         type: 'success',
@@ -400,7 +398,7 @@ export default function Auth() {
 
     setLoading(true);
     const toastId = toast.loading('Resending verification OTP...');
-    authRequest({ path: '/auth/register', payload: lastRegisterForm })
+    authApi.register(lastRegisterForm)
       .then((response) => {
         setOtpCode('');
         setResendTimer(300);
@@ -427,7 +425,7 @@ export default function Auth() {
 
     setLoading(true);
     const toastId = toast.loading('Resending password reset OTP...');
-    authRequest({ path: '/auth/forgot-password', payload: { email: resetEmail } })
+    authApi.forgotPassword(resetEmail)
       .then((response) => {
         setOtpCode('');
         setResendTimer(300);
@@ -456,7 +454,7 @@ export default function Auth() {
   const cardFooterClass = "px-4 pb-4 sm:px-5 sm:pb-4";
 
   return (
-    <div className="flex min-h-dvh items-start justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:p-4">
+    <div className="flex h-dvh items-start justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:p-4">
       <Button
         variant="outline"
         size="icon"
@@ -501,7 +499,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="flex min-h-0 items-start justify-center overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_top,#EEF6FF,transparent_42%)] px-4 py-8 sm:px-8 lg:bg-none lg:p-7 xl:p-8">
+        <div className="flex min-h-0 items-start justify-center bg-[radial-gradient(circle_at_top,#EEF6FF,transparent_42%)] px-4 py-8 sm:px-8 lg:bg-none lg:p-7 xl:p-8">
           <div className="flex w-full max-w-md flex-col items-center space-y-5">
             <div className="w-full text-center lg:text-left">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#4F9CF9] text-lg font-black text-white shadow-[0_12px_30px_rgba(79,156,249,0.28)] lg:hidden">F</div>

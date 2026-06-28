@@ -5,9 +5,9 @@ import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { toast } from 'react-toastify';
-import api from '@/src/lib/api';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { transactionsQuery } from '@/src/lib/serverState';
+import { transactionsQuery } from '@/src/server-state/transactionsQueries';
+import { userApi } from '@/src/api/userApi';
 import { addMonths, format, getDaysInMonth, isSameDay, parseISO, startOfMonth, subMonths } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/ui/popover';
@@ -49,7 +49,7 @@ export default function CalendarView() {
     return user.daily_threshold || 1000;
   });
   const updateThreshold = useMutation({
-    mutationFn: (nextThreshold: number) => api.patch('/user/threshold', { threshold: nextThreshold }),
+    mutationFn: (nextThreshold: number) => userApi.updateThreshold(nextThreshold),
   });
 
   useEffect(() => {

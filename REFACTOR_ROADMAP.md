@@ -147,23 +147,30 @@ Purpose: remove direct endpoint knowledge from page components.
 
 Micro goals:
 
-1. Split `src/lib/serverState.ts` into domain query files.
+1. Split `src/lib/serverState.ts` into domain query files. Done.
 2. Create typed API files:
-   - `src/api/transactionsApi.ts`
-   - `src/api/investmentsApi.ts`
-   - `src/api/recurringApi.ts`
-   - `src/api/authApi.ts`
-   - `src/api/aiAdvisorApi.ts`
-   - `src/api/statementImportApi.ts`
-3. Create query hooks near features or in `src/server-state`.
-4. Centralize invalidation helpers for common mutations.
-5. Replace page-level `api.get/post/put/delete` calls with named functions.
+   - `src/api/transactionsApi.ts` Done.
+   - `src/api/investmentsApi.ts` Done.
+   - `src/api/recurringApi.ts` Done.
+   - `src/api/authApi.ts` Done.
+   - `src/api/aiAdvisorApi.ts` Done.
+   - `src/api/statementImportApi.ts` Done.
+3. Create query hooks near features or in `src/server-state`. Done.
+4. Centralize invalidation helpers for common mutations. Done.
+5. Replace page-level `api.get/post/put/delete` calls with named functions. Done.
 
 Done when:
 
 - Pages no longer know raw API paths except rare routing-only cases.
 - Query keys and invalidations are consistent.
 - `npm run lint` passes.
+
+Current Phase 3 status:
+
+- Endpoint strings now live in `src/api` instead of page components.
+- Domain query options live in `src/server-state`.
+- Shared invalidation helpers live in `src/server-state/invalidations.ts`.
+- `src/lib/serverState.ts` remains as a compatibility re-export for older imports.
 
 ## Phase 4: Frontend Feature Splits
 
