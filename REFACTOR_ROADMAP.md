@@ -180,7 +180,7 @@ Priority order:
 
 1. `Auth.tsx` Started: extracted auth UI components and Google helpers.
 2. `Investments.tsx` Started: extracted summary cards, SIP calculator, growth chart, form, types, and utils.
-3. `Transactions.tsx` Started: extracted transaction form, types, and constants.
+3. `Transactions.tsx` Started: extracted transaction form, toolbar, table, types, and constants.
 4. `Recurring.tsx`
 5. `StatementImport.tsx`
 6. `AIWealthAdvisor.tsx`
@@ -222,10 +222,10 @@ Current Phase 4 status:
 - Investment feature files now live under `src/features/investments`.
 - Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, investments list/table, and investment hooks.
 - Remaining Investments cleanup: optional polish only; page is now mostly composition.
-- `src/pages/Transactions.tsx` reduced from 685 lines to 550 lines.
+- `src/pages/Transactions.tsx` reduced from 685 lines to 301 lines.
 - Transaction feature files now live under `src/features/transactions`.
-- Extracted shared add/edit transaction form, transaction types, pagination constants, sort labels, categories, and payment modes.
-- Remaining Transactions cleanup: extract toolbar/filter, table/pagination, bill preview dialog, and mutations/hooks.
+- Extracted shared add/edit transaction form, toolbar/filter, table/pagination, transaction types, pagination constants, sort labels, categories, and payment modes.
+- Remaining Transactions cleanup: extract bill preview dialog, split table row/pagination if needed, and move mutations/filtering into hooks.
 
 ## Phase 5: Shared Types And Utilities
 

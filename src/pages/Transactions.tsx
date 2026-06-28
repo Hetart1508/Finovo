@@ -1,22 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import { Input } from '@/src/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/src/components/ui/table';
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger,
 } from '@/src/components/ui/dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { transactionsApi } from '@/src/api/transactionsApi';
@@ -24,29 +12,15 @@ import { transactionsQuery } from '@/src/server-state/transactionsQueries';
 import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'react-toastify';
-import { Badge } from '@/src/components/ui/badge';
-import { cn } from '@/lib/utils';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useDebouncedValue } from '@/src/lib/useDebouncedValue';
 import {
-  RiAddCircleLine,
-  RiArrowDownSLine,
-  RiArrowLeftDownLine,
-  RiArrowLeftSLine,
-  RiArrowRightUpLine,
-  RiArrowRightSLine,
-  RiArrowUpSLine,
-  RiDeleteBin6Line,
   RiExternalLinkLine,
-  RiEyeLine,
-  RiFilter3Line,
-  RiPencilLine,
-  RiSearchLine,
-  RiSkipLeftLine,
-  RiSkipRightLine,
 } from 'react-icons/ri';
 import { TransactionForm } from '@/src/features/transactions/components/TransactionForm';
-import { ITEMS_PER_PAGE, sortLabels } from '@/src/features/transactions/transactions.constants';
+import { TransactionsTableCard } from '@/src/features/transactions/components/TransactionsTableCard';
+import { TransactionsToolbar } from '@/src/features/transactions/components/TransactionsToolbar';
+import { ITEMS_PER_PAGE } from '@/src/features/transactions/transactions.constants';
 import type { SortDirection, SortKey, Transaction } from '@/src/features/transactions/transactions.types';
 
 const isPdfBill = (url: string) => {
@@ -229,257 +203,34 @@ export default function Transactions() {
     }
   }, [currentPage, totalPages]);
 
-  const SortableHead = ({
-    sort,
-    children,
-    className,
-  }: {
-    sort: SortKey;
-    children: React.ReactNode;
-    className?: string;
-  }) => {
-    const active = sortKey === sort;
-    const nextSortLabel = !active
-      ? 'ascending'
-      : sortDirection === 'asc'
-        ? 'descending'
-        : 'default order';
-
-    return (
-      <TableHead
-        aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-        className={cn("font-bold text-[#4B5563] dark:text-[#CBD5E1]", className)}
-      >
-        <button
-          type="button"
-          onClick={() => handleSort(sort)}
-          className={cn(
-            "inline-flex w-full min-w-0 items-center gap-1 rounded-md text-left font-semibold transition hover:text-[#4F9CF9]",
-            className?.includes('text-right') && "justify-end",
-            className?.includes('text-center') && "justify-center"
-          )}
-          aria-label={`Sort ${sortLabels[sort]} ${nextSortLabel}`}
-        >
-          <span className="min-w-0 truncate">{children}</span>
-          {active && (sortDirection === 'asc'
-            ? <RiArrowUpSLine className="shrink-0 text-base" aria-hidden="true" />
-            : <RiArrowDownSLine className="shrink-0 text-base" aria-hidden="true" />)}
-        </button>
-      </TableHead>
-    );
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-[#6B7280]" aria-hidden="true" />
-          <Input 
-            placeholder="Search description, category, or mode..." 
-            className="pl-10" 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[150px]">
-              <RiFilter3Line className="mr-2 text-base" aria-hidden="true" />
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All-Types</SelectItem>
-              <SelectItem value="expense">Expenses</SelectItem>
-              <SelectItem value="income">Income</SelectItem>
-            </SelectContent>
-          </Select>
+      <TransactionsToolbar
+        search={search}
+        filter={filter}
+        transactionDate={transactionDate}
+        maxDate={todayDateString}
+        onSearchChange={setSearch}
+        onFilterChange={setFilter}
+        onTransactionDateChange={setTransactionDate}
+        onAddTransaction={handleAdd}
+      />
 
-          <Dialog>
-            <DialogTrigger>
-              <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]">
-                <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
-                Add Transaction
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Transaction</DialogTitle>
-              </DialogHeader>
-              <TransactionForm
-                mode="add"
-                dateValue={transactionDate}
-                maxDate={todayDateString}
-                onDateChange={setTransactionDate}
-                onSubmit={handleAdd}
-              />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)] dark:border-[#334155]">
-        <CardContent className="p-0">
-          <Table className="table-fixed">
-            <colgroup>
-              <col className="w-[52px]" />
-              <col className="w-[60px]" />
-              <col className="w-[96px]" />
-              <col className="w-[28%]" />
-              <col className="w-[108px]" />
-              <col className="w-[94px]" />
-              <col className="w-[108px]" />
-              <col className="w-[78px]" />
-            </colgroup>
-            <TableHeader className="bg-[#F8FAFC] dark:bg-[#1E293B]">
-              <TableRow className="border-[#D9DEE7] hover:bg-transparent dark:border-[#334155]">
-                <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">SR No</TableHead>
-                <SortableHead sort="type">Type</SortableHead>
-                <SortableHead sort="date" className="text-center">Date</SortableHead>
-                <SortableHead sort="description">Description</SortableHead>
-                <SortableHead sort="category">Category</SortableHead>
-                <SortableHead sort="payment_mode">Mode</SortableHead>
-                <SortableHead sort="amount" className="text-center">Amount</SortableHead>
-                <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-[#6B7280]">Loading transactions...</TableCell>
-                </TableRow>
-              ) : sortedTransactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-[#6B7280]">No transactions found.</TableCell>
-                </TableRow>
-              ) : (
-                paginatedTransactions.map((t, index) => (
-                  <TableRow key={t.id} className="border-[#E5E7EB] bg-white hover:bg-[#F8FBFF] dark:border-[#334155] dark:bg-[#111827] dark:hover:bg-[#162033]">
-                    <TableCell className="font-medium text-[#6B7280] dark:text-[#6B7280]">
-                      {pageStartIndex + index + 1}
-                    </TableCell>
-                    <TableCell>
-                      <div className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-full",
-                        t.type === 'income' ? "bg-[#EAFBF0] text-[#34C759]" : "bg-[#FFF1F1] text-[#FF6B6B]"
-                      )}>
-                        {t.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center text-[#6B7280] dark:text-[#6B7280]">
-                      {format(parseISO(t.date), 'dd MMM yyyy')}
-                    </TableCell>
-                    <TableCell className="min-w-0">
-                      <span className="block truncate font-medium" title={t.merchant_name || t.description || '-'}>
-                        {t.merchant_name || t.description || '-'}
-                      </span>
-                      {t.payee_vpa ? <span className="block truncate text-xs text-[#6B7280]">{t.payee_vpa}</span> : null}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="max-w-full truncate font-normal" title={t.category}>{t.category}</Badge>
-                    </TableCell>
-                    <TableCell className="min-w-0 text-[#6B7280] dark:text-[#6B7280]">
-                      <span className="block truncate" title={t.payment_mode}>{t.payment_mode}</span>
-                    </TableCell>
-                    <TableCell className={cn(
-                      "truncate text-center font-bold",
-                      t.type === 'income' ? "text-[#34C759]" : "text-[#1F2937] text-[#FF6B6B]"
-                    )}>
-                      {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        {t.bill_url ? (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-[#6B7280] hover:text-[#4F9CF9]"
-                            onClick={() => setViewingBill(t)}
-                            aria-label="View invoice bill"
-                            title="View invoice bill"
-                          >
-                            <RiEyeLine className="text-base" aria-hidden="true" />
-                          </Button>
-                        ) : null}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-[#6B7280] hover:text-[#4F9CF9]"
-                          onClick={() => setEditingTransaction(t)}
-                          aria-label="Edit transaction"
-                        >
-                          <RiPencilLine className="text-base" aria-hidden="true" />
-                        </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon-sm" 
-                        className="text-[#6B7280] hover:text-[#FF6B6B]"
-                        onClick={() => handleDelete(t.id)}
-                        aria-label="Delete transaction"
-                      >
-                        <RiDeleteBin6Line className="text-base" aria-hidden="true" />
-                      </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-[#FBFCFE] px-4 py-3 text-sm text-[#6B7280] dark:border-[#334155] dark:bg-[#111827] dark:text-[#CBD5E1] sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {sortedTransactions.length === 0
-                ? 'Showing 0 transactions'
-                : `Showing ${pageStartIndex + 1}-${Math.min(pageStartIndex + ITEMS_PER_PAGE, sortedTransactions.length)} of ${sortedTransactions.length} transactions`}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(1)}
-                disabled={safeCurrentPage === 1 || sortedTransactions.length === 0}
-                aria-label="First page"
-                title="First page"
-              >
-                <RiSkipLeftLine className="text-base" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                disabled={safeCurrentPage === 1 || sortedTransactions.length === 0}
-                aria-label="Previous page"
-                title="Previous page"
-              >
-                <RiArrowLeftSLine className="text-base" aria-hidden="true" />
-              </Button>
-              <span className="min-w-[6rem] text-center font-medium text-[#1F2937] dark:text-[#CBD5E1]">
-                Page {safeCurrentPage} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                disabled={safeCurrentPage === totalPages || sortedTransactions.length === 0}
-                aria-label="Next page"
-                title="Next page"
-              >
-                <RiArrowRightSLine className="text-base" aria-hidden="true" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={safeCurrentPage === totalPages || sortedTransactions.length === 0}
-                aria-label="Last page"
-                title="Last page"
-              >
-                <RiSkipRightLine className="text-base" aria-hidden="true" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <TransactionsTableCard
+        loading={loading}
+        transactions={paginatedTransactions}
+        totalTransactions={sortedTransactions.length}
+        pageStartIndex={pageStartIndex}
+        safeCurrentPage={safeCurrentPage}
+        totalPages={totalPages}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        onPageChange={setCurrentPage}
+        onViewBill={setViewingBill}
+        onEditTransaction={setEditingTransaction}
+        onDeleteTransaction={handleDelete}
+      />
 
       <Dialog open={Boolean(viewingBill)} onOpenChange={(open) => !open && setViewingBill(null)}>
         {viewingBill ? (
