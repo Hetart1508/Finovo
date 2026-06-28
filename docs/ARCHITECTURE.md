@@ -32,19 +32,19 @@ Pages should eventually become thin composition files. Feature-specific forms, t
 
 ## Backend
 
-The backend is currently concentrated in `server.ts`.
+The backend is currently being split out of `server.ts`.
 
-Current responsibilities in that file:
+Current backend folders:
 
-- environment/config reading
-- logger setup
-- database pool and query helpers
-- schema migrations
+- `server/config`: environment constants and logger.
+- `server/db`: database pool, query helpers, and startup migrations.
+- `server/middleware`: request logging, JWT auth middleware, and upload setup.
+
+Remaining responsibilities in `server.ts`:
+
 - validation and normalization helpers
 - Gemini/Ollama/AI logic
 - email/OTP logic
-- auth middleware
-- file upload setup
 - all API routes
 - production static serving
 

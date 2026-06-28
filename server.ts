@@ -6,319 +6,35 @@ import compression from "compression";
 
 import { createServer as createViteServer } from "vite";
 import jwt from "jsonwebtoken";
-import type { SignOptions } from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import mysql, { PoolOptions, ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import multer from "multer";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
-import winston from "winston";
-
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.printf(({ timestamp, level, message, stack, ...meta }) => {
-      const extra = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
-      return `${timestamp} ${level}: ${stack || message}${extra}`;
-    })
-  ),
-  transports: [new winston.transports.Console()],
-});
-
-const getDbConfig = (): PoolOptions => {
-  const baseConfig: PoolOptions = process.env.MYSQL_URL
-    ? { uri: process.env.MYSQL_URL }
-    : {
-        host: process.env.DB_HOST || process.env.MYSQLHOST || "localhost",
-        port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
-        user: process.env.DB_USER || process.env.MYSQLUSER || "root",
-        password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || "",
-        database: process.env.DB_NAME || process.env.MYSQLDATABASE || "expense_tracker",
-      };
-
-  if (process.env.DB_SSL === "true") {
-    baseConfig.ssl = process.env.DB_CA_CERT
-      ? { ca: process.env.DB_CA_CERT.replace(/\\n/g, "\n") }
-      : { rejectUnauthorized: true };
-  }
-
-  return baseConfig;
-};
-
-const db = mysql.createPool({
-  ...getDbConfig(),
-  waitForConnections: true,
-  connectionLimit: 10,
-  decimalNumbers: true,
-  dateStrings: true,
-});
-
-const queryAll = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
-  const [rows] = await db.execute<T[]>(sql, params);
-  return rows;
-};
-
-const queryOne = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
-  const rows = await queryAll<T>(sql, params);
-  return rows[0];
-};
-
-const execute = async (sql: string, params: any[] = []) => {
-  const [result] = await db.execute<ResultSetHeader>(sql, params);
-  return result;
-};
-
-const tableColumnExists = async (tableName: string, columnName: string) =>
-  Boolean(await queryOne(
-    `
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = ?
-        AND column_name = ?
-      LIMIT 1
-    `,
-    [tableName, columnName]
-  ));
-
-const ensureColumn = async (tableName: string, columnName: string, definition: string) => {
-  if (!(await tableColumnExists(tableName, columnName))) {
-    await db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
-  }
-};
-
-const ensureIndex = async (tableName: string, indexName: string, columns: string) => {
-  const existing = await queryOne(
-    `
-      SELECT 1
-      FROM information_schema.statistics
-      WHERE table_schema = DATABASE()
-        AND table_name = ?
-        AND index_name = ?
-      LIMIT 1
-    `,
-    [tableName, indexName]
-  );
-
-  if (!existing) {
-    await db.query(`CREATE INDEX ${indexName} ON ${tableName}(${columns})`);
-  }
-};
-
-const runMigrations = async () => {
-  logger.info("Running MySQL schema check...");
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      daily_threshold DECIMAL(10,2) DEFAULT 1000.00
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS otps (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) NOT NULL,
-      otp VARCHAR(20) NOT NULL,
-      expires_at BIGINT NOT NULL,
-      created_at BIGINT NOT NULL,
-      UNIQUE KEY unique_otp_email (email)
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS pending_registrations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      otp VARCHAR(20) NOT NULL,
-      expires_at BIGINT NOT NULL,
-      created_at BIGINT NOT NULL
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS password_resets (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      otp VARCHAR(20) NOT NULL,
-      expires_at BIGINT NOT NULL,
-      created_at BIGINT NOT NULL
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      amount DECIMAL(12,2) NOT NULL,
-      type ENUM('expense', 'income') NOT NULL,
-      category VARCHAR(100) NOT NULL,
-      date DATE NOT NULL,
-      payment_mode VARCHAR(100) NOT NULL,
-      description TEXT,
-      bill_url TEXT,
-      CONSTRAINT fk_transactions_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS statement_imports (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      file_hash CHAR(64) NOT NULL,
-      transaction_count INT NOT NULL DEFAULT 0,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_statement_import_user_file (user_id, file_hash),
-      CONSTRAINT fk_statement_imports_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS merchant_aliases (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      vpa VARCHAR(320) NOT NULL,
-      company_name VARCHAR(255) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_merchant_alias_user_vpa (user_id, vpa),
-      CONSTRAINT fk_merchant_aliases_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS recurring_events (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      amount DECIMAL(12,2) NOT NULL,
-      day_of_month INT NOT NULL,
-      category VARCHAR(100) NOT NULL,
-      type VARCHAR(100) NOT NULL,
-      frequency VARCHAR(50) NOT NULL DEFAULT 'monthly',
-      interval_count INT NOT NULL DEFAULT 1,
-      start_date DATE NULL,
-      payment_mode VARCHAR(50) NOT NULL DEFAULT 'manual',
-      autopay_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      payment_account VARCHAR(100) NULL,
-      CONSTRAINT chk_day_of_month CHECK (day_of_month BETWEEN 1 AND 31),
-      CONSTRAINT fk_recurring_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS mutual_fund_sip_investments (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      investment_type VARCHAR(20) NOT NULL DEFAULT 'sip',
-      sip_name VARCHAR(255) NOT NULL,
-      fund_name VARCHAR(255) NOT NULL,
-      monthly_sip_amount DECIMAL(14,2) NOT NULL,
-      total_invested_amount DECIMAL(14,2) NOT NULL,
-      current_value DECIMAL(14,2) NOT NULL,
-      expected_cagr DECIMAL(7,4) NOT NULL,
-      start_date DATE NOT NULL,
-      end_date DATE NOT NULL,
-      notes TEXT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT chk_investment_monthly_sip CHECK (monthly_sip_amount > 0),
-      CONSTRAINT chk_investment_total_invested CHECK (total_invested_amount >= 0),
-      CONSTRAINT chk_investment_current_value CHECK (current_value >= 0),
-      CONSTRAINT chk_investment_expected_cagr CHECK (expected_cagr >= 0),
-      CONSTRAINT chk_investment_dates CHECK (end_date >= start_date),
-      CONSTRAINT fk_investments_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ai_advisor_messages (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      session_id VARCHAR(64) NOT NULL,
-      role ENUM('user', 'assistant') NOT NULL,
-      content TEXT NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT fk_ai_advisor_messages_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS ai_advisor_sessions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      session_id VARCHAR(64) NOT NULL,
-      title VARCHAR(25) NOT NULL DEFAULT 'New Chat',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_ai_advisor_session_user (user_id, session_id),
-      CONSTRAINT fk_ai_advisor_sessions_user
-        FOREIGN KEY (user_id) REFERENCES users(id)
-        ON DELETE CASCADE
-    )
-  `);
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version INT PRIMARY KEY
-    )
-  `);
-
-  await ensureColumn("users", "auth_provider", "VARCHAR(50) NOT NULL DEFAULT 'local'");
-  await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
-  await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
-  await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
-  await ensureColumn("transactions", "payee_vpa", "VARCHAR(320) NULL");
-  await ensureColumn("transactions", "merchant_name", "VARCHAR(255) NULL");
-  await ensureColumn("recurring_events", "frequency", "VARCHAR(50) NOT NULL DEFAULT 'monthly'");
-  await ensureColumn("recurring_events", "interval_count", "INT NOT NULL DEFAULT 1");
-  await ensureColumn("recurring_events", "start_date", "DATE NULL");
-  await ensureColumn("recurring_events", "payment_mode", "VARCHAR(50) NOT NULL DEFAULT 'manual'");
-  await ensureColumn("recurring_events", "autopay_enabled", "BOOLEAN NOT NULL DEFAULT FALSE");
-  await ensureColumn("recurring_events", "payment_account", "VARCHAR(100) NULL");
-  await ensureColumn("mutual_fund_sip_investments", "investment_type", "VARCHAR(20) NOT NULL DEFAULT 'sip'");
-  await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
-  await ensureIndex("transactions", "idx_transactions_category", "category");
-  await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
-  await ensureIndex("transactions", "idx_transactions_user_payee_vpa", "user_id, payee_vpa");
-  await ensureIndex("merchant_aliases", "idx_merchant_aliases_user", "user_id");
-  await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
-  await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
-  await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
-  await db.query("UPDATE ai_advisor_sessions SET title = TRIM(LEFT(title, 25)) WHERE CHAR_LENGTH(title) > 25");
-  await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
-  await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");
-  await ensureIndex("ai_advisor_messages", "idx_ai_advisor_user_session", "user_id, session_id, created_at");
-  await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
-
-  logger.info("MySQL schema is ready.");
-};
+import {
+  AI_PROVIDER,
+  allowedOrigins,
+  BREVO_API_KEY,
+  BREVO_FROM_EMAIL,
+  BREVO_FROM_NAME,
+  EMAIL_PASS,
+  EMAIL_USER,
+  GEMINI_API_BASE_URL,
+  GEMINI_API_KEY,
+  GEMINI_FALLBACK_MODELS,
+  GEMINI_MODEL,
+  GOOGLE_CLIENT_ID,
+  IS_PRODUCTION,
+  JWT_SECRET,
+  SESSION_EXPIRES_IN,
+} from "./server/config/env";
+import { logger } from "./server/config/logger";
+import { execute, queryAll, queryOne } from "./server/db/client";
+import { runMigrations } from "./server/db/migrations";
+import { authenticateToken } from "./server/middleware/auth";
+import { requestLogger } from "./server/middleware/requestLogger";
+import { getLocalUploadResponse, upload } from "./server/middleware/upload";
 
 const app = express();
-const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
 
 app.use(compression());
 app.use(cors({
@@ -327,18 +43,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
-app.use((req, res, next) => {
-  const startedAt = Date.now();
-  res.on("finish", () => {
-    logger.info("request", {
-      method: req.method,
-      path: req.originalUrl,
-      status: res.statusCode,
-      durationMs: Date.now() - startedAt,
-    });
-  });
-  next();
-});
+app.use(requestLogger);
 
 app.get("/api/health", (_req, res) => {
   res.json({
@@ -349,23 +54,6 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
-const SESSION_EXPIRES_IN = (process.env.SESSION_EXPIRES_IN || "2h") as SignOptions["expiresIn"];
-const EMAIL_USER = process.env.EMAIL_USER || '';
-const EMAIL_PASS = process.env.EMAIL_PASS || '';
-const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
-const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || EMAIL_USER;
-const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'Finovo AI';
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
-const GEMINI_FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || 'gemini-2.5-flash')
-  .split(',')
-  .map((model) => model.trim())
-  .filter(Boolean);
-const AI_PROVIDER = process.env.AI_PROVIDER || 'gemini';
-const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other'] as const;
 
 const getEmailConfigStatus = () => {
@@ -2130,23 +1818,6 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
   };
 };
 
-// Auth Middleware
-const authenticateToken = (req: any, res: any, next: any) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) return res.sendStatus(401);
-
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err?.name === "TokenExpiredError") {
-      return res.status(401).json({ error: "Session expired. Please login again." });
-    }
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
-
 // --- Auth Routes ---
 app.post("/api/auth/register", async (req, res) => {
   const email = normalizeEmail(req.body.email);
@@ -3287,34 +2958,6 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
     skippedCount: skipped.length,
     skipped,
   });
-});
-
-// --- File Upload (for bills) ---
-const uploadsDir = path.join(process.cwd(), "uploads");
-fs.mkdirSync(uploadsDir, { recursive: true });
-
-const extensionForMimeType = (mimeType: string) => {
-  if (mimeType === "application/pdf") return ".pdf";
-  if (mimeType === "image/jpeg") return ".jpg";
-  if (mimeType === "image/png") return ".png";
-  if (mimeType === "image/webp") return ".webp";
-  return "";
-};
-
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => {
-      const originalExt = path.extname(file.originalname || "").toLowerCase().replace(/[^.\w]/g, "");
-      const ext = originalExt || extensionForMimeType(file.mimetype || "");
-      cb(null, `${Date.now()}-${crypto.randomUUID()}${ext}`);
-    },
-  }),
-});
-
-const getLocalUploadResponse = (file: Express.Multer.File) => ({
-  url: `/uploads/${path.basename(file.filename)}`,
-  storage: "local",
 });
 
 const getGeminiImportHint = (message: string) => {

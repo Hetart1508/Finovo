@@ -111,12 +111,12 @@ Purpose: reduce `server.ts` from 3451 lines into focused backend modules.
 
 Suggested order:
 
-1. Extract environment/config into `server/config/env.ts`.
-2. Extract logger into `server/config/logger.ts`.
-3. Extract database pool/query helpers into `server/db/client.ts`.
-4. Extract migrations into `server/db/migrations.ts`.
-5. Extract auth middleware into `server/middleware/auth.ts`.
-6. Extract upload setup into `server/middleware/upload.ts`.
+1. Extract environment/config into `server/config/env.ts`. Done.
+2. Extract logger into `server/config/logger.ts`. Done.
+3. Extract database pool/query helpers into `server/db/client.ts`. Done.
+4. Extract migrations into `server/db/migrations.ts`. Done.
+5. Extract auth middleware into `server/middleware/auth.ts`. Done.
+6. Extract upload setup into `server/middleware/upload.ts`. Done.
 7. Extract utility helpers into `server/utils`.
 8. Extract route modules by domain:
    - `auth.routes.ts`
@@ -135,6 +135,11 @@ Done when:
 - `server.ts` is mostly app setup and `startServer`.
 - Route files are domain-owned.
 - `npm run lint` passes.
+
+Current Phase 2 status:
+
+- Config, logger, DB client, migrations, request logging, auth middleware, and upload middleware are split.
+- Route modules and shared backend utilities are still pending because they carry many cross-dependencies.
 
 ## Phase 3: API And React Query Standardization
 
