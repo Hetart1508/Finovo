@@ -119,8 +119,8 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
-      <aside className="hidden w-60 flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
-        <div className="p-6">
+      <aside className="hidden w-60 flex-col overflow-hidden border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
+        <div className="shrink-0 p-6">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
               <RiWallet3Line aria-hidden="true" />
@@ -132,11 +132,11 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 px-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-4 pb-4">
           {navItems.map((item) => renderNavLink(item))}
         </nav>
 
-        <div className="border-t border-[#E5E7EB] p-4">
+        <div className="shrink-0 border-t border-[#E5E7EB] p-4">
           <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
               <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
@@ -173,7 +173,7 @@ export default function Layout({ children }: LayoutProps) {
         )}
         aria-hidden={!mobileNavOpen}
       >
-        <div className="flex items-center justify-between p-5">
+        <div className="flex shrink-0 items-center justify-between p-5">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
               <RiWallet3Line aria-hidden="true" />
@@ -194,11 +194,11 @@ export default function Layout({ children }: LayoutProps) {
           </Button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-4 pb-4">
           {navItems.map((item) => renderNavLink(item, 'drawer'))}
         </nav>
 
-        <div className="border-t border-[#E5E7EB] p-4">
+        <div className="shrink-0 border-t border-[#E5E7EB] p-4">
           <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
               <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />

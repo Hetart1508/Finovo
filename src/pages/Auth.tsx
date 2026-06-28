@@ -456,7 +456,7 @@ export default function Auth() {
   const cardFooterClass = "px-4 pb-4 sm:px-5 sm:pb-4";
 
   return (
-    <div className="flex min-h-dvh items-start justify-center bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:items-center lg:overflow-hidden lg:p-4">
+    <div className="flex min-h-dvh items-start justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:p-4">
       <Button
         variant="outline"
         size="icon"
@@ -467,7 +467,7 @@ export default function Auth() {
       >
         {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
       </Button>
-      <div className="mx-auto grid w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:max-w-lg lg:h-[calc(100vh-2rem)] lg:max-w-6xl lg:grid-cols-[1.05fr_0.95fr] lg:overflow-hidden lg:rounded-xl">
+      <div className="mx-auto grid w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_0.95fr] lg:rounded-xl">
         <div
           className="relative hidden bg-cover bg-center p-7 text-white lg:flex lg:flex-col lg:justify-between xl:p-8"
           style={{
@@ -501,7 +501,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center bg-[radial-gradient(circle_at_top,#EEF6FF,transparent_42%)] px-4 py-8 sm:px-8 lg:min-h-0 lg:bg-none lg:p-7 xl:p-8">
+        <div className="flex min-h-0 items-start justify-center overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_top,#EEF6FF,transparent_42%)] px-4 py-8 sm:px-8 lg:bg-none lg:p-7 xl:p-8">
           <div className="flex w-full max-w-md flex-col items-center space-y-5">
             <div className="w-full text-center lg:text-left">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#4F9CF9] text-lg font-black text-white shadow-[0_12px_30px_rgba(79,156,249,0.28)] lg:hidden">F</div>
