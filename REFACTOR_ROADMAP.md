@@ -182,7 +182,7 @@ Priority order:
 2. `Investments.tsx` Started: extracted summary cards, SIP calculator, growth chart, form, types, and utils.
 3. `Transactions.tsx` Mostly done: extracted transaction form, toolbar, table, bill preview, hooks, types, and constants.
 4. `Recurring.tsx` Mostly done: extracted form, metrics, table, yearly schedule, hooks, types, constants, and utils.
-5. `StatementImport.tsx`
+5. `StatementImport.tsx` Mostly done: extracted summary cards, saved merchant aliases, preview table, notice, hooks, types, and utils.
 6. `AIWealthAdvisor.tsx`
 7. `Dashboard.tsx`
 8. `Insights.tsx`
@@ -221,6 +221,9 @@ Current Phase 4 status:
 - `src/pages/Recurring.tsx` reduced from 494 lines to 99 lines.
 - Recurring feature files now live under `src/features/recurring`.
 - Extracted recurring form, metrics, payments table, yearly due schedule, dialog hook, metrics hook, mutation hook, types, constants, and utils.
+- `src/pages/StatementImport.tsx` reduced from 463 lines to 80 lines.
+- Statement import feature files now live under `src/features/statement-import`.
+- Extracted statement summary cards, merchant aliases card, preview transactions card, notice, import hook, alias mutation hook, types, and utils.
 - `src/pages/Investments.tsx` reduced from 711 lines to 134 lines.
 - Investment feature files now live under `src/features/investments`.
 - Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, investments list/table, and investment hooks.
