@@ -1,20 +1,8 @@
 import api from '@/src/lib/api';
+import type { AdvisorMessage, AdvisorSession } from '@/src/types/ai';
 import { getData } from './http';
 
-export type AdvisorMessage = {
-  id: number;
-  session_id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: string;
-};
-
-export type AdvisorSession = {
-  session_id: string;
-  title: string;
-  message_count: number;
-  updated_at?: string;
-};
+export type { AdvisorMessage, AdvisorSession } from '@/src/types/ai';
 
 export const aiAdvisorApi = {
   listSessions: () => getData<AdvisorSession[]>(api.get('/ai-advisor/sessions')),

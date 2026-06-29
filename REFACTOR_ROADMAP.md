@@ -273,9 +273,12 @@ Done when:
 Current Phase 5 status:
 
 - Added shared domain types for transactions, investments, and recurring events.
+- Added shared auth and AI advisor types.
 - Existing feature type files now re-export shared domain types for compatibility.
 - Typed transaction, investment, and recurring API list/summary responses.
+- Typed auth session responses and AI advisor entities from shared types.
 - Removed feature-level `catch (error: any)` from transaction and investment mutation hooks.
+- Removed remaining page-level `catch (error: any)` usage from `Auth.tsx`.
 
 ## Phase 6: Shared UI Patterns
 

@@ -95,7 +95,7 @@ export default function Auth() {
         autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.update(toastId, {
         render: getApiMessage(error, 'Failed to sign in with Google.'),
         type: 'error',
@@ -174,7 +174,7 @@ export default function Auth() {
       setOtpCode('');
       setRegisterStep('verify');
       setResendTimer(300);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = getApiMessage(error, 'Failed to create account.');
       toast.update(toastId, {
         render: message,
@@ -202,7 +202,7 @@ export default function Auth() {
         autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/');
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = getApiMessage(error, 'Failed to verify OTP.');
       toast.update(toastId, {
         render: message,
@@ -234,7 +234,7 @@ export default function Auth() {
         autoClose: TOAST_AUTO_CLOSE_MS,
       });
       navigate('/'); 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const message = getApiMessage(error, 'Failed to login.');
       toast.update(toastId, {
         render: message,
@@ -269,7 +269,7 @@ export default function Auth() {
         isLoading: false,
         autoClose: TOAST_AUTO_CLOSE_MS,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.update(toastId, {
         render: getApiMessage(error, 'Failed to send password reset OTP.'),
         type: 'error',
@@ -301,7 +301,7 @@ export default function Auth() {
       setResendTimer(0);
       form.reset();
       setLoginStep('login');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.update(toastId, {
         render: getApiMessage(error, 'Failed to reset password.'),
         type: 'error',
