@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/src/components/ui/card';
+import { StatCard } from '@/src/components/shared/StatCard';
 import {
   RiBarChartBoxLine,
   RiCalendarCheckLine,
@@ -32,15 +32,14 @@ export function InvestmentSummaryCards({ summary }: InvestmentSummaryCardsProps)
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
       {cards.map(({ icon: Icon, label, tone, value, valueClass }) => (
-        <Card key={label} className="metric-card">
-          <CardContent className="p-6 text-center">
-            <div className={`mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-lg ${tone}`}>
-              <Icon className="text-lg" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-[#6B7280]">{label}</p>
-            <h3 className={`mt-1 text-2xl font-bold ${valueClass || ''}`}>{value}</h3>
-          </CardContent>
-        </Card>
+        <StatCard
+          key={label}
+          icon={<Icon className="text-lg" aria-hidden="true" />}
+          iconClassName={tone}
+          label={label}
+          value={value}
+          valueClassName={valueClass}
+        />
       ))}
     </div>
   );

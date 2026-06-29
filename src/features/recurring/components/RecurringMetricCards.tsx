@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/src/components/ui/card';
+import { StatCard } from '@/src/components/shared/StatCard';
 import { formatRupees } from '@/src/utils/formatters';
 import { RiCalendarCheckLine, RiRefreshLine, RiRepeatLine } from 'react-icons/ri';
 import type { RecurringEvent } from '../recurring.types';
@@ -13,36 +13,28 @@ type RecurringMetricCardsProps = {
 export function RecurringMetricCards({ monthlyCashOutflow, nextDueEvent, autoPaymentCount }: RecurringMetricCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <Card className="metric-card">
-        <CardContent className="p-6 text-center">
-          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9]">
-            <RiRepeatLine className="text-lg" aria-hidden="true" />
-          </div>
-          <p className="text-sm font-medium text-[#6B7280]">Monthly Cash Outflow</p>
-          <h3 className="mt-1 text-2xl font-bold">{formatRupees(Math.round(monthlyCashOutflow))}</h3>
-        </CardContent>
-      </Card>
+      <StatCard
+        icon={<RiRepeatLine className="text-lg" aria-hidden="true" />}
+        iconClassName="bg-[#EEF6FF] text-[#4F9CF9]"
+        label="Monthly Cash Outflow"
+        value={formatRupees(Math.round(monthlyCashOutflow))}
+      />
 
-      <Card className="metric-card">
-        <CardContent className="p-6 text-center">
-          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#FFF7E8] text-[#FFB84D]">
-            <RiCalendarCheckLine className="text-lg" aria-hidden="true" />
-          </div>
-          <p className="text-sm font-medium text-[#6B7280]">Next Payment</p>
-          <h3 className="mt-1 truncate text-2xl font-bold">{nextDueEvent ? nextDueEvent.name : 'None'}</h3>
-          {nextDueEvent ? <p className="mt-1 text-xs text-[#6B7280]">{getDueLabel(nextDueEvent)}</p> : null}
-        </CardContent>
-      </Card>
+      <StatCard
+        icon={<RiCalendarCheckLine className="text-lg" aria-hidden="true" />}
+        iconClassName="bg-[#FFF7E8] text-[#FFB84D]"
+        label="Next Payment"
+        value={nextDueEvent ? nextDueEvent.name : 'None'}
+        valueClassName="truncate"
+        helper={nextDueEvent ? getDueLabel(nextDueEvent) : undefined}
+      />
 
-      <Card className="metric-card">
-        <CardContent className="p-6 text-center">
-          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#EAFBF0] text-[#34C759]">
-            <RiRefreshLine className="text-lg" aria-hidden="true" />
-          </div>
-          <p className="text-sm font-medium text-[#6B7280]">Auto Payments</p>
-          <h3 className="mt-1 text-2xl font-bold">{autoPaymentCount}</h3>
-        </CardContent>
-      </Card>
+      <StatCard
+        icon={<RiRefreshLine className="text-lg" aria-hidden="true" />}
+        iconClassName="bg-[#EAFBF0] text-[#34C759]"
+        label="Auto Payments"
+        value={autoPaymentCount}
+      />
     </div>
   );
 }
