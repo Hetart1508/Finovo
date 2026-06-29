@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import { Button } from '@/src/components/ui/button';
 import {
   Dialog,
@@ -7,12 +7,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/src/components/ui/dialog';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { recurringApi } from '@/src/api/recurringApi';
+import { useQuery } from '@tanstack/react-query';
 import { recurringQuery, upcomingRecurringQuery } from '@/src/server-state/recurringQueries';
-import { invalidateRecurring } from '@/src/server-state/invalidations';
-import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
-import { format, parseISO } from 'date-fns';
+import { getApiMessage } from '@/src/lib/toastMessages';
 import { toast } from 'react-toastify';
 import {
   RiAddCircleLine,
@@ -22,101 +19,33 @@ import { RecurringMetricCards } from '@/src/features/recurring/components/Recurr
 import { RecurringPaymentsTable } from '@/src/features/recurring/components/RecurringPaymentsTable';
 import { YearlyDueScheduleCard } from '@/src/features/recurring/components/YearlyDueScheduleCard';
 import type { RecurringEvent } from '@/src/features/recurring/recurring.types';
-import { getDateStringFromEvent } from '@/src/features/recurring/recurring.utils';
+import { useRecurringDialog } from '@/src/features/recurring/hooks/useRecurringDialog';
+import { useRecurringMetrics } from '@/src/features/recurring/hooks/useRecurringMetrics';
+import { useRecurringMutations } from '@/src/features/recurring/hooks/useRecurringMutations';
 
 export default function Recurring() {
-  const queryClient = useQueryClient();
   const eventsResult = useQuery(recurringQuery());
   const upcomingResult = useQuery(upcomingRecurringQuery());
   const events = (eventsResult.data ?? []) as RecurringEvent[];
   const upcomingEvents = (upcomingResult.data ?? []) as RecurringEvent[];
   const loading = eventsResult.isPending || upcomingResult.isPending;
-  const saveRecurring = useMutation({
-    mutationFn: ({ id, payload }: { id?: number; payload: Record<string, unknown> }) =>
-      recurringApi.save(id, payload),
-    onSuccess: () => invalidateRecurring(queryClient),
-  });
-  const deleteRecurring = useMutation({
-    mutationFn: (id: number) => recurringApi.delete(id),
-    onSuccess: () => invalidateRecurring(queryClient),
-  });
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<RecurringEvent | null>(null);
-  const todayDateString = format(new Date(), 'yyyy-MM-dd');
-  const [dueDate, setDueDate] = useState(todayDateString);
-
-  const monthlyCashOutflow = useMemo(
-    () => events
-      .filter((event) => event.type !== 'income')
-      .reduce((sum, event) => {
-        const interval = Number(event.interval_count) || 1;
-        const monthlyEquivalent = event.frequency === 'yearly'
-          ? Number(event.amount) / (interval * 12)
-          : Number(event.amount) / interval;
-        return sum + monthlyEquivalent;
-      }, 0),
-    [events]
-  );
-
-  const autoPaymentCount = useMemo(
-    () => events.filter((event) => event.payment_mode === 'auto' || Boolean(event.autopay_enabled)).length,
-    [events]
-  );
-
-  const nextDueEvent = upcomingEvents[0];
+  const {
+    dialogOpen,
+    editingEvent,
+    dueDate,
+    setDueDate,
+    closeDialog,
+    openCreateDialog,
+    openEditDialog,
+    handleDialogOpenChange,
+  } = useRecurringDialog();
+  const { monthlyCashOutflow, autoPaymentCount, nextDueEvent } = useRecurringMetrics(events, upcomingEvents);
+  const { handleSave, handleDelete } = useRecurringMutations({ editingEvent, dueDate, onSaved: closeDialog });
 
   useEffect(() => {
     const error = eventsResult.error || upcomingResult.error;
     if (error) toast.error(getApiMessage(error, 'Failed to load recurring payments.'), { toastId: 'recurring-query-error' });
   }, [eventsResult.error, upcomingResult.error]);
-
-  const closeDialog = () => {
-    setDialogOpen(false);
-    setEditingEvent(null);
-    setDueDate(todayDateString);
-  };
-
-  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    if (!dueDate) {
-      toast.error('Please select a due date.');
-      return;
-    }
-    const parsedDueDate = parseISO(dueDate);
-
-    const payload = {
-      name: String(formData.get('name') || '').trim(),
-      amount: Number(formData.get('amount')),
-      day_of_month: parsedDueDate.getDate(),
-      category: String(formData.get('category') || 'Other'),
-      type: String(formData.get('type') || 'expense'),
-      frequency: String(formData.get('frequency') || 'monthly'),
-      interval_count: Number(formData.get('interval_count') || 1),
-      start_date: dueDate,
-      payment_mode: String(formData.get('payment_mode') || 'manual'),
-      autopay_enabled: formData.get('payment_mode') === 'auto',
-      payment_account: String(formData.get('payment_account') || '').trim() || null,
-    };
-
-    try {
-      const response = await saveRecurring.mutateAsync({ id: editingEvent?.id, payload });
-
-      toast.success(getApiSuccessMessage(response.data, editingEvent ? 'Recurring payment updated.' : 'Recurring payment added.'));
-      closeDialog();
-    } catch (error: any) {
-      toast.error(getApiMessage(error, 'Failed to save recurring payment.'));
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      const response = await deleteRecurring.mutateAsync(id);
-      toast.success(getApiSuccessMessage(response.data, 'Recurring payment deleted.'));
-    } catch (error: any) {
-      toast.error(getApiMessage(error, 'Failed to delete recurring payment.'));
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -129,15 +58,9 @@ export default function Recurring() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setEditingEvent(null);
-            setDueDate(todayDateString);
-          }
-        }}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger>
-            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={() => setDueDate(todayDateString)}>
+            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={openCreateDialog}>
               <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
               Add Recurring
             </Button>
@@ -166,11 +89,7 @@ export default function Recurring() {
         <RecurringPaymentsTable
           events={events}
           loading={loading}
-          onEdit={(event) => {
-            setEditingEvent(event);
-            setDueDate(getDateStringFromEvent(event));
-            setDialogOpen(true);
-          }}
+          onEdit={openEditDialog}
           onDelete={handleDelete}
         />
         <YearlyDueScheduleCard upcomingEvents={upcomingEvents} />
