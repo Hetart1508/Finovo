@@ -186,7 +186,7 @@ Priority order:
 6. `AIWealthAdvisor.tsx` Mostly done: extracted chat layout, sidebar, header, hook, constants, and utils.
 7. `Dashboard.tsx` Mostly done: extracted hero, metrics, activity grid, chart skeleton, range hook, constants, types, and utils.
 8. `Insights.tsx` Mostly done: extracted header, range card, AI analysis card, category chart, range hook, generation hook, constants, types, and utils.
-9. `Calendar.tsx`
+9. `Calendar.tsx` Mostly done: extracted header, month grid, day details, hook, types, and utils.
 10. `SmartUpload.tsx`
 
 Example feature layout:
@@ -233,6 +233,9 @@ Current Phase 4 status:
 - `src/pages/Insights.tsx` reduced from 345 lines to 69 lines.
 - Insights feature files now live under `src/features/insights`.
 - Extracted insights header, range selector card, AI analysis card, top categories chart, range hook, AI generation hook, constants, types, and date utilities.
+- `src/pages/Calendar.tsx` reduced from 392 lines to 61 lines.
+- Calendar feature files now live under `src/features/calendar`.
+- Extracted calendar header/settings, month grid, selected-day details, calendar hook, summary types, and date/balance utilities.
 - `src/pages/Investments.tsx` reduced from 711 lines to 134 lines.
 - Investment feature files now live under `src/features/investments`.
 - Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, investments list/table, and investment hooks.
