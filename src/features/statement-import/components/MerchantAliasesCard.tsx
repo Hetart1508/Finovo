@@ -12,8 +12,8 @@ type MerchantAliasesCardProps = {
   loading: boolean;
   aliasEdits: Record<number, string>;
   setAliasEdits: Dispatch<SetStateAction<Record<number, string>>>;
-  updateAlias: UseMutationResult<AxiosResponse<any, any>, Error, { id: number; company_name: string }, unknown>;
-  deleteAlias: UseMutationResult<AxiosResponse<any, any>, Error, number, unknown>;
+  updateAlias: UseMutationResult<AxiosResponse<unknown>, Error, { id: number; company_name: string }, unknown>;
+  deleteAlias: UseMutationResult<AxiosResponse<unknown>, Error, number, unknown>;
 };
 
 export function MerchantAliasesCard({

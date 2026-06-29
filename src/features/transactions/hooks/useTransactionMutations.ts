@@ -43,7 +43,7 @@ export function useTransactionMutations({
     try {
       const response = await deleteTransaction.mutateAsync(id);
       toast.success(getApiSuccessMessage(response.data, 'Transaction deleted successfully'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to delete transaction.'));
     }
   };
@@ -66,7 +66,7 @@ export function useTransactionMutations({
       });
       toast.success(getApiSuccessMessage(response.data, 'Transaction added successfully'));
       onAdded();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to add transaction.'));
     }
   };
@@ -91,7 +91,7 @@ export function useTransactionMutations({
       });
       onUpdated();
       toast.success(getApiSuccessMessage(response.data, 'Transaction updated successfully'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to update transaction.'));
     }
   };

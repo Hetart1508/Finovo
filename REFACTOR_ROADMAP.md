@@ -270,6 +270,13 @@ Done when:
 - Most page-level `any` usage is gone.
 - `npm run lint` passes.
 
+Current Phase 5 status:
+
+- Added shared domain types for transactions, investments, and recurring events.
+- Existing feature type files now re-export shared domain types for compatibility.
+- Typed transaction, investment, and recurring API list/summary responses.
+- Removed feature-level `catch (error: any)` from transaction and investment mutation hooks.
+
 ## Phase 6: Shared UI Patterns
 
 Purpose: reduce repeated JSX and make screens consistent.

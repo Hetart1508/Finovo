@@ -66,7 +66,7 @@ export function useInvestmentMutations({
         editingInvestment ? 'Investment updated successfully.' : 'Investment added successfully.'
       ));
       onSaved();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to save investment.'));
     }
   };
@@ -77,7 +77,7 @@ export function useInvestmentMutations({
     try {
       const response = await deleteInvestment.mutateAsync(investment.id);
       toast.success(getApiSuccessMessage(response.data, 'Investment deleted successfully.'));
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to delete investment.'));
     }
   };
