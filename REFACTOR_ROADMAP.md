@@ -310,6 +310,8 @@ Current Phase 6 status:
 
 - Added `src/components/shared/StateMessage.tsx` for common muted loading/empty text.
 - Replaced repeated loading/empty state text in investments, transactions, recurring, and advisor chat UI.
+- Added `src/components/shared/PageHeader.tsx` for common title/description/actions layout.
+- Reused `PageHeader` in insights, calendar, smart upload, and statement import headers.
 
 ## Phase 7: Knowledge Transfer Documentation
 

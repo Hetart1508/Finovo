@@ -1,3 +1,4 @@
+import { PageHeader } from '@/src/components/shared/PageHeader';
 import { SmartUploadDropzoneCard } from '@/src/features/smart-upload/components/SmartUploadDropzoneCard';
 import { SmartUploadResultPanel } from '@/src/features/smart-upload/components/SmartUploadResultPanel';
 import { useSmartUpload } from '@/src/features/smart-upload/hooks/useSmartUpload';
@@ -7,10 +8,11 @@ export default function SmartUpload() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Smart Bill Upload</h1>
-        <p className="text-[#6B7280]">Upload a receipt or invoice image, and Gemini will extract the details for you.</p>
-      </div>
+      <PageHeader
+        title="Smart Bill Upload"
+        description="Upload a receipt or invoice image, and Gemini will extract the details for you."
+        align="center"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <SmartUploadDropzoneCard

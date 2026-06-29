@@ -1,4 +1,5 @@
 import { Button } from '@/src/components/ui/button';
+import { PageHeader } from '@/src/components/shared/PageHeader';
 import { useQuery } from '@tanstack/react-query';
 import { merchantAliasesQuery } from '@/src/server-state/merchantAliasesQueries';
 import { RiUploadCloudLine } from 'react-icons/ri';
@@ -31,25 +32,24 @@ export default function StatementImport() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Statement Import</h1>
-          <p className="text-[#6B7280]">Extract income and expenses from a bank, card, UPI, or wallet statement before saving them.</p>
-        </div>
+      <PageHeader
+        title="Statement Import"
+        description="Extract income and expenses from a bank, card, UPI, or wallet statement before saving them."
+        actions={(
+          <Button className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={previewLoading || approveLoading}>
+            <RiUploadCloudLine className="text-base" aria-hidden="true" />
+            {previewLoading ? 'Reading Statement...' : 'Select Statement File'}
+          </Button>
+        )}
+      />
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf,image/*"
-          className="hidden"
-          onChange={(event) => handleStatementFile(event.target.files?.[0] || null)}
-        />
-
-        <Button className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={previewLoading || approveLoading}>
-          <RiUploadCloudLine className="text-base" aria-hidden="true" />
-          {previewLoading ? 'Reading Statement...' : 'Select Statement File'}
-        </Button>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf,image/*"
+        className="hidden"
+        onChange={(event) => handleStatementFile(event.target.files?.[0] || null)}
+      />
 
       <StatementSummaryCards statementFile={statementFile} model={model} totals={totals} />
 
