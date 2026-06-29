@@ -4,6 +4,7 @@ import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
+import { formatSignedRupees } from '@/src/utils/formatters';
 import {
   Table,
   TableBody,
@@ -140,7 +141,7 @@ export function StatementPreviewCard({
                     'text-right font-bold',
                     transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
                   )}>
-                    {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                    {formatSignedRupees(transaction.amount, transaction.type === 'income')}
                   </TableCell>
                   <TableCell>
                     <Button

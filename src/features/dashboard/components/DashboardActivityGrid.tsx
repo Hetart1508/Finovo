@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/ca
 import { Button } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { formatRupees, formatSignedRupees } from '@/src/utils/formatters';
 import { RiArrowLeftDownLine, RiArrowRightUpLine, RiCalendarCheckLine, RiErrorWarningLine } from 'react-icons/ri';
 import type { RecurringEvent } from '@/src/features/recurring/recurring.types';
 import type { DashboardTransaction } from '../dashboard.types';
@@ -43,7 +44,7 @@ export function DashboardActivityGrid({ transactions, recurring }: DashboardActi
                   'font-bold',
                   transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#FF6B6B]'
                 )}>
-                  {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                  {formatSignedRupees(transaction.amount, transaction.type === 'income')}
                 </p>
               </div>
             ))}
@@ -65,7 +66,7 @@ export function DashboardActivityGrid({ transactions, recurring }: DashboardActi
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{event.name}</p>
-                  <p className="text-xs text-[#6B7280]">Due on {event.day_of_month}th • ₹{event.amount.toLocaleString()}</p>
+                  <p className="text-xs text-[#6B7280]">Due on {event.day_of_month}th • {formatRupees(event.amount)}</p>
                 </div>
                 <Badge variant="secondary" className="text-[10px] uppercase">{event.type}</Badge>
               </div>

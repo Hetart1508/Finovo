@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent } from '@/src/components/ui/card';
+import { formatSignedRupees } from '@/src/utils/formatters';
 import {
   Table,
   TableBody,
@@ -209,7 +210,7 @@ function TransactionRow({
         'truncate text-center font-bold',
         transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
       )}>
-        {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+        {formatSignedRupees(transaction.amount, transaction.type === 'income')}
       </TableCell>
       <TableCell>
         <div className="flex justify-end gap-1">

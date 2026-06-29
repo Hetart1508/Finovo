@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { cn } from '@/lib/utils';
+import { formatRupees } from '@/src/utils/formatters';
 import type { RecurringEvent } from '../recurring.types';
 import { getAmountClassName, getDueLabel, getScheduleLabel, getTypeClassName } from '../recurring.utils';
 
@@ -32,7 +33,7 @@ export function YearlyDueScheduleCard({ upcomingEvents }: YearlyDueScheduleCardP
                       {getScheduleLabel(event)} - {event.payment_mode === 'auto' || event.autopay_enabled ? 'Auto' : 'Manual'}
                     </p>
                   </div>
-                  <p className={cn('font-bold', getAmountClassName(event.type))}>₹{Number(event.amount).toLocaleString()}</p>
+                  <p className={cn('font-bold', getAmountClassName(event.type))}>{formatRupees(event.amount)}</p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Badge variant="secondary" className="text-xs">{getDueLabel(event)}</Badge>

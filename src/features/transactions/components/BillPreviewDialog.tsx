@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/src/components/ui/button';
+import { formatRupees } from '@/src/utils/formatters';
 import {
   Dialog,
   DialogContent,
@@ -36,7 +37,7 @@ export function BillPreviewDialog({ transaction, onOpenChange }: BillPreviewDial
                 {transaction.description || transaction.category}
               </p>
               <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">
-                {format(parseISO(transaction.date), 'dd MMM yyyy')} - ₹{Number(transaction.amount).toLocaleString()}
+                {format(parseISO(transaction.date), 'dd MMM yyyy')} - {formatRupees(transaction.amount)}
               </p>
             </div>
 

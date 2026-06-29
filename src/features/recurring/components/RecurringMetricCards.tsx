@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/src/components/ui/card';
+import { formatRupees } from '@/src/utils/formatters';
 import { RiCalendarCheckLine, RiRefreshLine, RiRepeatLine } from 'react-icons/ri';
 import type { RecurringEvent } from '../recurring.types';
 import { getDueLabel } from '../recurring.utils';
@@ -18,7 +19,7 @@ export function RecurringMetricCards({ monthlyCashOutflow, nextDueEvent, autoPay
             <RiRepeatLine className="text-lg" aria-hidden="true" />
           </div>
           <p className="text-sm font-medium text-[#6B7280]">Monthly Cash Outflow</p>
-          <h3 className="mt-1 text-2xl font-bold">₹{Math.round(monthlyCashOutflow).toLocaleString()}</h3>
+          <h3 className="mt-1 text-2xl font-bold">{formatRupees(Math.round(monthlyCashOutflow))}</h3>
         </CardContent>
       </Card>
 

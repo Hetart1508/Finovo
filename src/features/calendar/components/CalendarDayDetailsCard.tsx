@@ -3,6 +3,7 @@ import { Badge } from '@/src/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
+import { formatRupees, formatSignedRupees } from '@/src/utils/formatters';
 import { RiErrorWarningLine } from 'react-icons/ri';
 import type { DailySummary } from '../calendar.types';
 
@@ -40,7 +41,7 @@ export function CalendarDayDetailsCard({
                   selectedDaySummary.net < 0 && 'text-[#FF6B6B]'
                 )}
               >
-                {selectedDaySummary.net >= 0 ? '+' : '-'}₹{Math.abs(selectedDaySummary.net).toLocaleString()}
+                {formatSignedRupees(selectedDaySummary.net, selectedDaySummary.net >= 0)}
               </h3>
             </div>
             {selectedDayTotal > threshold && (
@@ -53,11 +54,11 @@ export function CalendarDayDetailsCard({
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Income</p>
-              <p className="mt-1 text-base font-bold text-[#34C759]">₹{selectedDaySummary.income.toLocaleString()}</p>
+              <p className="mt-1 text-base font-bold text-[#34C759]">{formatRupees(selectedDaySummary.income)}</p>
             </div>
             <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Expense</p>
-              <p className="mt-1 text-base font-bold text-[#FF6B6B]">₹{selectedDaySummary.expense.toLocaleString()}</p>
+              <p className="mt-1 text-base font-bold text-[#FF6B6B]">{formatRupees(selectedDaySummary.expense)}</p>
             </div>
           </div>
         </div>
@@ -75,7 +76,7 @@ export function CalendarDayDetailsCard({
                   'text-sm font-bold',
                   transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
                 )}>
-                  {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString()}
+                  {formatSignedRupees(transaction.amount, transaction.type === 'income')}
                 </p>
               </div>
             ))

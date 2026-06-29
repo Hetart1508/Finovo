@@ -4,6 +4,7 @@ import { Button } from '@/src/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { cn } from '@/lib/utils';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
+import { formatRupees, formatSignedRupees } from '@/src/utils/formatters';
 import { RiArrowLeftSLine, RiArrowRightSLine } from 'react-icons/ri';
 import { getBalanceColorStyle, getDailySummary, getDailyTotal } from '../calendar.utils';
 
@@ -177,11 +178,11 @@ export function CalendarMonthCard({
                       <span className="block text-sm font-bold text-[#1F2937]">{format(day, 'dd MMM yyyy')}</span>
                       <span className="mt-2 flex items-center justify-between">
                         <span className="text-[#6B7280]">Income</span>
-                        <span className="font-bold text-[#34C759]">₹{dailySummary.income.toLocaleString()}</span>
+                        <span className="font-bold text-[#34C759]">{formatRupees(dailySummary.income)}</span>
                       </span>
                       <span className="mt-1 flex items-center justify-between">
                         <span className="text-[#6B7280]">Expense</span>
-                        <span className="font-bold text-[#FF6B6B]">₹{dailySummary.expense.toLocaleString()}</span>
+                        <span className="font-bold text-[#FF6B6B]">{formatRupees(dailySummary.expense)}</span>
                       </span>
                       <span className="mt-1 flex items-center justify-between border-t border-[#E5E7EB] pt-1">
                         <span className="text-[#6B7280]">Balance</span>
@@ -193,7 +194,7 @@ export function CalendarMonthCard({
                             dailySummary.net === 0 && 'text-[#1F2937]'
                           )}
                         >
-                          {dailySummary.net >= 0 ? '+' : '-'}₹{Math.abs(dailySummary.net).toLocaleString()}
+                          {formatSignedRupees(dailySummary.net, dailySummary.net >= 0)}
                         </span>
                       </span>
                     </span>

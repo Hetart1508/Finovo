@@ -283,6 +283,7 @@ Current Phase 5 status:
 - Added `src/utils/formatters.ts` for shared INR formatting.
 - Added `src/utils/dateRanges.ts` for shared date strings, future-date checks, clamping, and range normalization.
 - Replaced high-value scattered storage-key strings in session, API, layout, auth, AI advisor, calendar, and app bootstrap code.
+- Replaced repeated rupee display formatting across dashboard, recurring, calendar, statement import, and transactions UI.
 - Replaced duplicated today/future/range helpers in statement import, smart upload, insights, and bill extraction code.
 
 ## Phase 6: Shared UI Patterns

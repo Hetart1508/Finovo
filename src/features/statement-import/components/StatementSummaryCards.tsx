@@ -1,4 +1,5 @@
 import { Card, CardContent } from '@/src/components/ui/card';
+import { formatRupees } from '@/src/utils/formatters';
 import { RiFileTextLine } from 'react-icons/ri';
 import type { StatementTotals } from '../statementImport.types';
 
@@ -25,14 +26,14 @@ export function StatementSummaryCards({ statementFile, model, totals }: Statemen
       <Card className="compact-metric-card border-none shadow-sm">
         <CardContent className="p-5 text-center">
           <p className="text-sm text-[#6B7280]">Income Found</p>
-          <p className="mt-2 text-2xl font-black text-[#34C759]">₹{totals.income.toLocaleString()}</p>
+          <p className="mt-2 text-2xl font-black text-[#34C759]">{formatRupees(totals.income)}</p>
         </CardContent>
       </Card>
 
       <Card className="compact-metric-card border-none shadow-sm">
         <CardContent className="p-5 text-center">
           <p className="text-sm text-[#6B7280]">Expense Found</p>
-          <p className="mt-2 text-2xl font-black text-[#FF6B6B]">₹{totals.expense.toLocaleString()}</p>
+          <p className="mt-2 text-2xl font-black text-[#FF6B6B]">{formatRupees(totals.expense)}</p>
         </CardContent>
       </Card>
     </div>

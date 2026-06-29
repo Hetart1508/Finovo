@@ -1,6 +1,7 @@
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { formatRupees } from '@/src/utils/formatters';
 import {
   Table,
   TableBody,
@@ -71,7 +72,7 @@ export function RecurringPaymentsTable({ events, loading, onEdit, onDelete }: Re
                     </div>
                   </TableCell>
                   <TableCell className={cn('text-right font-bold', getAmountClassName(event.type))}>
-                    ₹{Number(event.amount).toLocaleString()}
+                    {formatRupees(event.amount)}
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">

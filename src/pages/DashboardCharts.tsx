@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { formatRupees } from '@/src/utils/formatters';
 
 type DailyDataPoint = {
   name: string;
@@ -81,7 +82,7 @@ export default function DashboardCharts({ dailyData, categoryData, colors }: Das
                   <div className="h-3 w-3 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
                   <span className="text-[#6B7280]">{item.name}</span>
                 </div>
-                <span className="font-medium">₹{item.value.toLocaleString()}</span>
+                <span className="font-medium">{formatRupees(item.value)}</span>
               </div>
             ))}
           </div>
