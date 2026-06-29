@@ -306,6 +306,11 @@ Done when:
 - Shared states are visually consistent.
 - `npm run lint` passes.
 
+Current Phase 6 status:
+
+- Added `src/components/shared/StateMessage.tsx` for common muted loading/empty text.
+- Replaced repeated loading/empty state text in investments, transactions, recurring, and advisor chat UI.
+
 ## Phase 7: Knowledge Transfer Documentation
 
 Purpose: make onboarding fast.

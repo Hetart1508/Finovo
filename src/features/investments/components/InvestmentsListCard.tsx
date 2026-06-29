@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { StateMessage } from '@/src/components/shared/StateMessage';
 import {
   Table,
   TableBody,
@@ -56,9 +57,9 @@ export function InvestmentsListCard({
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">Loading investments...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7}><StateMessage className="py-10">Loading investments...</StateMessage></TableCell></TableRow>
               ) : investments.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">No investments added yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7}><StateMessage className="py-10">No investments added yet.</StateMessage></TableCell></TableRow>
               ) : investments.map((investment) => (
                 <InvestmentTableRow
                   key={investment.id}
@@ -74,9 +75,9 @@ export function InvestmentsListCard({
 
         <div className="space-y-3 lg:hidden">
           {isLoading ? (
-            <p className="py-10 text-center text-sm text-[#6B7280]">Loading investments...</p>
+            <StateMessage className="py-10">Loading investments...</StateMessage>
           ) : investments.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[#6B7280]">No investments added yet.</p>
+            <StateMessage className="py-10">No investments added yet.</StateMessage>
           ) : investments.map((investment) => (
             <InvestmentMobileCard
               key={investment.id}

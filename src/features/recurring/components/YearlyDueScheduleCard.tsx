@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { StateMessage } from '@/src/components/shared/StateMessage';
 import { cn } from '@/lib/utils';
 import { formatRupees } from '@/src/utils/formatters';
 import type { RecurringEvent } from '../recurring.types';
@@ -19,7 +20,7 @@ export function YearlyDueScheduleCard({ upcomingEvents }: YearlyDueScheduleCardP
       <CardContent>
         <div className="space-y-3">
           {upcomingEvents.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[#6B7280] dark:text-[#CBD5E1]">No payments due in the next year.</p>
+            <StateMessage>No payments due in the next year.</StateMessage>
           ) : (
             upcomingEvents.map((event) => (
               <div key={event.id} className="rounded-lg border border-[#E5E7EB] p-3 dark:border-[#334155]">

@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent } from '@/src/components/ui/card';
+import { StateMessage } from '@/src/components/shared/StateMessage';
 import { formatSignedRupees } from '@/src/utils/formatters';
 import {
   Table,
@@ -89,11 +90,11 @@ export function TransactionsTableCard({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-[#6B7280]">Loading transactions...</TableCell>
+                <TableCell colSpan={8}><StateMessage>Loading transactions...</StateMessage></TableCell>
               </TableRow>
             ) : totalTransactions === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-[#6B7280]">No transactions found.</TableCell>
+                <TableCell colSpan={8}><StateMessage>No transactions found.</StateMessage></TableCell>
               </TableRow>
             ) : (
               transactions.map((transaction, index) => (

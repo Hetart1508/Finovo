@@ -2,6 +2,7 @@ import type { FormEvent, RefObject } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
+import { StateMessage } from '@/src/components/shared/StateMessage';
 import type { AdvisorMessage, AdvisorSession } from '@/src/api/aiAdvisorApi';
 import { cn } from '@/lib/utils';
 import { RiAddLine, RiSendPlane2Line, RiSideBarLine, RiSparkling2Line } from 'react-icons/ri';
@@ -97,7 +98,7 @@ export function AdvisorChatPanel({
             </div>
           ) : null}
           {isLoading ? (
-            <div className="text-sm text-[#6B7280]">Loading advisor context...</div>
+            <StateMessage className="py-0 text-left">Loading advisor context...</StateMessage>
           ) : null}
           <div ref={messagesEndRef} />
         </div>

@@ -1,6 +1,7 @@
 import { Badge } from '@/src/components/ui/badge';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { StateMessage } from '@/src/components/shared/StateMessage';
 import { formatRupees } from '@/src/utils/formatters';
 import {
   Table,
@@ -44,11 +45,11 @@ export function RecurringPaymentsTable({ events, loading, onEdit, onDelete }: Re
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">Loading recurring payments...</TableCell>
+                <TableCell colSpan={7}><StateMessage>Loading recurring payments...</StateMessage></TableCell>
               </TableRow>
             ) : events.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-[#6B7280] dark:text-[#CBD5E1]">No recurring payments added yet.</TableCell>
+                <TableCell colSpan={7}><StateMessage>No recurring payments added yet.</StateMessage></TableCell>
               </TableRow>
             ) : (
               events.map((event) => (
