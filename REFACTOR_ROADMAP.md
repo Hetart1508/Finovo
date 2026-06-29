@@ -281,7 +281,9 @@ Current Phase 5 status:
 - Removed remaining page-level `catch (error: any)` usage from `Auth.tsx`.
 - Added `src/lib/storageKeys.ts` for shared local-storage keys.
 - Added `src/utils/formatters.ts` for shared INR formatting.
+- Added `src/utils/dateRanges.ts` for shared date strings, future-date checks, clamping, and range normalization.
 - Replaced high-value scattered storage-key strings in session, API, layout, auth, AI advisor, calendar, and app bootstrap code.
+- Replaced duplicated today/future/range helpers in statement import, smart upload, insights, and bill extraction code.
 
 ## Phase 6: Shared UI Patterns
 

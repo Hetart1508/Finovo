@@ -1,4 +1,5 @@
 import { createWorker } from 'tesseract.js';
+import { getTodayDateString, isFutureDateString } from '@/src/utils/dateRanges';
 
 const OLLAMA_URL = (import.meta as any).env?.VITE_OLLAMA_URL || 'http://localhost:11434';
 const DEFAULT_VISION_MODEL = 'llava:13b'; // Upgrade to 'llava:34b' or 'qwen2-vl:7b' if available
@@ -258,9 +259,6 @@ const getDateFromText = (text: string) => {
   return null;
 };
 
-const getTodayDateString = () => new Date().toISOString().split('T')[0];
-const isFutureDate = (date: string) => date > getTodayDateString();
-
 const normalizeAmount = (value: unknown) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value === 'string') return parseAmount(value.replace(/[^\d,.]/g, ''));
@@ -285,7 +283,7 @@ const validateAndParse = (text: string, sourceText = text): BillData => {
     }
 
     const sourceDate = sourceText === text ? null : getDateFromText(sourceText);
-    if (sourceDate && isFutureDate(sourceDate)) {
+    if (sourceDate && isFutureDateString(sourceDate)) {
       throw new Error('Bill date cannot be in the future.');
     }
 
@@ -303,7 +301,7 @@ const validateAndParse = (text: string, sourceText = text): BillData => {
 
     const amount = getFallbackAmount(sourceText);
     const date = getFallbackDate(sourceText);
-    if (isFutureDate(date)) {
+    if (isFutureDateString(date)) {
       throw new Error('Bill date cannot be in the future.');
     }
 

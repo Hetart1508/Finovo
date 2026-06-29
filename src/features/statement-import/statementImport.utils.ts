@@ -1,13 +1,9 @@
 import type { StatementTransaction } from './statementImport.types';
+import { getTodayDateString, isFutureDateString } from '@/src/utils/dateRanges';
 
-export const getTodayDateString = () => {
-  const today = new Date();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${today.getFullYear()}-${month}-${day}`;
-};
+export { getTodayDateString };
 
-export const isFutureTransactionDate = (date: string) => date > getTodayDateString();
+export const isFutureTransactionDate = isFutureDateString;
 
 export const getDisplayDescription = (transaction: StatementTransaction) => {
   const description = transaction.original_description || transaction.description || '';

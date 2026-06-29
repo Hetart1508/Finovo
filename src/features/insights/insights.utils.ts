@@ -1,7 +1,8 @@
-import { endOfMonth, isAfter, startOfMonth, subDays, subMonths } from 'date-fns';
+import { endOfMonth, startOfMonth, subDays, subMonths } from 'date-fns';
+import { clampToToday, normalizeDateRange } from '@/src/utils/dateRanges';
 import type { RangeMode } from './insights.constants';
 
-export const clampToToday = (date: Date, today: Date) => (isAfter(date, today) ? today : date);
+export { clampToToday, normalizeDateRange };
 
 export const getPresetRange = (
   mode: RangeMode,
@@ -32,8 +33,3 @@ export const getPresetRange = (
 
   return { start: startOfMonth(today), end: today };
 };
-
-export const normalizeDateRange = (range: { start: Date; end: Date }) => ({
-  start: range.start <= range.end ? range.start : range.end,
-  end: range.start <= range.end ? range.end : range.start,
-});
