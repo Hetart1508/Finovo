@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/src/components/ui/button';
 import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
+import { storageKeys } from '@/src/lib/storageKeys';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   RiDashboard2Line,
@@ -32,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(localStorage.getItem(storageKeys.user) || '{}');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState(() => (
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'
@@ -72,7 +73,7 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem('theme', theme);
+    localStorage.setItem(storageKeys.theme, theme);
   }, [theme]);
 
   useEffect(() => {

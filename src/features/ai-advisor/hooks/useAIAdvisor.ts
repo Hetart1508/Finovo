@@ -13,13 +13,14 @@ import {
 } from '@/src/server-state/invalidations';
 import { aiAdvisorApi, type AdvisorMessage } from '@/src/api/aiAdvisorApi';
 import { getApiMessage } from '@/src/lib/toastMessages';
+import { storageKeys } from '@/src/lib/storageKeys';
 import { defaultAdvisorSessionId } from '../aiAdvisor.constants';
 import { formatAdvisorCurrency } from '../aiAdvisor.utils';
 
 export function useAIAdvisor() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
-  const [sessionId, setSessionId] = useState(() => localStorage.getItem('ai-advisor-session') || defaultAdvisorSessionId);
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem(storageKeys.aiAdvisorSession) || defaultAdvisorSessionId);
   const [showRecentChats, setShowRecentChats] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const investmentsResult = useQuery(investmentsQuery());
@@ -77,7 +78,7 @@ export function useAIAdvisor() {
     mutationFn: () => aiAdvisorApi.createSession(),
     onSuccess: (session) => {
       setSessionId(session.session_id);
-      localStorage.setItem('ai-advisor-session', session.session_id);
+      localStorage.setItem(storageKeys.aiAdvisorSession, session.session_id);
       setMessage('');
       invalidateAdvisorSessions(queryClient);
     },
@@ -91,7 +92,7 @@ export function useAIAdvisor() {
     onSuccess: (_data, deletedId) => {
       const nextSession = sessions.find((session) => session.session_id !== deletedId)?.session_id || defaultAdvisorSessionId;
       setSessionId(nextSession);
-      localStorage.setItem('ai-advisor-session', nextSession);
+      localStorage.setItem(storageKeys.aiAdvisorSession, nextSession);
       invalidateAdvisorSessions(queryClient);
       invalidateAdvisorMessages(queryClient, deletedId);
       invalidateAdvisorMessages(queryClient, nextSession);
@@ -106,7 +107,7 @@ export function useAIAdvisor() {
   }, [messages.length, sendMutation.isPending]);
 
   useEffect(() => {
-    localStorage.setItem('ai-advisor-session', sessionId);
+    localStorage.setItem(storageKeys.aiAdvisorSession, sessionId);
   }, [sessionId]);
 
   const handleSubmit = (event: FormEvent) => {

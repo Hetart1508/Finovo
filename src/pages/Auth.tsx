@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/src/api/authApi';
 import { getApiMessage, getApiSuccessMessage, TOAST_AUTO_CLOSE_MS } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
+import { storageKeys } from '@/src/lib/storageKeys';
 import { decodeGoogleRedirectPayload, getGoogleRedirectLoginUri, isAppleMobileDevice } from '@/src/features/auth/auth.utils';
 import { AuthBrandPanel } from '@/src/features/auth/components/AuthBrandPanel';
 import { AuthLoginCard } from '@/src/features/auth/components/AuthLoginCard';
@@ -72,7 +73,7 @@ export default function Auth() {
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem('theme', theme);
+    localStorage.setItem(storageKeys.theme, theme);
   }, [theme]);
 
   const handleGoogleCredential = useCallback(async (credential?: string) => {

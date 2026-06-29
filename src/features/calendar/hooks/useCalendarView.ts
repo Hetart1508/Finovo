@@ -4,6 +4,7 @@ import { addMonths, format, isSameDay, parseISO, startOfMonth, subMonths } from 
 import { toast } from 'react-toastify';
 import { userApi } from '@/src/api/userApi';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { storageKeys } from '@/src/lib/storageKeys';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
 import { buildCalendarDays, getDailySummary, getDailyTotal, getStoredDailyThreshold } from '../calendar.utils';
 
@@ -39,8 +40,8 @@ export function useCalendarView(transactions: Transaction[]) {
   const handleUpdateThreshold = async () => {
     try {
       const response = await updateThreshold.mutateAsync(threshold);
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...user, daily_threshold: threshold }));
+      const user = JSON.parse(localStorage.getItem(storageKeys.user) || '{}');
+      localStorage.setItem(storageKeys.user, JSON.stringify({ ...user, daily_threshold: threshold }));
       toast.success(getApiSuccessMessage(response.data, 'Daily threshold updated successfully'));
     } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to update threshold.'));

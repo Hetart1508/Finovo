@@ -1,6 +1,4 @@
-const TOKEN_KEY = 'token';
-const USER_KEY = 'user';
-const SESSION_EXPIRES_AT_KEY = 'sessionExpiresAt';
+import { storageKeys } from './storageKeys';
 
 const decodeJwtPayload = (token: string) => {
   try {
@@ -16,12 +14,12 @@ const decodeJwtPayload = (token: string) => {
 };
 
 export const getSessionExpiresAt = () => {
-  const storedExpiresAt = Number(localStorage.getItem(SESSION_EXPIRES_AT_KEY));
+  const storedExpiresAt = Number(localStorage.getItem(storageKeys.sessionExpiresAt));
   if (Number.isFinite(storedExpiresAt) && storedExpiresAt > 0) {
     return storedExpiresAt;
   }
 
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(storageKeys.token);
   if (!token) return null;
 
   const payload = decodeJwtPayload(token);
@@ -34,8 +32,8 @@ export const isSessionExpired = () => {
 };
 
 export const hasValidSession = () => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const user = localStorage.getItem(USER_KEY);
+  const token = localStorage.getItem(storageKeys.token);
+  const user = localStorage.getItem(storageKeys.user);
   const expiresAt = getSessionExpiresAt();
 
   if (!token || !user || !expiresAt || expiresAt <= Date.now()) {
@@ -51,22 +49,22 @@ export const hasValidSession = () => {
 };
 
 export const saveSession = (token: string, user: unknown, expiresAt?: number) => {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem(storageKeys.token, token);
+  localStorage.setItem(storageKeys.user, JSON.stringify(user));
 
   if (expiresAt) {
-    localStorage.setItem(SESSION_EXPIRES_AT_KEY, String(expiresAt));
+    localStorage.setItem(storageKeys.sessionExpiresAt, String(expiresAt));
     return;
   }
 
   const payload = decodeJwtPayload(token);
   if (typeof payload?.exp === 'number') {
-    localStorage.setItem(SESSION_EXPIRES_AT_KEY, String(payload.exp * 1000));
+    localStorage.setItem(storageKeys.sessionExpiresAt, String(payload.exp * 1000));
   }
 };
 
 export const clearSession = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(SESSION_EXPIRES_AT_KEY);
+  localStorage.removeItem(storageKeys.token);
+  localStorage.removeItem(storageKeys.user);
+  localStorage.removeItem(storageKeys.sessionExpiresAt);
 };

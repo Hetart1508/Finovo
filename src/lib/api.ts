@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { clearSession, hasValidSession } from './session';
+import { storageKeys } from './storageKeys';
 
 export const apiBaseUrl = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api`
@@ -10,7 +11,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(storageKeys.token);
   if (token && hasValidSession()) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -21,7 +22,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const hasSession = Boolean(localStorage.getItem('token'));
+    const hasSession = Boolean(localStorage.getItem(storageKeys.token));
 
     if ((status === 401 || status === 403) && hasSession) {
       clearSession();

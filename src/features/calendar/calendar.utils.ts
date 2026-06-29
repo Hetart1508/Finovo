@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { getDaysInMonth, isSameDay, parseISO, startOfMonth } from 'date-fns';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
+import { storageKeys } from '@/src/lib/storageKeys';
 import type { DailySummary } from './calendar.types';
 
 export const getBalanceColorStyle = (
@@ -60,6 +61,6 @@ export const buildCalendarDays = (visibleMonth: Date) => {
 };
 
 export const getStoredDailyThreshold = () => {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = JSON.parse(localStorage.getItem(storageKeys.user) || '{}');
   return user.daily_threshold || 1000;
 };

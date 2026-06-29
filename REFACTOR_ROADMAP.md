@@ -279,6 +279,9 @@ Current Phase 5 status:
 - Typed auth session responses and AI advisor entities from shared types.
 - Removed feature-level `catch (error: any)` from transaction and investment mutation hooks.
 - Removed remaining page-level `catch (error: any)` usage from `Auth.tsx`.
+- Added `src/lib/storageKeys.ts` for shared local-storage keys.
+- Added `src/utils/formatters.ts` for shared INR formatting.
+- Replaced high-value scattered storage-key strings in session, API, layout, auth, AI advisor, calendar, and app bootstrap code.
 
 ## Phase 6: Shared UI Patterns
 

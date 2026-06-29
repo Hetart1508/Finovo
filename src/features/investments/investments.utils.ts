@@ -1,11 +1,8 @@
 import { addYears, format } from 'date-fns';
+import { currencyFormatter } from '@/src/utils/formatters';
 import type { Investment, InvestmentType } from './investments.types';
 
-export const currency = new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  maximumFractionDigits: 0,
-});
+export const currency = currencyFormatter;
 
 export const today = format(new Date(), 'yyyy-MM-dd');
 export const defaultEndDate = format(addYears(new Date(), 10), 'yyyy-MM-dd');
