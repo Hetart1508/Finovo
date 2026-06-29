@@ -184,7 +184,7 @@ Priority order:
 4. `Recurring.tsx` Mostly done: extracted form, metrics, table, yearly schedule, hooks, types, constants, and utils.
 5. `StatementImport.tsx` Mostly done: extracted summary cards, saved merchant aliases, preview table, notice, hooks, types, and utils.
 6. `AIWealthAdvisor.tsx` Mostly done: extracted chat layout, sidebar, header, hook, constants, and utils.
-7. `Dashboard.tsx`
+7. `Dashboard.tsx` Mostly done: extracted hero, metrics, activity grid, chart skeleton, range hook, constants, types, and utils.
 8. `Insights.tsx`
 9. `Calendar.tsx`
 10. `SmartUpload.tsx`
@@ -227,6 +227,9 @@ Current Phase 4 status:
 - `src/pages/AIWealthAdvisor.tsx` reduced from 378 lines to 63 lines.
 - AI advisor feature files now live under `src/features/ai-advisor`.
 - Extracted advisor header, recent chats sidebar, chat panel, advisor hook, constants, and currency helper.
+- `src/pages/Dashboard.tsx` reduced from 355 lines to 67 lines.
+- Dashboard feature files now live under `src/features/dashboard`.
+- Extracted dashboard hero/filter controls, metric cards, activity grid, chart skeleton, range analysis hook, constants, types, and date utilities.
 - `src/pages/Investments.tsx` reduced from 711 lines to 134 lines.
 - Investment feature files now live under `src/features/investments`.
 - Extracted investment types, currency/date/type helpers, investment form, summary cards, SIP calculator, growth chart, forecast cards, investments list/table, and investment hooks.
