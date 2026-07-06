@@ -4,6 +4,7 @@ export const queryKeys = {
   recurring: ['recurring'] as const,
   upcomingRecurring: (days = 365) => ['recurring', 'upcoming', { days }] as const,
   merchantAliases: ['merchant-aliases'] as const,
+  userProfile: ['user-profile'] as const,
   investments: ['investments'] as const,
   investmentSummary: ['investments', 'summary'] as const,
   aiAdvisorSessions: ['ai-advisor', 'sessions'] as const,

@@ -1,0 +1,403 @@
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
+import {
+  RiCheckboxCircleLine,
+  RiInformationLine,
+  RiShieldUserLine,
+  RiUser3Line,
+  RiWallet3Line,
+} from 'react-icons/ri';
+import { userApi } from '@/src/api/userApi';
+import { Button } from '@/src/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { Input } from '@/src/components/ui/input';
+import { Label } from '@/src/components/ui/label';
+import { getApiMessage } from '@/src/lib/toastMessages';
+import { storageKeys } from '@/src/lib/storageKeys';
+import { userProfileQuery } from '@/src/server-state';
+import { queryKeys } from '@/src/server-state/queryKeys';
+import type { RiskAppetite, UserProfile, UserProfilePayload } from '@/src/types/profile';
+import { formatRupees } from '@/src/utils/formatters';
+
+type ProfileFormState = {
+  name: string;
+  date_of_birth: string;
+  occupation: string;
+  city: string;
+  country: string;
+  monthly_income: string;
+  monthly_expense_target: string;
+  emergency_fund_target: string;
+  risk_appetite: RiskAppetite | '';
+  investment_goal: string;
+  financial_dependents: string;
+  preferred_currency: string;
+  ai_personalization_enabled: boolean;
+};
+
+const emptyForm: ProfileFormState = {
+  name: '',
+  date_of_birth: '',
+  occupation: '',
+  city: '',
+  country: 'India',
+  monthly_income: '',
+  monthly_expense_target: '',
+  emergency_fund_target: '',
+  risk_appetite: '',
+  investment_goal: '',
+  financial_dependents: '',
+  preferred_currency: 'INR',
+  ai_personalization_enabled: false,
+};
+
+const textOrDash = (value: unknown) =>
+  typeof value === 'string' && value.trim() ? value : 'Not set';
+
+const numberOrNull = (value: string) => {
+  if (!value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const profileToForm = (profile: UserProfile): ProfileFormState => ({
+  name: profile.name || '',
+  date_of_birth: profile.date_of_birth || '',
+  occupation: profile.occupation || '',
+  city: profile.city || '',
+  country: profile.country || 'India',
+  monthly_income: profile.monthly_income === null ? '' : String(profile.monthly_income),
+  monthly_expense_target: profile.monthly_expense_target === null ? '' : String(profile.monthly_expense_target),
+  emergency_fund_target: profile.emergency_fund_target === null ? '' : String(profile.emergency_fund_target),
+  risk_appetite: profile.risk_appetite || '',
+  investment_goal: profile.investment_goal || '',
+  financial_dependents: profile.financial_dependents === null ? '' : String(profile.financial_dependents),
+  preferred_currency: profile.preferred_currency || 'INR',
+  ai_personalization_enabled: profile.ai_personalization_enabled,
+});
+
+const countCompletedFields = (profile: UserProfile | undefined) => {
+  if (!profile) return 0;
+  const fields = [
+    profile.name,
+    profile.date_of_birth,
+    profile.occupation,
+    profile.city,
+    profile.country,
+    profile.monthly_income,
+    profile.monthly_expense_target,
+    profile.emergency_fund_target,
+    profile.risk_appetite,
+    profile.investment_goal,
+    profile.financial_dependents,
+    profile.preferred_currency,
+  ];
+  return fields.filter((field) => field !== null && field !== undefined && String(field).trim() !== '').length;
+};
+
+export default function Profile() {
+  const queryClient = useQueryClient();
+  const { data: profile, isLoading, error } = useQuery(userProfileQuery());
+  const [form, setForm] = useState<ProfileFormState>(emptyForm);
+
+  useEffect(() => {
+    if (profile) setForm(profileToForm(profile));
+  }, [profile]);
+
+  const completion = useMemo(() => {
+    const total = 12;
+    const completed = countCompletedFields(profile);
+    return {
+      completed,
+      percent: Math.round((completed / total) * 100),
+    };
+  }, [profile]);
+
+  const saveProfile = useMutation({
+    mutationFn: (payload: UserProfilePayload) => userApi.updateProfile(payload),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.userProfile, response.data);
+      const storedUser = JSON.parse(localStorage.getItem(storageKeys.user) || '{}');
+      localStorage.setItem(storageKeys.user, JSON.stringify({
+        ...storedUser,
+        name: response.data.name,
+        email: response.data.email,
+      }));
+      window.dispatchEvent(new Event('profile-updated'));
+      toast.success('Profile updated successfully.');
+    },
+  });
+
+  const updateField = <Key extends keyof ProfileFormState>(key: Key, value: ProfileFormState[Key]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const payload: UserProfilePayload = {
+      name: form.name.trim(),
+      date_of_birth: form.date_of_birth || null,
+      occupation: form.occupation.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || 'India',
+      monthly_income: numberOrNull(form.monthly_income),
+      monthly_expense_target: numberOrNull(form.monthly_expense_target),
+      emergency_fund_target: numberOrNull(form.emergency_fund_target),
+      risk_appetite: form.risk_appetite || null,
+      investment_goal: form.investment_goal.trim() || null,
+      financial_dependents: numberOrNull(form.financial_dependents),
+      preferred_currency: form.preferred_currency.trim().toUpperCase() || 'INR',
+      ai_personalization_enabled: form.ai_personalization_enabled,
+    };
+
+    try {
+      await saveProfile.mutateAsync(payload);
+    } catch (saveError) {
+      toast.error(getApiMessage(saveError, 'Failed to update profile.'));
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="surface-panel rounded-lg p-6">
+          <div className="h-6 w-48 rounded bg-[#E5E7EB]" />
+          <div className="mt-3 h-4 w-full max-w-xl rounded bg-[#EEF6FF]" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[22rem_1fr]">
+          <div className="h-80 rounded-lg bg-[#FAFBFC]" />
+          <div className="h-96 rounded-lg bg-[#FAFBFC]" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="surface-panel rounded-lg p-6">
+        <p className="text-sm font-semibold text-[#FF6B6B]">Could not load your profile.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-8">
+      <div className="surface-panel metronic-surface rounded-lg p-6">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Profile</p>
+            <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Personal finance context</h1>
+            <p className="mt-2 max-w-2xl text-sm text-[#6B7280] dark:text-[#CBD5E1]">
+              Keep your personal and financial details current so Finovo can personalize future planning and AI features with your permission.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-left md:text-right">
+            <p className="text-xs font-semibold uppercase text-[#6B7280]">Profile completion</p>
+            <p className="text-2xl font-black text-[#1F2937]">{completion.percent}%</p>
+            <p className="text-xs text-[#6B7280]">{completion.completed} of 12 fields</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[22rem_1fr]">
+        <div className="space-y-6">
+          <Card className="surface-panel rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
+                Profile summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3 rounded-lg bg-[#FAFBFC] p-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#EEF6FF] text-lg font-black text-[#4F9CF9]">
+                  {profile.name?.slice(0, 1).toUpperCase() || 'U'}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#1F2937]">{profile.name}</p>
+                  <p className="truncate text-xs text-[#6B7280]">{profile.email}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 text-sm">
+                <SummaryRow label="Occupation" value={textOrDash(profile.occupation)} />
+                <SummaryRow label="Location" value={[profile.city, profile.country].filter(Boolean).join(', ') || 'Not set'} />
+                <SummaryRow label="Dependents" value={profile.financial_dependents ?? 'Not set'} />
+                <SummaryRow label="Currency" value={profile.preferred_currency} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiWallet3Line className="text-[#34C759]" aria-hidden="true" />
+                Financial snapshot
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <SummaryRow label="Monthly income" value={profile.monthly_income === null ? 'Not set' : formatRupees(profile.monthly_income)} />
+              <SummaryRow label="Expense target" value={profile.monthly_expense_target === null ? 'Not set' : formatRupees(profile.monthly_expense_target)} />
+              <SummaryRow label="Emergency fund" value={profile.emergency_fund_target === null ? 'Not set' : formatRupees(profile.emergency_fund_target)} />
+              <SummaryRow label="Risk appetite" value={profile.risk_appetite ? profile.risk_appetite[0].toUpperCase() + profile.risk_appetite.slice(1) : 'Not set'} />
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiShieldUserLine className="text-[#4F9CF9]" aria-hidden="true" />
+                AI readiness
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-3 rounded-lg bg-[#EEF6FF] p-3 text-sm text-[#1F2937]">
+                {profile.ai_personalization_enabled
+                  ? <RiCheckboxCircleLine className="mt-0.5 shrink-0 text-lg text-[#34C759]" aria-hidden="true" />
+                  : <RiInformationLine className="mt-0.5 shrink-0 text-lg text-[#4F9CF9]" aria-hidden="true" />}
+                <p>
+                  {profile.ai_personalization_enabled
+                    ? 'AI personalization is enabled for future advisor context.'
+                    : 'AI personalization is off until you choose to enable it.'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="surface-panel rounded-lg">
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Profile information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase text-[#6B7280]">Basic info</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field label="Full name" htmlFor="profile-name">
+                    <Input id="profile-name" value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
+                  </Field>
+                  <Field label="Email" htmlFor="profile-email">
+                    <Input id="profile-email" value={profile.email} disabled />
+                  </Field>
+                  <Field label="Date of birth" htmlFor="profile-dob">
+                    <Input id="profile-dob" type="date" value={form.date_of_birth} onChange={(event) => updateField('date_of_birth', event.target.value)} />
+                  </Field>
+                  <Field label="Occupation" htmlFor="profile-occupation">
+                    <Input id="profile-occupation" value={form.occupation} onChange={(event) => updateField('occupation', event.target.value)} placeholder="Product manager, founder, student" />
+                  </Field>
+                  <Field label="City" htmlFor="profile-city">
+                    <Input id="profile-city" value={form.city} onChange={(event) => updateField('city', event.target.value)} placeholder="Mumbai" />
+                  </Field>
+                  <Field label="Country" htmlFor="profile-country">
+                    <Input id="profile-country" value={form.country} onChange={(event) => updateField('country', event.target.value)} placeholder="India" />
+                  </Field>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold uppercase text-[#6B7280]">Financial info</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <Field label="Monthly income" htmlFor="profile-income">
+                    <Input id="profile-income" type="number" min="0" step="0.01" value={form.monthly_income} onChange={(event) => updateField('monthly_income', event.target.value)} placeholder="150000" />
+                  </Field>
+                  <Field label="Monthly expense target" htmlFor="profile-expense-target">
+                    <Input id="profile-expense-target" type="number" min="0" step="0.01" value={form.monthly_expense_target} onChange={(event) => updateField('monthly_expense_target', event.target.value)} placeholder="65000" />
+                  </Field>
+                  <Field label="Emergency fund target" htmlFor="profile-emergency-fund">
+                    <Input id="profile-emergency-fund" type="number" min="0" step="0.01" value={form.emergency_fund_target} onChange={(event) => updateField('emergency_fund_target', event.target.value)} placeholder="600000" />
+                  </Field>
+                  <Field label="Dependents" htmlFor="profile-dependents">
+                    <Input id="profile-dependents" type="number" min="0" step="1" value={form.financial_dependents} onChange={(event) => updateField('financial_dependents', event.target.value)} placeholder="0" />
+                  </Field>
+                  <Field label="Preferred currency" htmlFor="profile-currency">
+                    <Input id="profile-currency" value={form.preferred_currency} maxLength={10} onChange={(event) => updateField('preferred_currency', event.target.value.toUpperCase())} />
+                  </Field>
+                  <Field label="Risk appetite" htmlFor="profile-risk">
+                    <select
+                      id="profile-risk"
+                      value={form.risk_appetite}
+                      onChange={(event) => updateField('risk_appetite', event.target.value as RiskAppetite | '')}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <option value="">Not set</option>
+                      <option value="low">Low</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="high">High</option>
+                    </select>
+                  </Field>
+                </div>
+                <Field label="Investment goal" htmlFor="profile-investment-goal">
+                  <textarea
+                    id="profile-investment-goal"
+                    value={form.investment_goal}
+                    onChange={(event) => updateField('investment_goal', event.target.value)}
+                    rows={4}
+                    placeholder="Build a retirement corpus, save for a home, create passive income..."
+                    className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                </Field>
+              </section>
+
+              <section className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-4">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={form.ai_personalization_enabled}
+                    onChange={(event) => updateField('ai_personalization_enabled', event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-[#E5E7EB]"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1F2937]">Use this profile for future AI personalization</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#6B7280]">
+                      This prepares your profile for upcoming advisor and RAG features. You can turn it off any time.
+                    </span>
+                  </span>
+                </label>
+              </section>
+
+              <div className="flex flex-col gap-3 border-t border-[#E5E7EB] pt-4 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setForm(profileToForm(profile))}
+                  disabled={saveProfile.isPending}
+                  className="w-full sm:w-auto"
+                >
+                  Reset
+                </Button>
+                <Button type="submit" disabled={saveProfile.isPending} className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] sm:w-auto">
+                  {saveProfile.isPending ? 'Saving...' : 'Save Profile'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2">
+      <span className="text-xs font-semibold uppercase text-[#6B7280]">{label}</span>
+      <span className="min-w-0 truncate text-right text-sm font-semibold text-[#1F2937]">{value}</span>
+    </div>
+  );
+}

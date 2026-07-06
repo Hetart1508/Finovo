@@ -17,6 +17,9 @@ export const invalidateInvestments = async (queryClient: QueryClient) => {
 export const invalidateMerchantAliases = (queryClient: QueryClient) =>
   queryClient.invalidateQueries({ queryKey: queryKeys.merchantAliases });
 
+export const invalidateUserProfile = (queryClient: QueryClient) =>
+  queryClient.invalidateQueries({ queryKey: queryKeys.userProfile });
+
 export const invalidateAdvisorSessions = (queryClient: QueryClient) =>
   queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
 

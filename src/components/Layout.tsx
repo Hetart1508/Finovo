@@ -23,6 +23,7 @@ import {
   RiRepeatLine,
   RiFundsLine,
   RiRobot2Line,
+  RiUserSettingsLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -33,7 +34,7 @@ export default function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem(storageKeys.user) || '{}');
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem(storageKeys.user) || '{}'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState(() => (
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'
@@ -80,6 +81,16 @@ export default function Layout({ children }: LayoutProps) {
     setMobileNavOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const syncUser = () => setUser(JSON.parse(localStorage.getItem(storageKeys.user) || '{}'));
+    window.addEventListener('profile-updated', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('profile-updated', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
+  }, []);
+
   const navItems = [
     { name: 'Dashboard', path: '/', icon: RiDashboard2Line },
     { name: 'Transactions', path: '/transactions', icon: RiHistoryLine },
@@ -90,6 +101,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Investments', path: '/investments', icon: RiFundsLine },
     { name: 'Wealth Advisor', path: '/wealth-advisor', icon: RiRobot2Line },
     { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
+    { name: 'Profile', path: '/profile', icon: RiUserSettingsLine },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
 
@@ -138,7 +150,7 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="shrink-0 border-t border-[#E5E7EB] p-4">
-          <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
+          <Link to="/profile" className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3 transition-colors hover:bg-[#EEF6FF]">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
               <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
             </div>
@@ -146,7 +158,7 @@ export default function Layout({ children }: LayoutProps) {
               <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
               <p className="truncate text-xs text-[#6B7280]">{user.email}</p>
             </div>
-          </div>
+          </Link>
           <Button 
             variant="ghost" 
             className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"
@@ -200,7 +212,7 @@ export default function Layout({ children }: LayoutProps) {
         </nav>
 
         <div className="shrink-0 border-t border-[#E5E7EB] p-4">
-          <div className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3">
+          <Link to="/profile" className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3 transition-colors hover:bg-[#EEF6FF]">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
               <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
             </div>
@@ -208,7 +220,7 @@ export default function Layout({ children }: LayoutProps) {
               <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
               <p className="truncate text-xs text-[#6B7280]">{user.email}</p>
             </div>
-          </div>
+          </Link>
           <Button
             variant="ghost"
             className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"

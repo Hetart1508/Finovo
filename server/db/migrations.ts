@@ -209,6 +209,31 @@ export const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      date_of_birth DATE NULL,
+      occupation VARCHAR(255) NULL,
+      city VARCHAR(120) NULL,
+      country VARCHAR(120) NULL DEFAULT 'India',
+      monthly_income DECIMAL(14,2) NULL,
+      monthly_expense_target DECIMAL(14,2) NULL,
+      emergency_fund_target DECIMAL(14,2) NULL,
+      risk_appetite ENUM('low', 'moderate', 'high') NULL,
+      investment_goal TEXT NULL,
+      financial_dependents INT NULL,
+      preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+      ai_personalization_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      profile_context_version INT NOT NULL DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_user_profiles_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INT PRIMARY KEY
     )
@@ -235,6 +260,7 @@ export const runMigrations = async () => {
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
+  await ensureIndex("user_profiles", "idx_user_profiles_user", "user_id");
   await db.query("UPDATE ai_advisor_sessions SET title = TRIM(LEFT(title, 25)) WHERE CHAR_LENGTH(title) > 25");
   await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
   await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");
@@ -243,4 +269,3 @@ export const runMigrations = async () => {
 
   logger.info("MySQL schema is ready.");
 };
-

@@ -938,6 +938,135 @@ const createAuthResponse = (user: any) => {
   };
 };
 
+type ProfileInput = {
+  name: string;
+  date_of_birth: string | null;
+  occupation: string | null;
+  city: string | null;
+  country: string;
+  monthly_income: number | null;
+  monthly_expense_target: number | null;
+  emergency_fund_target: number | null;
+  risk_appetite: "low" | "moderate" | "high" | null;
+  investment_goal: string | null;
+  financial_dependents: number | null;
+  preferred_currency: string;
+  ai_personalization_enabled: boolean;
+};
+
+const normalizeOptionalText = (value: unknown, maxLength: number) => {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
+};
+
+const normalizeCurrency = (value: unknown) => {
+  const currency = isNonEmptyString(value) ? value.trim().toUpperCase() : "INR";
+  return /^[A-Z]{3,10}$/.test(currency) ? currency : null;
+};
+
+const toNullableNonNegativeNumber = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = toNumber(value);
+  return parsed !== null && parsed >= 0 ? parsed : undefined;
+};
+
+const toNullableNonNegativeInteger = (value: unknown) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+};
+
+const validateProfileInput = (body: any): { data: ProfileInput } | { error: string } => {
+  const name = isNonEmptyString(body?.name) ? body.name.trim() : "";
+  const dateOfBirth = body?.date_of_birth === undefined || body?.date_of_birth === null || body?.date_of_birth === ""
+    ? null
+    : String(body.date_of_birth);
+  const occupation = normalizeOptionalText(body?.occupation, 255);
+  const city = normalizeOptionalText(body?.city, 120);
+  const country = normalizeOptionalText(body?.country, 120) || "India";
+  const monthlyIncome = toNullableNonNegativeNumber(body?.monthly_income);
+  const monthlyExpenseTarget = toNullableNonNegativeNumber(body?.monthly_expense_target);
+  const emergencyFundTarget = toNullableNonNegativeNumber(body?.emergency_fund_target);
+  const financialDependents = toNullableNonNegativeInteger(body?.financial_dependents);
+  const preferredCurrency = normalizeCurrency(body?.preferred_currency);
+  const riskAppetiteInput = body?.risk_appetite === undefined || body?.risk_appetite === null || body?.risk_appetite === ""
+    ? null
+    : String(body.risk_appetite).toLowerCase();
+
+  if (!name || name.length > 255) {
+    return { error: "Name is required and must be 255 characters or fewer" };
+  }
+  if (dateOfBirth !== null && !isValidCalendarDate(dateOfBirth)) {
+    return { error: "Date of birth must be a valid YYYY-MM-DD date" };
+  }
+  if (monthlyIncome === undefined || monthlyExpenseTarget === undefined || emergencyFundTarget === undefined) {
+    return { error: "Financial amounts must be non-negative numbers" };
+  }
+  if (financialDependents === undefined) {
+    return { error: "Financial dependents must be a non-negative whole number" };
+  }
+  if (riskAppetiteInput !== null && riskAppetiteInput !== "low" && riskAppetiteInput !== "moderate" && riskAppetiteInput !== "high") {
+    return { error: "Risk appetite must be low, moderate, or high" };
+  }
+  if (!preferredCurrency) {
+    return { error: "Preferred currency must be a valid currency code" };
+  }
+
+  return {
+    data: {
+      name,
+      date_of_birth: dateOfBirth,
+      occupation,
+      city,
+      country,
+      monthly_income: monthlyIncome,
+      monthly_expense_target: monthlyExpenseTarget,
+      emergency_fund_target: emergencyFundTarget,
+      risk_appetite: riskAppetiteInput as ProfileInput["risk_appetite"],
+      investment_goal: normalizeOptionalText(body?.investment_goal, 2000),
+      financial_dependents: financialDependents,
+      preferred_currency: preferredCurrency,
+      ai_personalization_enabled: Boolean(body?.ai_personalization_enabled),
+    },
+  };
+};
+
+const getUserProfile = async (userId: number) => {
+  const profile: any = await queryOne(`
+    SELECT
+      users.id,
+      users.email,
+      users.name,
+      users.daily_threshold,
+      user_profiles.date_of_birth,
+      user_profiles.occupation,
+      user_profiles.city,
+      COALESCE(user_profiles.country, 'India') AS country,
+      user_profiles.monthly_income,
+      user_profiles.monthly_expense_target,
+      user_profiles.emergency_fund_target,
+      user_profiles.risk_appetite,
+      user_profiles.investment_goal,
+      user_profiles.financial_dependents,
+      COALESCE(user_profiles.preferred_currency, 'INR') AS preferred_currency,
+      COALESCE(user_profiles.ai_personalization_enabled, FALSE) AS ai_personalization_enabled,
+      COALESCE(user_profiles.profile_context_version, 1) AS profile_context_version,
+      user_profiles.updated_at AS profile_updated_at
+    FROM users
+    LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+    WHERE users.id = ?
+  `, [userId]);
+
+  if (!profile) return null;
+
+  return {
+    ...profile,
+    ai_personalization_enabled: Boolean(profile.ai_personalization_enabled),
+  };
+};
+
 const encodeBase64UrlJson = (value: unknown) =>
   Buffer.from(JSON.stringify(value), "utf8")
     .toString("base64")
@@ -2232,6 +2361,89 @@ app.delete("/api/transactions/:id", authenticateToken, async (req: any, res) => 
 });
 
 // --- User Settings ---
+app.get("/api/user/profile", authenticateToken, async (req: any, res) => {
+  const profile = await getUserProfile(req.user.id);
+  if (!profile) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  res.json(profile);
+});
+
+app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
+  const validated = validateProfileInput(req.body);
+  if ("error" in validated) {
+    return res.status(400).json({ error: validated.error });
+  }
+
+  const profile = validated.data;
+  await execute("UPDATE users SET name = ? WHERE id = ?", [profile.name, req.user.id]);
+  await execute(`
+    INSERT INTO user_profiles (
+      user_id,
+      date_of_birth,
+      occupation,
+      city,
+      country,
+      monthly_income,
+      monthly_expense_target,
+      emergency_fund_target,
+      risk_appetite,
+      investment_goal,
+      financial_dependents,
+      preferred_currency,
+      ai_personalization_enabled,
+      profile_context_version
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ON DUPLICATE KEY UPDATE
+      date_of_birth = VALUES(date_of_birth),
+      occupation = VALUES(occupation),
+      city = VALUES(city),
+      country = VALUES(country),
+      monthly_income = VALUES(monthly_income),
+      monthly_expense_target = VALUES(monthly_expense_target),
+      emergency_fund_target = VALUES(emergency_fund_target),
+      risk_appetite = VALUES(risk_appetite),
+      investment_goal = VALUES(investment_goal),
+      financial_dependents = VALUES(financial_dependents),
+      preferred_currency = VALUES(preferred_currency),
+      ai_personalization_enabled = VALUES(ai_personalization_enabled),
+      profile_context_version = profile_context_version + 1
+  `, [
+    req.user.id,
+    profile.date_of_birth,
+    profile.occupation,
+    profile.city,
+    profile.country,
+    profile.monthly_income,
+    profile.monthly_expense_target,
+    profile.emergency_fund_target,
+    profile.risk_appetite,
+    profile.investment_goal,
+    profile.financial_dependents,
+    profile.preferred_currency,
+    profile.ai_personalization_enabled,
+  ]);
+
+  const updatedProfile = await getUserProfile(req.user.id);
+  res.json(updatedProfile);
+});
+
+app.patch("/api/user/profile/ai-personalization", authenticateToken, async (req: any, res) => {
+  const enabled = Boolean(req.body?.enabled);
+  await execute(`
+    INSERT INTO user_profiles (user_id, ai_personalization_enabled)
+    VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE
+      ai_personalization_enabled = VALUES(ai_personalization_enabled),
+      profile_context_version = profile_context_version + 1
+  `, [req.user.id, enabled]);
+
+  const updatedProfile = await getUserProfile(req.user.id);
+  res.json(updatedProfile);
+});
+
 app.patch("/api/user/threshold", authenticateToken, async (req: any, res) => {
   const threshold = toNumber(req.body.threshold);
   if (threshold === null || threshold < 0) {

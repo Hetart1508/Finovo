@@ -17,6 +17,7 @@ const Insights = lazy(() => import('./pages/Insights'));
 const Recurring = lazy(() => import('./pages/Recurring'));
 const Investments = lazy(() => import('./pages/Investments'));
 const AIWealthAdvisor = lazy(() => import('./pages/AIWealthAdvisor'));
+const Profile = lazy(() => import('./pages/Profile'));
 const Auth = lazy(() => import('./pages/Auth'));
 
 const PageLoader = () => (
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
           <Route path="/wealth-advisor" element={<ProtectedRoute><AIWealthAdvisor /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
