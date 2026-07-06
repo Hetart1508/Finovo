@@ -234,6 +234,40 @@ export const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS monthly_report_preferences (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL UNIQUE,
+      email_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      send_day_of_month INT NOT NULL DEFAULT 1,
+      include_ai_summary BOOLEAN NOT NULL DEFAULT FALSE,
+      include_next_month_planning BOOLEAN NOT NULL DEFAULT TRUE,
+      delivery_email VARCHAR(255) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT chk_monthly_report_send_day CHECK (send_day_of_month BETWEEN 1 AND 28),
+      CONSTRAINT fk_monthly_report_preferences_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS monthly_report_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      report_month CHAR(7) NOT NULL,
+      delivery_email VARCHAR(255) NOT NULL,
+      status ENUM('sent', 'failed', 'skipped') NOT NULL,
+      error_message TEXT NULL,
+      sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_monthly_report_user_month_email (user_id, report_month, delivery_email),
+      CONSTRAINT fk_monthly_report_logs_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INT PRIMARY KEY
     )
@@ -261,6 +295,8 @@ export const runMigrations = async () => {
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user_start_date", "user_id, start_date");
   await ensureIndex("user_profiles", "idx_user_profiles_user", "user_id");
+  await ensureIndex("monthly_report_preferences", "idx_monthly_report_preferences_user", "user_id");
+  await ensureIndex("monthly_report_logs", "idx_monthly_report_logs_user_month", "user_id, report_month");
   await db.query("UPDATE ai_advisor_sessions SET title = TRIM(LEFT(title, 25)) WHERE CHAR_LENGTH(title) > 25");
   await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
   await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");

@@ -1656,6 +1656,432 @@ const addRecurringDueInfo = (event: any) => {
   };
 };
 
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 0,
+});
+
+type MonthlyReportPreferences = {
+  email_enabled: boolean;
+  send_day_of_month: number;
+  include_ai_summary: boolean;
+  include_next_month_planning: boolean;
+  delivery_email: string | null;
+};
+
+const getDefaultMonthlyReportPreferences = (): MonthlyReportPreferences => ({
+  email_enabled: true,
+  send_day_of_month: 1,
+  include_ai_summary: false,
+  include_next_month_planning: true,
+  delivery_email: null,
+});
+
+const formatCurrency = (value: unknown) => INR_FORMATTER.format(Number(value) || 0);
+
+const formatPercent = (value: number) => `${Number(value.toFixed(1))}%`;
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const getMonthStartEnd = (month: string) => {
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const [year, monthNumber] = month.split("-").map(Number);
+  if (monthNumber < 1 || monthNumber > 12) return null;
+  const startDate = `${month}-01`;
+  const endDate = toDateString(new Date(year, monthNumber, 0));
+  return { startDate, endDate, year, monthIndex: monthNumber - 1 };
+};
+
+const getPreviousMonthString = (date = new Date()) => {
+  const previous = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  return `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const getNextMonthString = (month: string) => {
+  const bounds = getMonthStartEnd(month);
+  if (!bounds) return null;
+  const next = new Date(bounds.year, bounds.monthIndex + 1, 1);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const getMonthLabel = (month: string) => {
+  const bounds = getMonthStartEnd(month);
+  if (!bounds) return month;
+  return new Date(bounds.year, bounds.monthIndex, 1).toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const getDaysInMonth = (month: string) => {
+  const bounds = getMonthStartEnd(month);
+  return bounds ? new Date(bounds.year, bounds.monthIndex + 1, 0).getDate() : 30;
+};
+
+const getMonthlyReportPreferences = async (userId: number): Promise<MonthlyReportPreferences> => {
+  const row: any = await queryOne("SELECT * FROM monthly_report_preferences WHERE user_id = ?", [userId]);
+  if (!row) return getDefaultMonthlyReportPreferences();
+
+  return {
+    email_enabled: Boolean(row.email_enabled),
+    send_day_of_month: Number(row.send_day_of_month) || 1,
+    include_ai_summary: Boolean(row.include_ai_summary),
+    include_next_month_planning: Boolean(row.include_next_month_planning),
+    delivery_email: row.delivery_email || null,
+  };
+};
+
+const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPreferences } | { error: string } => {
+  const defaults = getDefaultMonthlyReportPreferences();
+  const sendDay = body?.send_day_of_month === undefined ? defaults.send_day_of_month : Number(body.send_day_of_month);
+  const deliveryEmail = body?.delivery_email === undefined || body?.delivery_email === null || body?.delivery_email === ""
+    ? null
+    : normalizeEmail(body.delivery_email);
+
+  if (!Number.isInteger(sendDay) || sendDay < 1 || sendDay > 28) {
+    return { error: "Send day must be between 1 and 28" };
+  }
+
+  if (deliveryEmail !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail)) {
+    return { error: "Delivery email must be a valid email address" };
+  }
+
+  return {
+    data: {
+      email_enabled: body?.email_enabled === undefined ? defaults.email_enabled : Boolean(body.email_enabled),
+      send_day_of_month: sendDay,
+      include_ai_summary: body?.include_ai_summary === undefined ? defaults.include_ai_summary : Boolean(body.include_ai_summary),
+      include_next_month_planning: body?.include_next_month_planning === undefined
+        ? defaults.include_next_month_planning
+        : Boolean(body.include_next_month_planning),
+      delivery_email: deliveryEmail,
+    },
+  };
+};
+
+const getMonthDifference = (from: Date, to: Date) =>
+  (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth();
+
+const getRecurringEventsDueBetween = (events: any[], startDate: string, endDate: string) => {
+  const start = getDateFromString(startDate);
+  const end = getDateFromString(endDate);
+  const dueEvents: any[] = [];
+
+  for (const event of events) {
+    const dayOfMonth = Number(event.day_of_month);
+    const frequency = isValidRecurringFrequency(String(event.frequency || "")) ? String(event.frequency) : "monthly";
+    const intervalCount = Math.max(1, Number(event.interval_count) || 1);
+    const monthStep = frequency === "yearly" ? intervalCount * 12 : intervalCount;
+    const anchor = event.start_date ? getDateFromString(event.start_date) : start;
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+
+    while (cursor <= end) {
+      const dueDate = getDueDateForMonth(cursor.getFullYear(), cursor.getMonth(), dayOfMonth);
+      const monthDifference = getMonthDifference(new Date(anchor.getFullYear(), anchor.getMonth(), 1), cursor);
+      const isAligned = monthDifference >= 0 && monthDifference % monthStep === 0;
+
+      if (isAligned && dueDate >= anchor && dueDate >= start && dueDate <= end) {
+        dueEvents.push({
+          ...event,
+          next_due_date: toDateString(dueDate),
+          days_until_due: Math.ceil((dueDate.getTime() - getDateOnly(new Date()).getTime()) / (24 * 60 * 60 * 1000)),
+        });
+      }
+
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  return dueEvents.sort((a, b) => String(a.next_due_date).localeCompare(String(b.next_due_date)));
+};
+
+const buildMonthlyReport = async (userId: number, month = getPreviousMonthString()) => {
+  const bounds = getMonthStartEnd(month);
+  if (!bounds) {
+    return { error: "Month must use YYYY-MM format" };
+  }
+
+  const nextMonth = getNextMonthString(month) as string;
+  const nextBounds = getMonthStartEnd(nextMonth) as NonNullable<ReturnType<typeof getMonthStartEnd>>;
+  const user: any = await queryOne(`
+    SELECT users.id, users.name, users.email, users.daily_threshold, user_profiles.monthly_expense_target
+    FROM users
+    LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+    WHERE users.id = ?
+  `, [userId]);
+
+  if (!user) {
+    return { error: "User not found" };
+  }
+
+  const transactions = await queryAll(`
+    SELECT *
+    FROM transactions
+    WHERE user_id = ? AND date BETWEEN ? AND ?
+    ORDER BY date ASC, id ASC
+  `, [userId, bounds.startDate, bounds.endDate]);
+
+  const recurringEvents = await queryAll("SELECT * FROM recurring_events WHERE user_id = ?", [userId]);
+  const investments = await queryAll("SELECT * FROM mutual_fund_sip_investments WHERE user_id = ?", [userId]);
+
+  const totalIncome = transactions
+    .filter((transaction: any) => transaction.type === "income")
+    .reduce((sum: number, transaction: any) => sum + Number(transaction.amount), 0);
+  const totalExpense = transactions
+    .filter((transaction: any) => transaction.type === "expense")
+    .reduce((sum: number, transaction: any) => sum + Number(transaction.amount), 0);
+  const netSavings = totalIncome - totalExpense;
+  const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0;
+  const averageDailyExpense = totalExpense / getDaysInMonth(month);
+
+  const byCategory = new Map<string, number>();
+  const byDay = new Map<string, number>();
+  for (const transaction of transactions as any[]) {
+    if (transaction.type !== "expense") continue;
+    byCategory.set(transaction.category, (byCategory.get(transaction.category) || 0) + Number(transaction.amount));
+    byDay.set(transaction.date, (byDay.get(transaction.date) || 0) + Number(transaction.amount));
+  }
+
+  const topCategories = [...byCategory.entries()]
+    .map(([category, amount]) => ({
+      category,
+      amount: Number(amount.toFixed(2)),
+      share_percent: totalExpense > 0 ? Number(((amount / totalExpense) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 8);
+
+  const dailyThreshold = Number(user.daily_threshold) || 0;
+  const overExpensedDays = [...byDay.entries()]
+    .filter(([, amount]) => dailyThreshold > 0 && amount > dailyThreshold)
+    .map(([date, amount]) => ({
+      date,
+      amount: Number(amount.toFixed(2)),
+      threshold: dailyThreshold,
+      over_by: Number((amount - dailyThreshold).toFixed(2)),
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10);
+
+  const highestExpenseDay = [...byDay.entries()]
+    .map(([date, amount]) => ({ date, amount: Number(amount.toFixed(2)) }))
+    .sort((a, b) => b.amount - a.amount)[0] || null;
+
+  const recurringPaidThisMonth = getRecurringEventsDueBetween(recurringEvents, bounds.startDate, bounds.endDate);
+  const nextMonthDue = getRecurringEventsDueBetween(recurringEvents, nextBounds.startDate, nextBounds.endDate);
+  const nextMonthRecurringExpense = nextMonthDue
+    .filter((event: any) => event.type !== "income")
+    .reduce((sum: number, event: any) => sum + Number(event.amount), 0);
+  const nextMonthRecurringIncome = nextMonthDue
+    .filter((event: any) => event.type === "income")
+    .reduce((sum: number, event: any) => sum + Number(event.amount), 0);
+
+  const investmentSummary = investments.reduce((summary: any, investment: any) => {
+    const projection = getInvestmentProjection(investment);
+    summary.count += 1;
+    summary.monthly_commitment += investment.investment_type === "lumpsum" ? 0 : Number(investment.monthly_sip_amount);
+    summary.total_invested += Number(investment.total_invested_amount);
+    summary.current_value += Number(investment.current_value);
+    summary.projected_future_value += Number(projection.future_value);
+    return summary;
+  }, {
+    count: 0,
+    monthly_commitment: 0,
+    total_invested: 0,
+    current_value: 0,
+    projected_future_value: 0,
+  });
+
+  const targetExpense = Number(user.monthly_expense_target) || 0;
+  const expectedNextMonthExpense = Number((averageDailyExpense * getDaysInMonth(nextMonth) + nextMonthRecurringExpense).toFixed(2));
+  const recommendedBudget = targetExpense > 0
+    ? Math.min(targetExpense, expectedNextMonthExpense || targetExpense)
+    : expectedNextMonthExpense;
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+    month,
+    month_label: getMonthLabel(month),
+    next_month: nextMonth,
+    next_month_label: getMonthLabel(nextMonth),
+    period: {
+      start_date: bounds.startDate,
+      end_date: bounds.endDate,
+    },
+    summary: {
+      total_income: Number(totalIncome.toFixed(2)),
+      total_expense: Number(totalExpense.toFixed(2)),
+      net_savings: Number(netSavings.toFixed(2)),
+      savings_rate_percent: Number(savingsRate.toFixed(1)),
+      average_daily_expense: Number(averageDailyExpense.toFixed(2)),
+      transaction_count: transactions.length,
+      expense_transaction_count: transactions.filter((transaction: any) => transaction.type === "expense").length,
+      income_transaction_count: transactions.filter((transaction: any) => transaction.type === "income").length,
+    },
+    monthly_targets: {
+      daily_threshold: dailyThreshold,
+      monthly_expense_target: targetExpense || null,
+      target_gap: targetExpense > 0 ? Number((targetExpense - totalExpense).toFixed(2)) : null,
+    },
+    top_categories: topCategories,
+    highest_expense_day: highestExpenseDay,
+    over_expensed_days: overExpensedDays,
+    recurring_paid_this_month: recurringPaidThisMonth,
+    next_month_planning: {
+      expected_expense_from_spending_pace: Number((averageDailyExpense * getDaysInMonth(nextMonth)).toFixed(2)),
+      recurring_expense_due: Number(nextMonthRecurringExpense.toFixed(2)),
+      recurring_income_due: Number(nextMonthRecurringIncome.toFixed(2)),
+      expected_total_expense: expectedNextMonthExpense,
+      recommended_budget: Number(recommendedBudget.toFixed(2)),
+      due_items: nextMonthDue,
+    },
+    investment_summary: {
+      count: investmentSummary.count,
+      monthly_commitment: Number(investmentSummary.monthly_commitment.toFixed(2)),
+      total_invested: Number(investmentSummary.total_invested.toFixed(2)),
+      current_value: Number(investmentSummary.current_value.toFixed(2)),
+      projected_future_value: Number(investmentSummary.projected_future_value.toFixed(2)),
+    },
+  };
+};
+
+const buildMonthlyReportEmailHtml = (report: any) => {
+  const topCategoryRows = report.top_categories.length
+    ? report.top_categories.map((category: any) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(category.category)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700;">${formatCurrency(category.amount)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">${category.share_percent}%</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="3" style="padding: 12px; color: #6b7280;">No category spending recorded for this month.</td></tr>`;
+
+  const overExpenseRows = report.over_expensed_days.length
+    ? report.over_expensed_days.map((day: any) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(day.date)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700;">${formatCurrency(day.amount)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #dc2626;">${formatCurrency(day.over_by)}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="3" style="padding: 12px; color: #16a34a;">No days crossed your daily threshold.</td></tr>`;
+
+  const dueRows = report.next_month_planning.due_items.length
+    ? report.next_month_planning.due_items.map((item: any) => `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.next_due_date)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.name)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(item.category)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 700;">${formatCurrency(item.amount)}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="4" style="padding: 12px; color: #6b7280;">No recurring payments are due next month.</td></tr>`;
+
+  return `
+    <div style="margin: 0; padding: 0; background: #f3f4f6; font-family: Arial, sans-serif; color: #111827;">
+      <div style="max-width: 760px; margin: 0 auto; padding: 28px 16px;">
+        <div style="background: #111827; color: #ffffff; border-radius: 18px 18px 0 0; padding: 32px;">
+          <p style="margin: 0 0 8px; color: #93c5fd; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;">Finovo Monthly Financial Digest</p>
+          <h1 style="margin: 0; font-size: 30px; line-height: 1.2;">${escapeHtml(report.month_label)} report</h1>
+          <p style="margin: 12px 0 0; color: #d1d5db; font-size: 15px;">Hi ${escapeHtml(report.user.name)}, here is your full month review and ${escapeHtml(report.next_month_label)} planning snapshot.</p>
+        </div>
+
+        <div style="background: #ffffff; padding: 28px 32px; border-radius: 0 0 18px 18px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin-bottom: 24px;">
+            <tr>
+              <td style="width: 50%; padding: 12px; background: #ecfdf5; border-radius: 12px;">
+                <p style="margin: 0; color: #047857; font-size: 13px;">Income</p>
+                <p style="margin: 6px 0 0; font-size: 24px; font-weight: 800;">${formatCurrency(report.summary.total_income)}</p>
+              </td>
+              <td style="width: 16px;"></td>
+              <td style="width: 50%; padding: 12px; background: #fef2f2; border-radius: 12px;">
+                <p style="margin: 0; color: #b91c1c; font-size: 13px;">Expense</p>
+                <p style="margin: 6px 0 0; font-size: 24px; font-weight: 800;">${formatCurrency(report.summary.total_expense)}</p>
+              </td>
+            </tr>
+          </table>
+
+          <h2 style="font-size: 20px; margin: 0 0 12px;">Month summary</h2>
+          <p style="line-height: 1.7; color: #374151; margin: 0 0 18px;">
+            You recorded <strong>${report.summary.transaction_count}</strong> transactions in ${escapeHtml(report.month_label)}.
+            Net savings were <strong>${formatCurrency(report.summary.net_savings)}</strong>, with a savings rate of
+            <strong>${formatPercent(report.summary.savings_rate_percent)}</strong>. Your average daily expense was
+            <strong>${formatCurrency(report.summary.average_daily_expense)}</strong>.
+            ${report.highest_expense_day ? `The highest expense day was <strong>${escapeHtml(report.highest_expense_day.date)}</strong> at <strong>${formatCurrency(report.highest_expense_day.amount)}</strong>.` : "There was no expense day to highlight this month."}
+          </p>
+
+          <h2 style="font-size: 20px; margin: 24px 0 12px;">Top expense categories</h2>
+          <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background: #f9fafb;">
+                <th align="left" style="padding: 12px; font-size: 12px; color: #6b7280;">Category</th>
+                <th align="right" style="padding: 12px; font-size: 12px; color: #6b7280;">Amount</th>
+                <th align="right" style="padding: 12px; font-size: 12px; color: #6b7280;">Share</th>
+              </tr>
+            </thead>
+            <tbody>${topCategoryRows}</tbody>
+          </table>
+
+          <h2 style="font-size: 20px; margin: 24px 0 12px;">Over-expensed days</h2>
+          <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background: #f9fafb;">
+                <th align="left" style="padding: 12px; font-size: 12px; color: #6b7280;">Date</th>
+                <th align="right" style="padding: 12px; font-size: 12px; color: #6b7280;">Spent</th>
+                <th align="right" style="padding: 12px; font-size: 12px; color: #6b7280;">Over by</th>
+              </tr>
+            </thead>
+            <tbody>${overExpenseRows}</tbody>
+          </table>
+
+          <h2 style="font-size: 20px; margin: 24px 0 12px;">${escapeHtml(report.next_month_label)} planning</h2>
+          <p style="line-height: 1.7; color: #374151; margin: 0 0 18px;">
+            Based on this month’s spending pace, expected spending for next month is <strong>${formatCurrency(report.next_month_planning.expected_expense_from_spending_pace)}</strong>.
+            Known recurring expense due next month is <strong>${formatCurrency(report.next_month_planning.recurring_expense_due)}</strong>.
+            A practical budget target is <strong>${formatCurrency(report.next_month_planning.recommended_budget)}</strong>.
+          </p>
+          <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background: #f9fafb;">
+                <th align="left" style="padding: 12px; font-size: 12px; color: #6b7280;">Due date</th>
+                <th align="left" style="padding: 12px; font-size: 12px; color: #6b7280;">Payment</th>
+                <th align="left" style="padding: 12px; font-size: 12px; color: #6b7280;">Category</th>
+                <th align="right" style="padding: 12px; font-size: 12px; color: #6b7280;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${dueRows}</tbody>
+          </table>
+
+          <h2 style="font-size: 20px; margin: 24px 0 12px;">Investment snapshot</h2>
+          <p style="line-height: 1.7; color: #374151; margin: 0;">
+            You have <strong>${report.investment_summary.count}</strong> investment records. Current value is
+            <strong>${formatCurrency(report.investment_summary.current_value)}</strong> against total invested
+            <strong>${formatCurrency(report.investment_summary.total_invested)}</strong>. Monthly SIP commitment is
+            <strong>${formatCurrency(report.investment_summary.monthly_commitment)}</strong>.
+          </p>
+
+          <div style="margin-top: 28px; padding: 16px; background: #eff6ff; border-radius: 12px; color: #1e3a8a;">
+            <strong>Next action:</strong> Review the due payments table, keep aside your recurring amount early, and watch categories that crossed 25% of your monthly expense.
+          </div>
+
+          <p style="margin: 28px 0 0; color: #6b7280; font-size: 13px;">This report is generated from your Finovo transactions, recurring payments, profile targets, and investment records.</p>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
 const updateRecurringEvent = async (id: number, userId: number, body: any) => {
   const existing: any = await findRecurringEventById(id, userId);
   if (!existing) {
@@ -1786,7 +2212,7 @@ const getEmailErrorMessage = (error: any) => {
       return "Brevo rejected the API key or sender. Check BREVO_API_KEY, BREVO_FROM_EMAIL, and sender verification in Render/Brevo.";
     }
 
-    return "Brevo failed to send OTP. Check BREVO_API_KEY, BREVO_FROM_EMAIL, sender verification, and the provider response.";
+    return "Brevo failed to send the email. Check BREVO_API_KEY, BREVO_FROM_EMAIL, sender verification, and the provider response.";
   }
 
   if (combined.includes("invalid login") || combined.includes("username and password not accepted") || error?.responseCode === 535) {
@@ -1805,7 +2231,7 @@ const getEmailErrorMessage = (error: any) => {
     return "Gmail rejected the send because the account hit a sending limit or temporary SMTP restriction.";
   }
 
-  return "Failed to send OTP. Check Render logs for the Email error details from Gmail/Nodemailer.";
+  return "Failed to send email. Check Render logs for the Email error details from Gmail/Nodemailer.";
 };
 
 const getEmailErrorDebug = (error: any) => ({
@@ -1859,30 +2285,11 @@ const sendEmailWithBrevo = async (mail: { to: string; subject: string; html: str
   }
 };
 
-const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
-  const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
+const sendAppEmail = async (mail: { to: string; subject: string; html: string }) => {
   if (!BREVO_API_KEY && (!EMAIL_USER || !EMAIL_PASS)) {
     logger.error("Email is not configured");
     return { status: 500, body: { error: "Email service is not configured" } };
   }
-
-  const mail = {
-    from: `"Finovo AI" <${EMAIL_USER}>`,
-    to: email,
-    subject: `Your Finovo AI ${label}`,
-    html: `
-        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
-          <h2 style="color: #6366f1;">Your ${label}</h2>
-          <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-size: 32px; font-weight: bold; padding: 20px; text-align: center; border-radius: 12px; letter-spacing: 4px;">
-            ${otp}
-          </div>
-          <p style="margin-top: 24px;">This OTP is valid for <strong>5 minutes</strong>.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 14px;">Finovo AI - Intelligent expense tracking</p>
-        </div>
-      `,
-  };
 
   const timeoutMs = Number(process.env.EMAIL_SEND_TIMEOUT_MS || 30000);
   let lastError: any = null;
@@ -1918,7 +2325,10 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
       });
 
       await Promise.race([
-        transporter.sendMail(mail),
+        transporter.sendMail({
+          from: `"Finovo AI" <${EMAIL_USER}>`,
+          ...mail,
+        }),
         new Promise((_, reject) => {
           setTimeout(() => reject(new Error(`Email send timed out after ${timeoutMs}ms using ${transport.name}`)), timeoutMs);
         }),
@@ -1943,6 +2353,93 @@ const sendOtpEmail = async (email: string, otp: string, purpose: "registration" 
     body: {
       error: getEmailErrorMessage(lastError),
       emailDebug: getEmailErrorDebug(lastError),
+    },
+  };
+};
+
+const sendOtpEmail = async (email: string, otp: string, purpose: "registration" | "password-reset" = "registration") => {
+  const label = purpose === "registration" ? "Email Verification OTP" : "Password Reset OTP";
+
+  return sendAppEmail({
+    to: email,
+    subject: `Your Finovo AI ${label}`,
+    html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #6366f1;">Your ${label}</h2>
+          <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; font-size: 32px; font-weight: bold; padding: 20px; text-align: center; border-radius: 12px; letter-spacing: 4px;">
+            ${otp}
+          </div>
+          <p style="margin-top: 24px;">This OTP is valid for <strong>5 minutes</strong>.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+          <p style="color: #6b7280; font-size: 14px;">Finovo AI - Intelligent expense tracking</p>
+        </div>
+      `,
+  });
+};
+
+const upsertMonthlyReportLog = async (
+  userId: number,
+  reportMonth: string,
+  deliveryEmail: string,
+  status: "sent" | "failed" | "skipped",
+  errorMessage: string | null = null
+) => {
+  await execute(`
+    INSERT INTO monthly_report_logs (user_id, report_month, delivery_email, status, error_message)
+    VALUES (?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      status = VALUES(status),
+      error_message = VALUES(error_message),
+      sent_at = CURRENT_TIMESTAMP
+  `, [userId, reportMonth, deliveryEmail, status, errorMessage]);
+};
+
+const sendMonthlyReportEmail = async (userId: number, month = getPreviousMonthString(), options: { force?: boolean } = {}) => {
+  const report: any = await buildMonthlyReport(userId, month);
+  if (report.error) {
+    return { status: 400, body: { error: report.error } };
+  }
+
+  const preferences = await getMonthlyReportPreferences(userId);
+  const deliveryEmail = preferences.delivery_email || report.user.email;
+
+  if (!preferences.email_enabled && !options.force) {
+    await upsertMonthlyReportLog(userId, month, deliveryEmail, "skipped", "Monthly report email is disabled");
+    return { status: 200, body: { message: "Monthly report email is disabled", status: "skipped", report } };
+  }
+
+  const existingLog: any = await queryOne(`
+    SELECT id, status
+    FROM monthly_report_logs
+    WHERE user_id = ? AND report_month = ? AND delivery_email = ? AND status = 'sent'
+    LIMIT 1
+  `, [userId, month, deliveryEmail]);
+
+  if (existingLog && !options.force) {
+    return { status: 200, body: { message: "Monthly report was already sent", status: "skipped", report } };
+  }
+
+  const emailResult = await sendAppEmail({
+    to: deliveryEmail,
+    subject: `Your Finovo monthly financial report - ${report.month_label}`,
+    html: buildMonthlyReportEmailHtml(report),
+  });
+
+  if (emailResult.status >= 400) {
+    const errorMessage = String((emailResult.body as any)?.error || "Monthly report email failed");
+    await upsertMonthlyReportLog(userId, month, deliveryEmail, "failed", errorMessage);
+    return { status: emailResult.status, body: { ...emailResult.body, status: "failed", report } };
+  }
+
+  await upsertMonthlyReportLog(userId, month, deliveryEmail, "sent");
+  return {
+    status: 200,
+    body: {
+      message: "Monthly report sent successfully",
+      status: "sent",
+      delivery_email: deliveryEmail,
+      report,
     },
   };
 };
@@ -2442,6 +2939,108 @@ app.patch("/api/user/profile/ai-personalization", authenticateToken, async (req:
 
   const updatedProfile = await getUserProfile(req.user.id);
   res.json(updatedProfile);
+});
+
+app.get("/api/user/monthly-report/preferences", authenticateToken, async (req: any, res) => {
+  const preferences = await getMonthlyReportPreferences(req.user.id);
+  res.json(preferences);
+});
+
+app.put("/api/user/monthly-report/preferences", authenticateToken, async (req: any, res) => {
+  const validated = validateMonthlyReportPreferences(req.body);
+  if ("error" in validated) {
+    return res.status(400).json({ error: validated.error });
+  }
+
+  const preferences = validated.data;
+  await execute(`
+    INSERT INTO monthly_report_preferences (
+      user_id,
+      email_enabled,
+      send_day_of_month,
+      include_ai_summary,
+      include_next_month_planning,
+      delivery_email
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      email_enabled = VALUES(email_enabled),
+      send_day_of_month = VALUES(send_day_of_month),
+      include_ai_summary = VALUES(include_ai_summary),
+      include_next_month_planning = VALUES(include_next_month_planning),
+      delivery_email = VALUES(delivery_email)
+  `, [
+    req.user.id,
+    preferences.email_enabled,
+    preferences.send_day_of_month,
+    preferences.include_ai_summary,
+    preferences.include_next_month_planning,
+    preferences.delivery_email,
+  ]);
+
+  res.json(await getMonthlyReportPreferences(req.user.id));
+});
+
+app.get("/api/reports/monthly", authenticateToken, async (req: any, res) => {
+  const month = isNonEmptyString(req.query.month) ? req.query.month.trim() : getPreviousMonthString();
+  const report: any = await buildMonthlyReport(req.user.id, month);
+  if (report.error) {
+    return res.status(400).json({ error: report.error });
+  }
+
+  res.json(report);
+});
+
+app.post("/api/reports/monthly/send", authenticateToken, async (req: any, res) => {
+  const month = isNonEmptyString(req.body?.month) ? req.body.month.trim() : getPreviousMonthString();
+  const result = await sendMonthlyReportEmail(req.user.id, month, { force: Boolean(req.body?.force) });
+  res.status(result.status).json(result.body);
+});
+
+app.post("/api/admin/monthly-reports/send", async (req, res) => {
+  const expectedSecret = process.env.MONTHLY_REPORT_CRON_SECRET || "";
+  const authorization = String(req.headers.authorization || "");
+  const providedSecret = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : String(req.headers["x-cron-secret"] || "");
+
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    return res.status(401).json({ error: "Invalid monthly report cron secret" });
+  }
+
+  const month = isNonEmptyString(req.body?.month) ? req.body.month.trim() : getPreviousMonthString();
+  if (!getMonthStartEnd(month)) {
+    return res.status(400).json({ error: "Month must use YYYY-MM format" });
+  }
+
+  const dayOfMonth = new Date().getDate();
+  const users = await queryAll(`
+    SELECT users.id
+    FROM users
+    LEFT JOIN monthly_report_preferences ON monthly_report_preferences.user_id = users.id
+    WHERE COALESCE(monthly_report_preferences.email_enabled, TRUE) = TRUE
+      AND COALESCE(monthly_report_preferences.send_day_of_month, 1) <= ?
+  `, [dayOfMonth]);
+
+  const results = [];
+  for (const user of users as any[]) {
+    const result = await sendMonthlyReportEmail(Number(user.id), month, { force: Boolean(req.body?.force) });
+    results.push({
+      user_id: Number(user.id),
+      status: (result.body as any)?.status || (result.status >= 400 ? "failed" : "sent"),
+      http_status: result.status,
+      message: (result.body as any)?.message || (result.body as any)?.error || null,
+    });
+  }
+
+  res.json({
+    month,
+    processed: results.length,
+    sent: results.filter((result) => result.status === "sent").length,
+    skipped: results.filter((result) => result.status === "skipped").length,
+    failed: results.filter((result) => result.status === "failed").length,
+    results,
+  });
 });
 
 app.patch("/api/user/threshold", authenticateToken, async (req: any, res) => {

@@ -194,6 +194,46 @@
       "key": "statementPreviewTransactions",
       "value": "[]",
       "type": "string"
+    },
+    {
+      "key": "monthlyReportMonth",
+      "value": "2026-06",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportEmailEnabled",
+      "value": "true",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportSendDay",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportIncludeAiSummary",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportIncludeNextMonthPlanning",
+      "value": "true",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportDeliveryEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportForceSend",
+      "value": "true",
+      "type": "string"
+    },
+    {
+      "key": "monthlyReportCronSecret",
+      "value": "",
+      "type": "string"
     }
   ],
   "auth": {
@@ -761,6 +801,100 @@
             },
             "url": "{{baseUrl}}/user/threshold",
             "description": "Updates daily spending threshold. Returns 204 on success."
+          }
+        },
+        {
+          "name": "Get Monthly Report Preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/user/monthly-report/preferences",
+            "description": "Gets monthly report email preferences for the authenticated user."
+          }
+        },
+        {
+          "name": "Update Monthly Report Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email_enabled\": {{monthlyReportEmailEnabled}},\n  \"send_day_of_month\": {{monthlyReportSendDay}},\n  \"include_ai_summary\": {{monthlyReportIncludeAiSummary}},\n  \"include_next_month_planning\": {{monthlyReportIncludeNextMonthPlanning}},\n  \"delivery_email\": \"{{monthlyReportDeliveryEmail}}\"\n}"
+            },
+            "url": "{{baseUrl}}/user/monthly-report/preferences",
+            "description": "Creates or updates monthly report email preferences. Leave delivery_email blank to use the account email."
+          }
+        },
+        {
+          "name": "Preview Monthly Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/reports/monthly?month={{monthlyReportMonth}}",
+            "description": "Returns the full monthly finance report JSON without sending email."
+          }
+        },
+        {
+          "name": "Send My Monthly Report Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"month\": \"{{monthlyReportMonth}}\",\n  \"force\": {{monthlyReportForceSend}}\n}"
+            },
+            "url": "{{baseUrl}}/reports/monthly/send",
+            "description": "Sends the selected monthly report to the authenticated user. force=true is useful while testing."
+          }
+        },
+        {
+          "name": "Admin Send Monthly Reports Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{monthlyReportCronSecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"month\": \"{{monthlyReportMonth}}\",\n  \"force\": false\n}"
+            },
+            "url": "{{baseUrl}}/admin/monthly-reports/send",
+            "description": "Cron-safe endpoint for GitHub Actions or another scheduler. Set MONTHLY_REPORT_CRON_SECRET on the server and monthlyReportCronSecret in Postman."
           }
         }
       ]

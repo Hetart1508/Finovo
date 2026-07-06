@@ -1,0 +1,54 @@
+name: Send monthly finance reports
+
+on:
+  schedule:
+    - cron: "30 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Report month in YYYY-MM format. Leave blank for previous month."
+        required: false
+        type: string
+      force:
+        description: "Send again even if a sent log already exists."
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  send-monthly-reports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Finovo monthly report batch
+        env:
+          FINOVO_API_BASE_URL: ${{ secrets.FINOVO_API_BASE_URL }}
+          MONTHLY_REPORT_CRON_SECRET: ${{ secrets.MONTHLY_REPORT_CRON_SECRET }}
+          REPORT_MONTH: ${{ inputs.month }}
+          FORCE_SEND: ${{ inputs.force || 'false' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${FINOVO_API_BASE_URL}" ]; then
+            echo "FINOVO_API_BASE_URL secret is required, for example https://your-app.onrender.com/api"
+            exit 1
+          fi
+
+          if [ -z "${MONTHLY_REPORT_CRON_SECRET}" ]; then
+            echo "MONTHLY_REPORT_CRON_SECRET secret is required"
+            exit 1
+          fi
+
+          BODY="{\"force\":${FORCE_SEND}}"
+          if [ -n "${REPORT_MONTH}" ]; then
+            BODY="{\"month\":\"${REPORT_MONTH}\",\"force\":${FORCE_SEND}}"
+          fi
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${MONTHLY_REPORT_CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            --data "${BODY}" \
+            "${FINOVO_API_BASE_URL%/}/admin/monthly-reports/send"
