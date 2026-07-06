@@ -3086,8 +3086,17 @@ async function startServer() {
   }
 
   const PORT = Number(process.env.PORT || 3000);
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     logger.info(`Server running on http://localhost:${PORT}`);
+  });
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      logger.error(`Port ${PORT} is already in use. Stop the process using it or start Finovo with PORT=${PORT + 1} npm run dev.`);
+      process.exit(1);
+    }
+
+    logger.error("Server failed to start", { error });
+    process.exit(1);
   });
 }
 
