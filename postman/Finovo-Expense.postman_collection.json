@@ -101,6 +101,66 @@
       "type": "string"
     },
     {
+      "key": "profileDateOfBirth",
+      "value": "1998-01-15",
+      "type": "string"
+    },
+    {
+      "key": "profileOccupation",
+      "value": "Founder",
+      "type": "string"
+    },
+    {
+      "key": "profileCity",
+      "value": "Mumbai",
+      "type": "string"
+    },
+    {
+      "key": "profileCountry",
+      "value": "India",
+      "type": "string"
+    },
+    {
+      "key": "profileMonthlyIncome",
+      "value": "150000",
+      "type": "string"
+    },
+    {
+      "key": "profileMonthlyExpenseTarget",
+      "value": "65000",
+      "type": "string"
+    },
+    {
+      "key": "profileEmergencyFundTarget",
+      "value": "600000",
+      "type": "string"
+    },
+    {
+      "key": "profileRiskAppetite",
+      "value": "moderate",
+      "type": "string"
+    },
+    {
+      "key": "profileInvestmentGoal",
+      "value": "Build long-term wealth while keeping enough emergency liquidity.",
+      "type": "string"
+    },
+    {
+      "key": "profileFinancialDependents",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "profilePreferredCurrency",
+      "value": "INR",
+      "type": "string"
+    },
+    {
+      "key": "profileAiPersonalizationEnabled",
+      "value": "true",
+      "type": "string"
+    },
+    {
       "key": "billMimeType",
       "value": "image/jpeg",
       "type": "string"
@@ -616,6 +676,66 @@
     {
       "name": "User Settings",
       "item": [
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/user/profile",
+            "description": "Gets the authenticated user's combined account and profile details."
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.id) pm.collectionVariables.set('userId', String(json.id));",
+                  "  if (json.name) pm.collectionVariables.set('name', json.name);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"date_of_birth\": \"{{profileDateOfBirth}}\",\n  \"occupation\": \"{{profileOccupation}}\",\n  \"city\": \"{{profileCity}}\",\n  \"country\": \"{{profileCountry}}\",\n  \"monthly_income\": {{profileMonthlyIncome}},\n  \"monthly_expense_target\": {{profileMonthlyExpenseTarget}},\n  \"emergency_fund_target\": {{profileEmergencyFundTarget}},\n  \"risk_appetite\": \"{{profileRiskAppetite}}\",\n  \"investment_goal\": \"{{profileInvestmentGoal}}\",\n  \"financial_dependents\": {{profileFinancialDependents}},\n  \"preferred_currency\": \"{{profilePreferredCurrency}}\",\n  \"ai_personalization_enabled\": {{profileAiPersonalizationEnabled}}\n}"
+            },
+            "url": "{{baseUrl}}/user/profile",
+            "description": "Creates or updates the authenticated user's personal and financial profile."
+          }
+        },
+        {
+          "name": "Toggle AI Personalization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": {{profileAiPersonalizationEnabled}}\n}"
+            },
+            "url": "{{baseUrl}}/user/profile/ai-personalization",
+            "description": "Enables or disables use of profile context for future AI personalization."
+          }
+        },
         {
           "name": "Get User By ID",
           "request": {
