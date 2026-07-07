@@ -4,12 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
   RiCheckboxCircleLine,
+  RiMailLine,
   RiInformationLine,
   RiShieldUserLine,
   RiUser3Line,
   RiWallet3Line,
 } from 'react-icons/ri';
 import { userApi } from '@/src/api/userApi';
+import type { MonthlyReportPreferences, ReportFrequency } from '@/src/api/userApi';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Input } from '@/src/components/ui/input';
@@ -51,6 +53,16 @@ const emptyForm: ProfileFormState = {
   financial_dependents: '',
   preferred_currency: 'INR',
   ai_personalization_enabled: false,
+};
+
+const defaultReportPreferences: MonthlyReportPreferences = {
+  email_enabled: true,
+  report_frequency: 'monthly',
+  custom_interval_days: 30,
+  send_day_of_month: 1,
+  include_ai_summary: false,
+  include_next_month_planning: true,
+  delivery_email: null,
 };
 
 const textOrDash = (value: unknown) =>
@@ -100,11 +112,22 @@ const countCompletedFields = (profile: UserProfile | undefined) => {
 export default function Profile() {
   const queryClient = useQueryClient();
   const { data: profile, isLoading, error } = useQuery(userProfileQuery());
+  const reportPreferencesQuery = useQuery({
+    queryKey: queryKeys.monthlyReportPreferences,
+    queryFn: () => userApi.getMonthlyReportPreferences(),
+  });
   const [form, setForm] = useState<ProfileFormState>(emptyForm);
+  const [reportForm, setReportForm] = useState<MonthlyReportPreferences>(defaultReportPreferences);
 
   useEffect(() => {
     if (profile) setForm(profileToForm(profile));
   }, [profile]);
+
+  useEffect(() => {
+    if (reportPreferencesQuery.data) {
+      setReportForm(reportPreferencesQuery.data);
+    }
+  }, [reportPreferencesQuery.data]);
 
   const completion = useMemo(() => {
     const total = 12;
@@ -130,8 +153,20 @@ export default function Profile() {
     },
   });
 
+  const saveReportPreferences = useMutation({
+    mutationFn: (payload: MonthlyReportPreferences) => userApi.updateMonthlyReportPreferences(payload),
+    onSuccess: (response) => {
+      queryClient.setQueryData(queryKeys.monthlyReportPreferences, response.data);
+      toast.success('Mail report settings saved.');
+    },
+  });
+
   const updateField = <Key extends keyof ProfileFormState>(key: Key, value: ProfileFormState[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateReportField = <Key extends keyof MonthlyReportPreferences>(key: Key, value: MonthlyReportPreferences[Key]) => {
+    setReportForm((current) => ({ ...current, [key]: value }));
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -156,6 +191,22 @@ export default function Profile() {
       await saveProfile.mutateAsync(payload);
     } catch (saveError) {
       toast.error(getApiMessage(saveError, 'Failed to update profile.'));
+    }
+  };
+
+  const handleReportSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const payload: MonthlyReportPreferences = {
+      ...reportForm,
+      custom_interval_days: Math.max(1, Math.min(365, Number(reportForm.custom_interval_days) || 30)),
+      send_day_of_month: Math.max(1, Math.min(28, Number(reportForm.send_day_of_month) || 1)),
+      delivery_email: reportForm.delivery_email?.trim() || null,
+    };
+
+    try {
+      await saveReportPreferences.mutateAsync(payload);
+    } catch (saveError) {
+      toast.error(getApiMessage(saveError, 'Failed to save mail report settings.'));
     }
   };
 
@@ -263,6 +314,94 @@ export default function Profile() {
                     : 'AI personalization is off until you choose to enable it.'}
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiMailLine className="text-[#F59E0B]" aria-hidden="true" />
+                Mail reports
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleReportSubmit} className="space-y-4">
+                <label className="flex items-start gap-3 rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3">
+                  <input
+                    type="checkbox"
+                    checked={reportForm.email_enabled}
+                    onChange={(event) => updateReportField('email_enabled', event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-[#E5E7EB]"
+                    disabled={reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#1F2937]">Allow mail report sending</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#6B7280]">
+                      Turn this off to stop scheduled financial report emails.
+                    </span>
+                  </span>
+                </label>
+
+                <Field label="Delivery email" htmlFor="report-email">
+                  <Input
+                    id="report-email"
+                    type="email"
+                    value={reportForm.delivery_email || ''}
+                    onChange={(event) => updateReportField('delivery_email', event.target.value)}
+                    placeholder={profile.email}
+                    disabled={!reportForm.email_enabled || reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                  />
+                </Field>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Frequency" htmlFor="report-frequency">
+                    <select
+                      id="report-frequency"
+                      value={reportForm.report_frequency}
+                      onChange={(event) => updateReportField('report_frequency', event.target.value as ReportFrequency)}
+                      disabled={!reportForm.email_enabled || reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:bg-input/50 disabled:opacity-50"
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </Field>
+
+                  {reportForm.report_frequency === 'custom' ? (
+                    <Field label="Every days" htmlFor="report-custom-interval">
+                      <Input
+                        id="report-custom-interval"
+                        type="number"
+                        min="1"
+                        max="365"
+                        step="1"
+                        value={reportForm.custom_interval_days}
+                        onChange={(event) => updateReportField('custom_interval_days', Number(event.target.value))}
+                        disabled={!reportForm.email_enabled || reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                      />
+                    </Field>
+                  ) : (
+                    <Field label="Monthly day" htmlFor="report-send-day">
+                      <Input
+                        id="report-send-day"
+                        type="number"
+                        min="1"
+                        max="28"
+                        step="1"
+                        value={reportForm.send_day_of_month}
+                        onChange={(event) => updateReportField('send_day_of_month', Number(event.target.value))}
+                        disabled={reportForm.report_frequency !== 'monthly' || !reportForm.email_enabled || reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                      />
+                    </Field>
+                  )}
+                </div>
+
+                <Button type="submit" disabled={reportPreferencesQuery.isLoading || saveReportPreferences.isPending} className="w-full bg-[#F59E0B] hover:bg-[#D97706]">
+                  {saveReportPreferences.isPending ? 'Saving...' : 'Save Mail Settings'}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </div>

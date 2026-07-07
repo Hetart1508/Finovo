@@ -1664,6 +1664,8 @@ const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
 
 type MonthlyReportPreferences = {
   email_enabled: boolean;
+  report_frequency: "daily" | "weekly" | "monthly" | "custom";
+  custom_interval_days: number;
   send_day_of_month: number;
   include_ai_summary: boolean;
   include_next_month_planning: boolean;
@@ -1672,6 +1674,8 @@ type MonthlyReportPreferences = {
 
 const getDefaultMonthlyReportPreferences = (): MonthlyReportPreferences => ({
   email_enabled: true,
+  report_frequency: "monthly",
+  custom_interval_days: 30,
   send_day_of_month: 1,
   include_ai_summary: false,
   include_next_month_planning: true,
@@ -1728,9 +1732,14 @@ const getDaysInMonth = (month: string) => {
 const getMonthlyReportPreferences = async (userId: number): Promise<MonthlyReportPreferences> => {
   const row: any = await queryOne("SELECT * FROM monthly_report_preferences WHERE user_id = ?", [userId]);
   if (!row) return getDefaultMonthlyReportPreferences();
+  const frequency = ["daily", "weekly", "monthly", "custom"].includes(String(row.report_frequency))
+    ? String(row.report_frequency) as MonthlyReportPreferences["report_frequency"]
+    : "monthly";
 
   return {
     email_enabled: Boolean(row.email_enabled),
+    report_frequency: frequency,
+    custom_interval_days: Number(row.custom_interval_days) || 30,
     send_day_of_month: Number(row.send_day_of_month) || 1,
     include_ai_summary: Boolean(row.include_ai_summary),
     include_next_month_planning: Boolean(row.include_next_month_planning),
@@ -1740,10 +1749,22 @@ const getMonthlyReportPreferences = async (userId: number): Promise<MonthlyRepor
 
 const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPreferences } | { error: string } => {
   const defaults = getDefaultMonthlyReportPreferences();
+  const frequency = body?.report_frequency === undefined ? defaults.report_frequency : String(body.report_frequency);
+  const customIntervalDays = body?.custom_interval_days === undefined
+    ? defaults.custom_interval_days
+    : Number(body.custom_interval_days);
   const sendDay = body?.send_day_of_month === undefined ? defaults.send_day_of_month : Number(body.send_day_of_month);
   const deliveryEmail = body?.delivery_email === undefined || body?.delivery_email === null || body?.delivery_email === ""
     ? null
     : normalizeEmail(body.delivery_email);
+
+  if (!["daily", "weekly", "monthly", "custom"].includes(frequency)) {
+    return { error: "Report frequency must be daily, weekly, monthly, or custom" };
+  }
+
+  if (!Number.isInteger(customIntervalDays) || customIntervalDays < 1 || customIntervalDays > 365) {
+    return { error: "Custom interval must be between 1 and 365 days" };
+  }
 
   if (!Number.isInteger(sendDay) || sendDay < 1 || sendDay > 28) {
     return { error: "Send day must be between 1 and 28" };
@@ -1756,6 +1777,8 @@ const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPrefe
   return {
     data: {
       email_enabled: body?.email_enabled === undefined ? defaults.email_enabled : Boolean(body.email_enabled),
+      report_frequency: frequency as MonthlyReportPreferences["report_frequency"],
+      custom_interval_days: customIntervalDays,
       send_day_of_month: sendDay,
       include_ai_summary: body?.include_ai_summary === undefined ? defaults.include_ai_summary : Boolean(body.include_ai_summary),
       include_next_month_planning: body?.include_next_month_planning === undefined
@@ -2444,6 +2467,38 @@ const sendMonthlyReportEmail = async (userId: number, month = getPreviousMonthSt
   };
 };
 
+const getReportScheduleIntervalDays = (preferences: MonthlyReportPreferences) => {
+  if (preferences.report_frequency === "daily") return 1;
+  if (preferences.report_frequency === "weekly") return 7;
+  if (preferences.report_frequency === "custom") return preferences.custom_interval_days;
+  return null;
+};
+
+const isMonthlyReportDueToday = async (userId: number, preferences: MonthlyReportPreferences, now = new Date()) => {
+  if (!preferences.email_enabled) return false;
+
+  if (preferences.report_frequency === "monthly") {
+    return now.getDate() >= preferences.send_day_of_month;
+  }
+
+  const intervalDays = getReportScheduleIntervalDays(preferences);
+  if (!intervalDays) return false;
+
+  const lastSent: any = await queryOne(`
+    SELECT sent_at
+    FROM monthly_report_logs
+    WHERE user_id = ? AND status = 'sent'
+    ORDER BY sent_at DESC
+    LIMIT 1
+  `, [userId]);
+
+  if (!lastSent?.sent_at) return true;
+
+  const lastSentAt = new Date(lastSent.sent_at);
+  const elapsedMs = now.getTime() - lastSentAt.getTime();
+  return elapsedMs >= intervalDays * 24 * 60 * 60 * 1000;
+};
+
 // --- Auth Routes ---
 app.post("/api/auth/register", async (req, res) => {
   const email = normalizeEmail(req.body.email);
@@ -2957,14 +3012,18 @@ app.put("/api/user/monthly-report/preferences", authenticateToken, async (req: a
     INSERT INTO monthly_report_preferences (
       user_id,
       email_enabled,
+      report_frequency,
+      custom_interval_days,
       send_day_of_month,
       include_ai_summary,
       include_next_month_planning,
       delivery_email
     )
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
       email_enabled = VALUES(email_enabled),
+      report_frequency = VALUES(report_frequency),
+      custom_interval_days = VALUES(custom_interval_days),
       send_day_of_month = VALUES(send_day_of_month),
       include_ai_summary = VALUES(include_ai_summary),
       include_next_month_planning = VALUES(include_next_month_planning),
@@ -2972,6 +3031,8 @@ app.put("/api/user/monthly-report/preferences", authenticateToken, async (req: a
   `, [
     req.user.id,
     preferences.email_enabled,
+    preferences.report_frequency,
+    preferences.custom_interval_days,
     preferences.send_day_of_month,
     preferences.include_ai_summary,
     preferences.include_next_month_planning,
@@ -3013,18 +3074,53 @@ app.post("/api/admin/monthly-reports/send", async (req, res) => {
     return res.status(400).json({ error: "Month must use YYYY-MM format" });
   }
 
-  const dayOfMonth = new Date().getDate();
   const users = await queryAll(`
-    SELECT users.id
+    SELECT
+      users.id,
+      monthly_report_preferences.email_enabled,
+      monthly_report_preferences.report_frequency,
+      monthly_report_preferences.custom_interval_days,
+      monthly_report_preferences.send_day_of_month,
+      monthly_report_preferences.include_ai_summary,
+      monthly_report_preferences.include_next_month_planning,
+      monthly_report_preferences.delivery_email
     FROM users
     LEFT JOIN monthly_report_preferences ON monthly_report_preferences.user_id = users.id
     WHERE COALESCE(monthly_report_preferences.email_enabled, TRUE) = TRUE
-      AND COALESCE(monthly_report_preferences.send_day_of_month, 1) <= ?
-  `, [dayOfMonth]);
+  `);
 
   const results = [];
   for (const user of users as any[]) {
-    const result = await sendMonthlyReportEmail(Number(user.id), month, { force: Boolean(req.body?.force) });
+    const preferences: MonthlyReportPreferences = {
+      ...getDefaultMonthlyReportPreferences(),
+      email_enabled: user.email_enabled === null || user.email_enabled === undefined ? true : Boolean(user.email_enabled),
+      report_frequency: ["daily", "weekly", "monthly", "custom"].includes(String(user.report_frequency))
+        ? String(user.report_frequency) as MonthlyReportPreferences["report_frequency"]
+        : "monthly",
+      custom_interval_days: Number(user.custom_interval_days) || 30,
+      send_day_of_month: Number(user.send_day_of_month) || 1,
+      include_ai_summary: user.include_ai_summary === null || user.include_ai_summary === undefined
+        ? false
+        : Boolean(user.include_ai_summary),
+      include_next_month_planning: user.include_next_month_planning === null || user.include_next_month_planning === undefined
+        ? true
+        : Boolean(user.include_next_month_planning),
+      delivery_email: user.delivery_email || null,
+    };
+    const isDue = await isMonthlyReportDueToday(Number(user.id), preferences);
+
+    if (!isDue && !Boolean(req.body?.force)) {
+      results.push({
+        user_id: Number(user.id),
+        status: "skipped",
+        http_status: 200,
+        message: "Report schedule is not due",
+      });
+      continue;
+    }
+
+    const shouldForceSend = Boolean(req.body?.force) || preferences.report_frequency !== "monthly";
+    const result = await sendMonthlyReportEmail(Number(user.id), month, { force: shouldForceSend });
     results.push({
       user_id: Number(user.id),
       status: (result.body as any)?.status || (result.status >= 400 ? "failed" : "sent"),

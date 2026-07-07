@@ -238,6 +238,8 @@ export const runMigrations = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL UNIQUE,
       email_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      report_frequency VARCHAR(20) NOT NULL DEFAULT 'monthly',
+      custom_interval_days INT NOT NULL DEFAULT 30,
       send_day_of_month INT NOT NULL DEFAULT 1,
       include_ai_summary BOOLEAN NOT NULL DEFAULT FALSE,
       include_next_month_planning BOOLEAN NOT NULL DEFAULT TRUE,
@@ -285,6 +287,8 @@ export const runMigrations = async () => {
   await ensureColumn("recurring_events", "payment_mode", "VARCHAR(50) NOT NULL DEFAULT 'manual'");
   await ensureColumn("recurring_events", "autopay_enabled", "BOOLEAN NOT NULL DEFAULT FALSE");
   await ensureColumn("recurring_events", "payment_account", "VARCHAR(100) NULL");
+  await ensureColumn("monthly_report_preferences", "report_frequency", "VARCHAR(20) NOT NULL DEFAULT 'monthly'");
+  await ensureColumn("monthly_report_preferences", "custom_interval_days", "INT NOT NULL DEFAULT 30");
   await ensureColumn("mutual_fund_sip_investments", "investment_type", "VARCHAR(20) NOT NULL DEFAULT 'sip'");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_category", "category");
