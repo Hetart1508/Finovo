@@ -179,31 +179,80 @@ type RateLimitRule = {
 };
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_BUCKET_CLEANUP_SIZE = 10000;
 
 const getRequestIp = (req: Request) =>
   String(req.headers["x-forwarded-for"] || req.ip || req.socket.remoteAddress || "unknown")
     .split(",")[0]
     .trim();
 
-const createRateLimiter = (name: string, rule: RateLimitRule) => (req: Request, res: Response, next: NextFunction) => {
-  const email = normalizeEmail((req.body as any)?.email);
-  const key = `${name}:${getRequestIp(req)}:${email || "no-email"}`;
-  const now = Date.now();
-  const bucket = rateLimitBuckets.get(key);
-
-  if (!bucket || bucket.resetAt <= now) {
-    rateLimitBuckets.set(key, { count: 1, resetAt: now + rule.windowMs });
-    return next();
+const cleanupRateLimitBuckets = (now: number) => {
+  if (rateLimitBuckets.size < RATE_LIMIT_BUCKET_CLEANUP_SIZE) return;
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= now) {
+      rateLimitBuckets.delete(key);
+    }
   }
+};
 
-  if (bucket.count >= rule.max) {
-    res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
+const getRateLimitKeys = (name: string, req: Request, includeEmail: boolean) => {
+  const ip = getRequestIp(req) || "unknown";
+  const email = normalizeEmail((req.body as any)?.email);
+  const keys = [`${name}:ip:${ip}`];
+  if (includeEmail) {
+    keys.push(`${name}:email:${email || "no-email"}`);
+  }
+  return { keys, ip, email };
+};
+
+const createRateLimiter = (
+  name: string,
+  rule: RateLimitRule,
+  options: { includeEmail?: boolean } = {}
+) => (req: Request, res: Response, next: NextFunction) => {
+  const now = Date.now();
+  cleanupRateLimitBuckets(now);
+
+  const includeEmail = options.includeEmail ?? true;
+  const { keys, ip, email } = getRateLimitKeys(name, req, includeEmail);
+  const buckets = keys.map((key) => ({
+    key,
+    bucket: rateLimitBuckets.get(key),
+  }));
+  const limitedBucket = buckets.find(({ bucket }) => bucket && bucket.resetAt > now && bucket.count >= rule.max)?.bucket;
+
+  if (limitedBucket) {
+    const retryAfterSeconds = Math.ceil((limitedBucket.resetAt - now) / 1000);
+    logger.warn("Rate limit exceeded", { limiter: name, ip, email: email || null, path: req.path });
+    res.setHeader("Retry-After", String(retryAfterSeconds));
+    res.setHeader("RateLimit-Limit", String(rule.max));
+    res.setHeader("RateLimit-Remaining", "0");
+    res.setHeader("RateLimit-Reset", String(retryAfterSeconds));
     return res.status(429).json({ error: rule.message });
   }
 
-  bucket.count += 1;
+  let remaining = rule.max - 1;
+  let resetAt = now + rule.windowMs;
+  for (const { key, bucket } of buckets) {
+    const nextBucket = !bucket || bucket.resetAt <= now
+      ? { count: 1, resetAt: now + rule.windowMs }
+      : { count: bucket.count + 1, resetAt: bucket.resetAt };
+    rateLimitBuckets.set(key, nextBucket);
+    remaining = Math.min(remaining, Math.max(0, rule.max - nextBucket.count));
+    resetAt = Math.min(resetAt, nextBucket.resetAt);
+  }
+
+  res.setHeader("RateLimit-Limit", String(rule.max));
+  res.setHeader("RateLimit-Remaining", String(remaining));
+  res.setHeader("RateLimit-Reset", String(Math.ceil((resetAt - now) / 1000)));
   return next();
 };
+
+const apiRateLimiter = createRateLimiter(
+  "api",
+  { windowMs: 15 * 60 * 1000, max: 500, message: "Too many requests. Please try again later." },
+  { includeEmail: false }
+);
 
 const authRateLimiters = {
   login: createRateLimiter("login", { windowMs: 15 * 60 * 1000, max: 5, message: "Too many login attempts. Please try again later." }),
@@ -213,6 +262,8 @@ const authRateLimiters = {
   resetPassword: createRateLimiter("reset-password", { windowMs: 10 * 60 * 1000, max: 5, message: "Too many password reset attempts. Please try again later." }),
   google: createRateLimiter("google", { windowMs: 15 * 60 * 1000, max: 10, message: "Too many Google sign-in attempts. Please try again later." }),
 };
+
+app.use("/api", apiRateLimiter);
 
 const validatePasswordPolicy = (password: string) =>
   password.length >= 10 &&
