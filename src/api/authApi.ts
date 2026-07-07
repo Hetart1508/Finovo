@@ -7,6 +7,8 @@ export const authApi = {
   verifyRegistrationOtp: (email: string, otp: string) =>
     api.post<AuthSession>('/auth/register/verify-otp', { email, otp }),
   login: (payload: unknown) => api.post<AuthSession>('/auth/login', payload),
+  me: () => api.get<{ user: AuthSession['user'] }>('/auth/me'),
+  logout: () => api.post('/auth/logout'),
   forgotPassword: (email: string) => api.post('/auth/forgot-password', { email }),
   resetPassword: (email: string, otp: string, password: string) =>
     api.post('/auth/reset-password', { email, otp, password }),

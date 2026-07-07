@@ -5,6 +5,7 @@ import cors from "cors";
 import compression from "compression";
 
 import { createServer as createViteServer } from "vite";
+import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import fs from "fs";
@@ -32,13 +33,48 @@ import { execute, queryAll, queryOne } from "./server/db/client";
 import { runMigrations } from "./server/db/migrations";
 import { authenticateToken } from "./server/middleware/auth";
 import { requestLogger } from "./server/middleware/requestLogger";
-import { getLocalUploadResponse, upload } from "./server/middleware/upload";
+import { getLocalUploadResponse, upload, validateUploadedFileSignature } from "./server/middleware/upload";
 
 const app = express();
+if (IS_PRODUCTION) {
+  app.set("trust proxy", 1);
+}
+
+const isLocalDevelopmentOrigin = (origin: string) => {
+  if (IS_PRODUCTION) return false;
+  try {
+    const parsed = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
 
 app.use(compression());
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  res.setHeader(
+    "Content-Security-Policy",
+    IS_PRODUCTION
+      ? "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://oauth2.googleapis.com https://generativelanguage.googleapis.com https://api.brevo.com;"
+      : "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: http: https:;"
+  );
+  if (IS_PRODUCTION) {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+  next();
+});
 app.use(cors({
-  origin: allowedOrigins.length ? allowedOrigins : true,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins.length && !IS_PRODUCTION) return callback(null, true);
+    if (isLocalDevelopmentOrigin(origin)) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Origin is not allowed by CORS"));
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: "25mb" }));
@@ -112,6 +148,79 @@ const isNonEmptyString = (value: unknown): value is string =>
 
 const normalizeEmail = (value: unknown) =>
   isNonEmptyString(value) ? value.trim().toLowerCase() : "";
+
+const AUTH_COOKIE_NAME = "finovo_session";
+const AUTH_COOKIE_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+const GENERIC_AUTH_ERROR = "Invalid email or password";
+const GENERIC_RESET_MESSAGE = "If this email exists, password reset instructions have been sent.";
+const PASSWORD_POLICY_ERROR = "Password must be at least 10 characters and include uppercase, lowercase, number, and special character.";
+const MAX_OTP_ATTEMPTS = 5;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+const getAuthCookieOptions = () => ({
+  httpOnly: true,
+  secure: IS_PRODUCTION,
+  sameSite: "lax" as const,
+  path: "/",
+});
+
+type RateLimitRule = {
+  windowMs: number;
+  max: number;
+  message: string;
+};
+
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+const getRequestIp = (req: Request) =>
+  String(req.headers["x-forwarded-for"] || req.ip || req.socket.remoteAddress || "unknown")
+    .split(",")[0]
+    .trim();
+
+const createRateLimiter = (name: string, rule: RateLimitRule) => (req: Request, res: Response, next: NextFunction) => {
+  const email = normalizeEmail((req.body as any)?.email);
+  const key = `${name}:${getRequestIp(req)}:${email || "no-email"}`;
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + rule.windowMs });
+    return next();
+  }
+
+  if (bucket.count >= rule.max) {
+    res.setHeader("Retry-After", String(Math.ceil((bucket.resetAt - now) / 1000)));
+    return res.status(429).json({ error: rule.message });
+  }
+
+  bucket.count += 1;
+  return next();
+};
+
+const authRateLimiters = {
+  login: createRateLimiter("login", { windowMs: 15 * 60 * 1000, max: 5, message: "Too many login attempts. Please try again later." }),
+  register: createRateLimiter("register", { windowMs: 30 * 60 * 1000, max: 5, message: "Too many registration attempts. Please try again later." }),
+  otpVerify: createRateLimiter("otp-verify", { windowMs: 10 * 60 * 1000, max: 5, message: "Too many OTP attempts. Please try again later." }),
+  forgotPassword: createRateLimiter("forgot-password", { windowMs: 15 * 60 * 1000, max: 3, message: "Too many password reset requests. Please try again later." }),
+  resetPassword: createRateLimiter("reset-password", { windowMs: 10 * 60 * 1000, max: 5, message: "Too many password reset attempts. Please try again later." }),
+  google: createRateLimiter("google", { windowMs: 15 * 60 * 1000, max: 10, message: "Too many Google sign-in attempts. Please try again later." }),
+};
+
+const validatePasswordPolicy = (password: string) =>
+  password.length >= 10 &&
+  /[a-z]/.test(password) &&
+  /[A-Z]/.test(password) &&
+  /\d/.test(password) &&
+  /[^A-Za-z0-9]/.test(password);
+
+const hashOtp = (otp: string) => bcrypt.hash(otp, 10);
+
+const verifyOtpHash = async (otp: string, hash: string | null | undefined) => {
+  if (!hash) return false;
+  if (hash.length < 40) return otp === hash;
+  return bcrypt.compare(otp, hash);
+};
 
 const toNumber = (value: unknown) => {
   const parsed = Number(value);
@@ -918,17 +1027,25 @@ Rules:
   return normalizeGeminiStatementTransactions(result);
 };
 
-const createAuthResponse = (user: any) => {
+const createAuthResponse = (user: any, res?: Response) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name },
     JWT_SECRET,
     { expiresIn: SESSION_EXPIRES_IN }
   );
   const decoded = jwt.decode(token) as { exp?: number } | null;
+  const expiresAt = decoded?.exp ? decoded.exp * 1000 : Date.now() + AUTH_COOKIE_MAX_AGE_MS;
+
+  if (res) {
+    res.cookie(AUTH_COOKIE_NAME, token, {
+      ...getAuthCookieOptions(),
+      maxAge: Math.max(0, expiresAt - Date.now()),
+      expires: new Date(expiresAt),
+    });
+  }
 
   return {
-    token,
-    expiresAt: decoded?.exp ? decoded.exp * 1000 : null,
+    expiresAt,
     user: {
       id: user.id,
       email: user.email,
@@ -1105,7 +1222,7 @@ const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo>
   return payload;
 };
 
-const authenticateGoogleCredential = async (credential: string) => {
+const authenticateGoogleCredential = async (credential: string, res?: Response) => {
   const googleUser = await verifyGoogleIdToken(credential);
   const email = normalizeEmail(googleUser.email);
   const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
@@ -1127,7 +1244,7 @@ const authenticateGoogleCredential = async (credential: string) => {
     };
   }
 
-  return createAuthResponse(user);
+  return createAuthResponse(user, res);
 };
 
 const normalizeTransactionBody = (body: any) => {
@@ -2500,7 +2617,7 @@ const isMonthlyReportDueToday = async (userId: number, preferences: MonthlyRepor
 };
 
 // --- Auth Routes ---
-app.post("/api/auth/register", async (req, res) => {
+app.post("/api/auth/register", authRateLimiters.register, async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const { password, name } = req.body;
 
@@ -2508,26 +2625,32 @@ app.post("/api/auth/register", async (req, res) => {
     return res.status(400).json({ error: "Name, email, and password are required" });
   }
 
+  if (!validatePasswordPolicy(String(password))) {
+    return res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  }
+
   try {
     const existingUser = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
     if (existingUser) {
-      return res.status(409).json({ error: "Email already exists" });
+      return res.status(409).json({ error: "Unable to create account with the provided details" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = await hashOtp(otp);
     const expiresAt = Date.now() + 5 * 60 * 1000;
 
     await execute(`
-      INSERT INTO pending_registrations (email, password, name, otp, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO pending_registrations (email, password, name, otp, attempt_count, expires_at, created_at)
+      VALUES (?, ?, ?, ?, 0, ?, ?)
       ON DUPLICATE KEY UPDATE
         password = VALUES(password),
         name = VALUES(name),
         otp = VALUES(otp),
+        attempt_count = 0,
         expires_at = VALUES(expires_at),
         created_at = VALUES(created_at)
-    `, [email, hashedPassword, name.trim(), otp, expiresAt, Date.now()]);
+    `, [email, hashedPassword, name.trim(), otpHash, expiresAt, Date.now()]);
 
     const otpResult = await sendOtpEmail(email, otp, "registration");
     if (otpResult.status !== 200) {
@@ -2542,11 +2665,11 @@ app.post("/api/auth/register", async (req, res) => {
     if (e?.code !== "ER_DUP_ENTRY") {
       logger.error("Register error", { error: e });
     }
-    res.status(400).json({ error: "Email already exists" });
+    res.status(400).json({ error: "Unable to create account with the provided details" });
   }
 });
 
-app.post("/api/auth/register/verify-otp", async (req, res) => {
+app.post("/api/auth/register/verify-otp", authRateLimiters.otpVerify, async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const otp = String(req.body.otp || "").trim();
 
@@ -2557,17 +2680,28 @@ app.post("/api/auth/register/verify-otp", async (req, res) => {
   try {
     const pending: any = await queryOne(`
       SELECT * FROM pending_registrations
-      WHERE email = ? AND otp = ? AND expires_at > ?
-    `, [email, otp, Date.now()]);
+      WHERE email = ? AND expires_at > ?
+    `, [email, Date.now()]);
 
-    if (!pending) {
+    if (!pending || Number(pending.attempt_count) >= MAX_OTP_ATTEMPTS) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    const isValidOtp = await verifyOtpHash(otp, pending.otp);
+    if (!isValidOtp) {
+      const attempts = Number(pending.attempt_count || 0) + 1;
+      if (attempts >= MAX_OTP_ATTEMPTS) {
+        await execute("DELETE FROM pending_registrations WHERE email = ?", [email]);
+      } else {
+        await execute("UPDATE pending_registrations SET attempt_count = ? WHERE email = ?", [attempts, email]);
+      }
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
     const existingUser = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
     if (existingUser) {
       await execute("DELETE FROM pending_registrations WHERE email = ?", [email]);
-      return res.status(409).json({ error: "Email already exists" });
+      return res.status(409).json({ error: "Unable to verify registration" });
     }
 
     const info = await execute(
@@ -2581,14 +2715,14 @@ app.post("/api/auth/register/verify-otp", async (req, res) => {
       email: pending.email,
       name: pending.name,
       daily_threshold: 1000,
-    }));
+    }, res));
   } catch (e) {
     logger.error("Register OTP verification error", { error: e });
     res.status(500).json({ error: "Failed to verify registration OTP" });
   }
 });
 
-app.post("/api/auth/forgot-password", async (req, res) => {
+app.post("/api/auth/forgot-password", authRateLimiters.forgotPassword, async (req, res) => {
   const email = normalizeEmail(req.body.email);
 
   if (!email) {
@@ -2598,30 +2732,35 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   try {
     const user = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
     if (!user) {
-      return res.status(404).json({ error: "User not found" });
+      return res.json({ message: GENERIC_RESET_MESSAGE });
     }
 
     const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = await hashOtp(otp);
     const expiresAt = Date.now() + 5 * 60 * 1000;
 
     await execute(`
-      INSERT INTO password_resets (email, otp, expires_at, created_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO password_resets (email, otp, attempt_count, expires_at, created_at)
+      VALUES (?, ?, 0, ?, ?)
       ON DUPLICATE KEY UPDATE
         otp = VALUES(otp),
+        attempt_count = 0,
         expires_at = VALUES(expires_at),
         created_at = VALUES(created_at)
-    `, [email, otp, expiresAt, Date.now()]);
+    `, [email, otpHash, expiresAt, Date.now()]);
 
     const otpResult = await sendOtpEmail(email, otp, "password-reset");
-    res.status(otpResult.status).json(otpResult.body);
+    if (otpResult.status >= 400) {
+      return res.status(otpResult.status).json(otpResult.body);
+    }
+    res.json({ message: GENERIC_RESET_MESSAGE });
   } catch (e) {
     logger.error("Forgot password error", { error: e });
-    res.status(500).json({ error: "Failed to send password reset OTP" });
+    res.status(500).json({ error: "Failed to process password reset request" });
   }
 });
 
-app.post("/api/auth/reset-password", async (req, res) => {
+app.post("/api/auth/reset-password", authRateLimiters.resetPassword, async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const otp = String(req.body.otp || "").trim();
   const password = String(req.body.password || "");
@@ -2630,22 +2769,41 @@ app.post("/api/auth/reset-password", async (req, res) => {
     return res.status(400).json({ error: "Email, OTP, and new password are required" });
   }
 
+  if (!validatePasswordPolicy(password)) {
+    return res.status(400).json({ error: PASSWORD_POLICY_ERROR });
+  }
+
   try {
     const resetRecord: any = await queryOne(`
       SELECT * FROM password_resets
-      WHERE email = ? AND otp = ? AND expires_at > ?
-    `, [email, otp, Date.now()]);
+      WHERE email = ? AND expires_at > ?
+    `, [email, Date.now()]);
 
-    if (!resetRecord) {
+    if (!resetRecord || Number(resetRecord.attempt_count) >= MAX_OTP_ATTEMPTS) {
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    const isValidOtp = await verifyOtpHash(otp, resetRecord.otp);
+    if (!isValidOtp) {
+      const attempts = Number(resetRecord.attempt_count || 0) + 1;
+      if (attempts >= MAX_OTP_ATTEMPTS) {
+        await execute("DELETE FROM password_resets WHERE email = ?", [email]);
+      } else {
+        await execute("UPDATE password_resets SET attempt_count = ? WHERE email = ?", [attempts, email]);
+      }
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const result = await execute("UPDATE users SET password = ?, password_enabled = TRUE WHERE email = ?", [hashedPassword, email]);
+    const result = await execute(`
+      UPDATE users
+      SET password = ?, password_enabled = TRUE, failed_login_attempts = 0, locked_until = NULL
+      WHERE email = ?
+    `, [hashedPassword, email]);
     await execute("DELETE FROM password_resets WHERE email = ?", [email]);
 
     if (!result.affectedRows) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
     res.json({ message: "Password reset successfully. Please login with your new password." });
@@ -2670,7 +2828,7 @@ app.get("/api/auth/debug-otp", async (req, res) => {
   }
 
   const otpRecord: any = await queryOne(`
-    SELECT email, otp, expires_at, created_at
+    SELECT email, attempt_count, expires_at, created_at
     FROM pending_registrations
     WHERE email = ?
     ORDER BY created_at DESC
@@ -2686,7 +2844,8 @@ app.get("/api/auth/debug-otp", async (req, res) => {
 
   res.json({
     email: otpRecord.email,
-    otp: otpRecord.otp,
+    otp_available: false,
+    attempt_count: Number(otpRecord.attempt_count || 0),
     expires_at: otpRecord.expires_at,
     expires_in_seconds: Math.max(0, Math.ceil((otpRecord.expires_at - now) / 1000)),
     is_expired: isExpired,
@@ -2698,7 +2857,7 @@ app.post("/api/auth/verify-otp", async (req, res) => {
   res.status(410).json({ error: "OTP login is disabled. Please login with email and password." });
 });
 
-app.post("/api/auth/google", async (req, res) => {
+app.post("/api/auth/google", authRateLimiters.google, async (req, res) => {
   const credential = String(req.body.credential || "");
 
   if (!credential) {
@@ -2706,14 +2865,14 @@ app.post("/api/auth/google", async (req, res) => {
   }
 
   try {
-    res.json(await authenticateGoogleCredential(credential));
+    res.json(await authenticateGoogleCredential(credential, res));
   } catch (error: any) {
     logger.error("Google auth error", { message: error?.message });
     res.status(error?.status || 500).json({ error: error?.message || "Failed to sign in with Google" });
   }
 });
 
-app.post("/api/auth/google/redirect", async (req, res) => {
+app.post("/api/auth/google/redirect", authRateLimiters.google, async (req, res) => {
   const credential = String(req.body.credential || "");
   const frontendOrigin = process.env.FRONTEND_URL || allowedOrigins[0] || `${req.protocol}://${req.get("host")}`;
   const redirectUrl = new URL("/auth", frontendOrigin);
@@ -2723,7 +2882,7 @@ app.post("/api/auth/google/redirect", async (req, res) => {
       throw Object.assign(new Error("Google credential is required"), { status: 400 });
     }
 
-    const session = await authenticateGoogleCredential(credential);
+    const session = await authenticateGoogleCredential(credential, res);
     redirectUrl.hash = new URLSearchParams({
       google_auth: encodeBase64UrlJson(session),
     }).toString();
@@ -2737,7 +2896,7 @@ app.post("/api/auth/google/redirect", async (req, res) => {
   res.redirect(303, redirectUrl.toString());
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const password = String(req.body.password || "");
 
@@ -2745,23 +2904,45 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
-  const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
-  if (!user) {
-    return res.status(404).json({ error: "User email not found. Please register before logging in." });
-  }
+  try {
+    const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    if (!user) {
+      await bcrypt.compare(password, "$2b$10$CwTycUXWue0Thq9StjUM0uJ8Q4aHj2zBgVeq9DXtjLrG6xXWgUG1e");
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+    }
 
-  if (!user.password_enabled) {
-    return res.status(409).json({
-      error: "This account was created with Google. Continue with Google or reset your password to enable password login.",
-    });
-  }
+    if (user.locked_until && Number(user.locked_until) > Date.now()) {
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+    }
 
-  const isValidPassword = await bcrypt.compare(password, user.password);
-  if (!isValidPassword) {
-    return res.status(401).json({ error: "Incorrect password. Please try again." });
-  }
+    const isValidPassword = Boolean(user.password_enabled) && await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      const attempts = Number(user.failed_login_attempts || 0) + 1;
+      const lockedUntil = attempts >= MAX_LOGIN_ATTEMPTS ? Date.now() + LOGIN_LOCKOUT_MS : null;
+      await execute(
+        "UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?",
+        [attempts, lockedUntil, user.id]
+      );
+      return res.status(401).json({ error: GENERIC_AUTH_ERROR });
+    }
 
-  res.json(createAuthResponse(user));
+    await execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", [user.id]);
+    res.json(createAuthResponse(user, res));
+  } catch (error) {
+    logger.error("Login error", { error });
+    res.status(500).json({ error: "Failed to login" });
+  }
+});
+
+app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
+  const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ?", [req.user.id]);
+  if (!user) return res.sendStatus(401);
+  res.json({ user });
+});
+
+app.post("/api/auth/logout", (_req, res) => {
+  res.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
+  res.json({ message: "Logged out successfully" });
 });
 
 // --- Transaction Routes ---
@@ -3890,6 +4071,11 @@ const getGeminiImportHint = (message: string) => {
 app.post("/api/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
+  if (!validateUploadedFileSignature(req.file)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Uploaded file type could not be verified" });
+  }
+
   const mimeType = req.file.mimetype || "";
   if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
     fs.unlinkSync(req.file.path);
@@ -3902,6 +4088,11 @@ app.post("/api/upload", authenticateToken, upload.single('file'), async (req: an
 app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file'), async (req: any, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded. Use form-data key 'file'." });
+  }
+
+  if (!validateUploadedFileSignature(req.file)) {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Uploaded statement file type could not be verified" });
   }
 
   const mimeType = req.file.mimetype || "";
@@ -3960,6 +4151,17 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
 });
 
 app.use('/uploads', express.static('uploads'));
+
+app.use("/api", (error: any, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error("API error", { error });
+  const status = error?.code === "LIMIT_FILE_SIZE" ? 413 : error?.status || 500;
+  const safeMessage = status === 413
+    ? "Uploaded file is too large"
+    : IS_PRODUCTION
+      ? "Request failed"
+      : error?.message || "Request failed";
+  res.status(status).json({ error: safeMessage });
+});
 
 // Vite Integration
 async function startServer() {

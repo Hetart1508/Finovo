@@ -47,7 +47,9 @@ export const runMigrations = async () => {
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
       name VARCHAR(255) NOT NULL,
-      daily_threshold DECIMAL(10,2) DEFAULT 1000.00
+      daily_threshold DECIMAL(10,2) DEFAULT 1000.00,
+      failed_login_attempts INT NOT NULL DEFAULT 0,
+      locked_until BIGINT NULL
     )
   `);
 
@@ -68,7 +70,8 @@ export const runMigrations = async () => {
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
       name VARCHAR(255) NOT NULL,
-      otp VARCHAR(20) NOT NULL,
+      otp VARCHAR(255) NOT NULL,
+      attempt_count INT NOT NULL DEFAULT 0,
       expires_at BIGINT NOT NULL,
       created_at BIGINT NOT NULL
     )
@@ -78,7 +81,8 @@ export const runMigrations = async () => {
     CREATE TABLE IF NOT EXISTS password_resets (
       id INT AUTO_INCREMENT PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
-      otp VARCHAR(20) NOT NULL,
+      otp VARCHAR(255) NOT NULL,
+      attempt_count INT NOT NULL DEFAULT 0,
       expires_at BIGINT NOT NULL,
       created_at BIGINT NOT NULL
     )
@@ -277,6 +281,12 @@ export const runMigrations = async () => {
 
   await ensureColumn("users", "auth_provider", "VARCHAR(50) NOT NULL DEFAULT 'local'");
   await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
+  await ensureColumn("users", "failed_login_attempts", "INT NOT NULL DEFAULT 0");
+  await ensureColumn("users", "locked_until", "BIGINT NULL");
+  await db.query("ALTER TABLE pending_registrations MODIFY COLUMN otp VARCHAR(255) NOT NULL");
+  await ensureColumn("pending_registrations", "attempt_count", "INT NOT NULL DEFAULT 0");
+  await db.query("ALTER TABLE password_resets MODIFY COLUMN otp VARCHAR(255) NOT NULL");
+  await ensureColumn("password_resets", "attempt_count", "INT NOT NULL DEFAULT 0");
   await ensureColumn("transactions", "source_statement_hash", "CHAR(64) NULL");
   await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
   await ensureColumn("transactions", "payee_vpa", "VARCHAR(320) NULL");

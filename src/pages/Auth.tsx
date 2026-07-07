@@ -58,12 +58,12 @@ export default function Auth() {
     try {
       const session = decodeGoogleRedirectPayload(googleAuthPayload || '');
 
-      if (!session.token || !session.user) {
+      if (!session.user) {
         throw new Error('Google sign-in did not return a valid session.');
       }
 
       queryClient.clear();
-      saveSession(session.token, session.user, session.expiresAt ?? null);
+      saveSession(session.user, session.expiresAt ?? null);
       toast.success(`Welcome, ${session.user.name}!`);
       navigate('/', { replace: true });
     } catch {
@@ -88,7 +88,7 @@ export default function Auth() {
     try {
       const response = await authApi.googleLogin(credential);
       queryClient.clear();
-      saveSession(response.data.token, response.data.user, response.data.expiresAt);
+      saveSession(response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome, ${response.data.user.name}!`,
         type: 'success',
@@ -195,7 +195,7 @@ export default function Auth() {
     try {
       const response = await authApi.verifyRegistrationOtp(registerEmail, otpCode);
       queryClient.clear();
-      saveSession(response.data.token, response.data.user, response.data.expiresAt);
+      saveSession(response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome, ${response.data.user.name}!`,
         type: 'success',
@@ -227,7 +227,7 @@ export default function Auth() {
     try {
       const response = await authApi.login(data);
       queryClient.clear();
-      saveSession(response.data.token, response.data.user, response.data.expiresAt);
+      saveSession(response.data.user, response.data.expiresAt);
       toast.update(toastId, {
         render: `Welcome back, ${response.data.user.name}!`,
         type: 'success',

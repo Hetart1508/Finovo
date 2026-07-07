@@ -187,6 +187,7 @@ export function AuthLoginCard({
                 onChange={(event) => onResetPasswordChange(event.target.value)}
                 placeholder="New password"
                 className={passwordInputClass}
+                minLength={10}
                 required
               />
             </div>

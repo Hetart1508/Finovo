@@ -61,7 +61,7 @@ export function AuthRegisterCard({
 
             <div className="space-y-2">
               <Label htmlFor="reg-password">Password</Label>
-              <PasswordInputWithToggle inputId="reg-password" name="password" className={passwordInputClass} required />
+              <PasswordInputWithToggle inputId="reg-password" name="password" className={passwordInputClass} required minLength={10} />
             </div>
           </CardContent>
 

@@ -5,6 +5,7 @@ import { Button } from '@/src/components/ui/button';
 import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
 import { storageKeys } from '@/src/lib/storageKeys';
+import { authApi } from '@/src/api/authApi';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   RiDashboard2Line,
@@ -47,8 +48,12 @@ export default function Layout({ children }: LayoutProps) {
     navigate('/auth');
   };
 
-  const handleLogout = () => {
-    finishLogout('Logged out successfully');
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      finishLogout('Logged out successfully');
+    }
   };
 
   useEffect(() => {
