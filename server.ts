@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import cors from "cors";
 import compression from "compression";
+import helmet from "helmet";
 
 import { createServer as createViteServer } from "vite";
 import type { Request, Response, NextFunction } from "express";
@@ -51,22 +52,28 @@ const isLocalDevelopmentOrigin = (origin: string) => {
 };
 
 app.use(compression());
-app.use((_req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
-  res.setHeader(
-    "Content-Security-Policy",
-    IS_PRODUCTION
-      ? "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://oauth2.googleapis.com https://generativelanguage.googleapis.com https://api.brevo.com;"
-      : "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: http: https:;"
-  );
-  if (IS_PRODUCTION) {
-    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
-  }
-  next();
-});
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      scriptSrc: IS_PRODUCTION
+        ? ["'self'", "https://accounts.google.com"]
+        : ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: IS_PRODUCTION
+        ? ["'self'", "https://oauth2.googleapis.com", "https://generativelanguage.googleapis.com", "https://api.brevo.com"]
+        : ["'self'", "ws:", "http:", "https:"],
+    },
+  },
+  crossOriginResourcePolicy: { policy: "same-origin" },
+  frameguard: { action: "deny" },
+  hsts: IS_PRODUCTION ? { maxAge: 15552000, includeSubDomains: true } : false,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+}));
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
