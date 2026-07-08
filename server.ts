@@ -60,15 +60,17 @@ app.use(helmet({
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
       imgSrc: ["'self'", "data:", "blob:"],
+      frameSrc: ["'self'", "https://accounts.google.com"],
       scriptSrc: IS_PRODUCTION
         ? ["'self'", "https://accounts.google.com"]
         : ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       connectSrc: IS_PRODUCTION
-        ? ["'self'", "https://oauth2.googleapis.com", "https://generativelanguage.googleapis.com", "https://api.brevo.com"]
+        ? ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com", "https://generativelanguage.googleapis.com", "https://api.brevo.com"]
         : ["'self'", "ws:", "http:", "https:"],
     },
   },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
   crossOriginResourcePolicy: { policy: "same-origin" },
   frameguard: { action: "deny" },
   hsts: IS_PRODUCTION ? { maxAge: 15552000, includeSubDomains: true } : false,
