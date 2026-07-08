@@ -10,9 +10,13 @@ import { RiSave3Line } from 'react-icons/ri';
 import { paymentModes, transactionCategories } from '../transactions.constants';
 import type { Transaction } from '../transactions.types';
 
+export type TransactionFormInitialValues = Partial<Pick<Transaction, 'type' | 'amount' | 'category' | 'date' | 'payment_mode' | 'description'>>;
+
 type TransactionFormProps = {
   mode: 'add' | 'edit';
   transaction?: Transaction;
+  initialValues?: TransactionFormInitialValues;
+  formKey?: string;
   dateValue?: string;
   maxDate: string;
   onDateChange?: (value: string) => void;
@@ -22,6 +26,8 @@ type TransactionFormProps = {
 export function TransactionForm({
   mode,
   transaction,
+  initialValues,
+  formKey,
   dateValue,
   maxDate,
   onDateChange,
@@ -29,14 +35,15 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const isEdit = mode === 'edit';
   const idPrefix = isEdit ? 'edit-' : '';
-  const defaultDate = transaction?.date ? format(parseISO(transaction.date), 'yyyy-MM-dd') : undefined;
+  const values = transaction ?? initialValues;
+  const defaultDate = values?.date ? format(parseISO(values.date), 'yyyy-MM-dd') : undefined;
 
   return (
-    <form key={transaction?.id ?? 'new'} onSubmit={onSubmit} className="space-y-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
+    <form key={transaction?.id ?? formKey ?? 'new'} onSubmit={onSubmit} className="space-y-3 py-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}type`}>Type</Label>
-          <Select name="type" defaultValue={transaction?.type ?? 'expense'}>
+          <Select name="type" defaultValue={values?.type ?? 'expense'}>
             <SelectTrigger id={`${idPrefix}type`}>
               <SelectValue />
             </SelectTrigger>
@@ -46,15 +53,15 @@ export function TransactionForm({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}amount`}>Amount (₹)</Label>
-          <Input id={`${idPrefix}amount`} name="amount" type="number" step="0.01" min="0.01" defaultValue={transaction?.amount} required />
+          <Input id={`${idPrefix}amount`} name="amount" type="number" step="0.01" min="0.01" defaultValue={values?.amount} required />
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}category`}>Category</Label>
-        <Select name="category" defaultValue={transaction?.category ?? 'Food'}>
+        <Select name="category" defaultValue={values?.category ?? 'Food'}>
           <SelectTrigger id={`${idPrefix}category`}>
             <SelectValue />
           </SelectTrigger>
@@ -66,7 +73,7 @@ export function TransactionForm({
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}date`}>Date</Label>
         {isEdit ? (
           <AppDatePicker id={`${idPrefix}date`} name="date" max={maxDate} defaultValue={defaultDate} required />
@@ -75,9 +82,9 @@ export function TransactionForm({
         )}
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}payment-mode`}>Payment Mode</Label>
-        <Select name="payment_mode" defaultValue={transaction?.payment_mode ?? 'UPI'}>
+        <Select name="payment_mode" defaultValue={values?.payment_mode ?? 'UPI'}>
           <SelectTrigger id={`${idPrefix}payment-mode`}>
             <SelectValue />
           </SelectTrigger>
@@ -89,19 +96,19 @@ export function TransactionForm({
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}description`}>Description</Label>
-        <Input id={`${idPrefix}description`} name="description" defaultValue={transaction?.description || ''} placeholder={isEdit ? undefined : 'Lunch at Starbucks'} />
+        <Input id={`${idPrefix}description`} name="description" defaultValue={values?.description || ''} placeholder={isEdit ? undefined : 'Lunch at Starbucks'} />
       </div>
 
       {isEdit ? (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="edit-bill-url">Bill URL</Label>
           <Input id="edit-bill-url" name="bill_url" defaultValue={transaction?.bill_url || ''} placeholder="https://..." />
         </div>
       ) : null}
 
-      <DialogFooter>
+      <DialogFooter className="-mx-3 -mb-3 p-3 sm:justify-stretch">
         <Button type="submit" className="w-full">
           {isEdit ? <RiSave3Line className="mr-2 text-base" aria-hidden="true" /> : null}
           {isEdit ? 'Save Changes' : 'Save Transaction'}

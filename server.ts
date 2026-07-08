@@ -138,6 +138,14 @@ type GeminiStatementTransaction = {
   vpa: string | null;
   record_kind: "transaction";
 };
+type ExtractedTransaction = {
+  amount: number;
+  type: "income" | "expense";
+  category: string;
+  date: string;
+  payment_mode: string;
+  description: string | null;
+};
 type NormalizedTransaction = {
   amount: number;
   type: "expense" | "income";
@@ -650,6 +658,45 @@ const normalizeGeminiBillData = (text: string) => {
   };
 };
 
+const getClosestAllowedValue = <T extends readonly string[]>(value: unknown, allowed: T, fallback: T[number]): T[number] => {
+  if (!isNonEmptyString(value)) return fallback;
+  const normalized = value.trim().toLowerCase();
+  return allowed.find((item) => item.toLowerCase() === normalized) || fallback;
+};
+
+const normalizeGeminiTextTransaction = (text: string): ExtractedTransaction => {
+  const parsed = JSON.parse(extractJsonObject(text));
+  const amount = normalizeGeminiAmount(parsed?.amount);
+  const type = parsed?.type === "income" ? "income" : parsed?.type === "expense" ? "expense" : null;
+  const date = isValidDateString(parsed?.date) ? parsed.date : getTodayDateString();
+
+  const normalized = normalizeTransactionBody({
+    amount,
+    type,
+    category: getClosestAllowedValue(parsed?.category, GEMINI_CATEGORIES, "Other"),
+    date,
+    payment_mode: getClosestAllowedValue(
+      parsed?.payment_mode,
+      ["UPI", "Card", "Cash", "Net Banking", "Bank Transfer", "Bank Statement", "Wallet"] as const,
+      "UPI"
+    ),
+    description: isNonEmptyString(parsed?.description) ? parsed.description.trim() : null,
+  });
+
+  if ("status" in normalized) {
+    throw new Error(String((normalized.body as any).error || "Could not extract a valid transaction"));
+  }
+
+  return {
+    amount: normalized.transaction.amount,
+    type: normalized.transaction.type,
+    category: normalized.transaction.category,
+    date: normalized.transaction.date,
+    payment_mode: normalized.transaction.payment_mode,
+    description: normalized.transaction.description,
+  };
+};
+
 const normalizeInsightList = (value: unknown) =>
   Array.isArray(value)
     ? value
@@ -831,6 +878,40 @@ Rules:
   );
 
   return normalizeGeminiBillData(result);
+};
+
+const extractTransactionFromTextWithGemini = async (description: string) => {
+  if (!GEMINI_API_KEY || AI_PROVIDER !== "gemini") {
+    throw new Error("AI transaction extraction is not configured");
+  }
+
+  const today = getTodayDateString();
+  const prompt = `Extract one personal-finance transaction from this user description for an Indian expense tracker.
+Return ONLY valid JSON with this exact shape:
+{"amount":number,"type":"income|expense","category":"Food|Transport|Shopping|Utilities|Entertainment|Health|Other","date":"YYYY-MM-DD","payment_mode":"UPI|Card|Cash|Net Banking|Bank Transfer|Bank Statement|Wallet","description":"short user-facing description"}
+
+Rules:
+- Extract exactly one transaction.
+- Use positive amount values only.
+- Classify salary, refund, interest, cashback, received, credited, deposit as income when appropriate.
+- Classify paid, spent, bought, sent, debited, purchase, bill, fee, EMI as expense when appropriate.
+- Convert relative dates using today = ${today}. For "today" use ${today}; for "yesterday" use the previous calendar date.
+- If no date is mentioned, use ${today}.
+- Never return a date after ${today}; use ${today} if the text implies a future date.
+- Choose the closest category from the allowed list. Put rent, EMI, fees, subscriptions, and bills under Other unless a better listed category clearly applies.
+- Choose the closest payment mode. Use UPI when the text mentions GPay, PhonePe, Paytm, QR, VPA, or UPI ID.
+- Keep description short and clear, without repeating amount/date/payment mode.
+- Do not include markdown, comments, code fences, or extra text.
+
+User description:
+${description}`;
+
+  const result = await generateGemini(
+    [{ text: prompt }],
+    { responseMimeType: "application/json", maxOutputTokens: 600 }
+  );
+
+  return normalizeGeminiTextTransaction(result);
 };
 
 const getFinancialInsightsWithGemini = async (transactions: any[], recurringEvents: any[] = []) => {
@@ -3062,6 +3143,26 @@ app.get("/api/transactions", authenticateToken, async (req: any, res) => {
 app.post("/api/transactions", authenticateToken, async (req: any, res) => {
   const result = await createTransaction(req.user.id, req.body);
   res.status(result.status).json(result.body);
+});
+
+app.post("/api/transactions/extract", authenticateToken, async (req: any, res) => {
+  const description = isNonEmptyString(req.body?.description) ? req.body.description.trim() : "";
+
+  if (description.length < 6) {
+    return res.status(400).json({ error: "Enter a transaction description to extract" });
+  }
+
+  if (description.length > 1000) {
+    return res.status(400).json({ error: "Transaction description must be 1000 characters or fewer" });
+  }
+
+  try {
+    const transaction = await extractTransactionFromTextWithGemini(description);
+    res.json({ transaction });
+  } catch (error: any) {
+    logger.error("AI transaction extraction failed", { error: error?.message });
+    res.status(502).json({ error: "Could not extract transaction details. Try manual add." });
+  }
 });
 
 app.get("/api/transactions/summary", authenticateToken, async (req: any, res) => {

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { transactionsApi } from '@/src/api/transactionsApi';
 import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import type { ExtractedTransaction } from '@/src/api/transactionsApi';
 import type { Transaction } from '../transactions.types';
 
 type UseTransactionMutationsArgs = {
@@ -32,6 +33,9 @@ export function useTransactionMutations({
     mutationFn: (payload: Record<string, unknown>) => transactionsApi.create(payload),
     onSuccess: refreshTransactions,
   });
+  const extractTransaction = useMutation({
+    mutationFn: (description: string) => transactionsApi.extract(description),
+  });
   const updateTransaction = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Record<string, unknown> }) => transactionsApi.update(id, payload),
     onSuccess: refreshTransactions,
@@ -55,7 +59,7 @@ export function useTransactionMutations({
 
     if (transactionDate > todayDateString) {
       toast.error('Transaction date cannot be in the future.');
-      return;
+      return false;
     }
 
     try {
@@ -66,8 +70,21 @@ export function useTransactionMutations({
       });
       toast.success(getApiSuccessMessage(response.data, 'Transaction added successfully'));
       onAdded();
+      return true;
     } catch (error: unknown) {
       toast.error(getApiMessage(error, 'Failed to add transaction.'));
+      return false;
+    }
+  };
+
+  const handleExtract = async (description: string): Promise<ExtractedTransaction | null> => {
+    try {
+      const response = await extractTransaction.mutateAsync(description);
+      toast.success('Transaction details extracted. Review before saving.');
+      return response.transaction;
+    } catch (error: unknown) {
+      toast.error(getApiMessage(error, 'Could not extract transaction details. Try manual add.'));
+      return null;
     }
   };
 
@@ -100,5 +117,7 @@ export function useTransactionMutations({
     handleAdd,
     handleUpdate,
     handleDelete,
+    handleExtract,
+    extractingTransaction: extractTransaction.isPending,
   };
 }

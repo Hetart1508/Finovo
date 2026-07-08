@@ -56,6 +56,8 @@ export default function Transactions() {
         onFilterChange={setFilter}
         onTransactionDateChange={setTransactionDate}
         onAddTransaction={transactionMutations.handleAdd}
+        onExtractTransaction={transactionMutations.handleExtract}
+        extractingTransaction={transactionMutations.extractingTransaction}
       />
 
       <TransactionsTableCard
@@ -78,8 +80,8 @@ export default function Transactions() {
 
       <Dialog open={Boolean(editingTransaction)} onOpenChange={(open) => !open && setEditingTransaction(null)}>
         {editingTransaction ? (
-          <DialogContent>
-            <DialogHeader>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] gap-3 overflow-y-auto p-3 sm:max-w-md">
+            <DialogHeader className="pr-8">
               <DialogTitle>Edit Transaction</DialogTitle>
             </DialogHeader>
             <TransactionForm
