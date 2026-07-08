@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { clearSession, hasValidSession } from './lib/session';
 import { TOAST_AUTO_CLOSE_MS } from './lib/toastMessages';
 import { useQueryClient } from '@tanstack/react-query';
+import { WalletProvider } from './features/wallets/WalletProvider';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
@@ -31,7 +32,11 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
     clearSession();
     return <Navigate to="/auth" replace />;
   }
-  return <Layout>{children}</Layout>;
+  return (
+    <WalletProvider>
+      <Layout>{children}</Layout>
+    </WalletProvider>
+  );
 };
 
 const PublicRoute = ({ children }: { children: ReactNode }) => {

@@ -17,10 +17,12 @@ import { TransactionsTableCard } from '@/src/features/transactions/components/Tr
 import { TransactionsToolbar } from '@/src/features/transactions/components/TransactionsToolbar';
 import { useTransactionMutations } from '@/src/features/transactions/hooks/useTransactionMutations';
 import { useTransactionsView } from '@/src/features/transactions/hooks/useTransactionsView';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
 
 export default function Transactions() {
-  const transactionsResult = useQuery(transactionsQuery());
+  const { selectedWallet, selectedWalletId } = useWallets();
+  const transactionsResult = useQuery(transactionsQuery(selectedWalletId));
   const transactions = (transactionsResult.data ?? []) as Transaction[];
   const loading = transactionsResult.isPending;
 
@@ -41,6 +43,7 @@ export default function Transactions() {
     editingTransaction,
     transactionDate,
     todayDateString,
+    selectedWalletId,
     onAdded: () => setTransactionDate(todayDateString),
     onUpdated: () => setEditingTransaction(null),
   });
@@ -58,6 +61,7 @@ export default function Transactions() {
         onAddTransaction={transactionMutations.handleAdd}
         onExtractTransaction={transactionMutations.handleExtract}
         extractingTransaction={transactionMutations.extractingTransaction}
+        selectedWalletName={selectedWallet?.name ?? 'Wallet'}
       />
 
       <TransactionsTableCard
@@ -74,6 +78,7 @@ export default function Transactions() {
         onViewBill={setViewingBill}
         onEditTransaction={setEditingTransaction}
         onDeleteTransaction={transactionMutations.handleDelete}
+        showCreatedBy={selectedWallet?.type === 'family'}
       />
 
       <BillPreviewDialog transaction={viewingBill} onOpenChange={(open) => !open && setViewingBill(null)} />

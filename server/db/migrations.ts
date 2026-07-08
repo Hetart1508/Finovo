@@ -89,6 +89,38 @@ export const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS wallets (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      type ENUM('personal', 'family') NOT NULL DEFAULT 'personal',
+      owner_user_id INT NOT NULL,
+      monthly_expense_target DECIMAL(14,2) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_wallets_owner
+        FOREIGN KEY (owner_user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wallet_members (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      wallet_id INT NOT NULL,
+      user_id INT NOT NULL,
+      role ENUM('owner', 'member') NOT NULL DEFAULT 'member',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_wallet_member (wallet_id, user_id),
+      CONSTRAINT fk_wallet_members_wallet
+        FOREIGN KEY (wallet_id) REFERENCES wallets(id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_wallet_members_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
@@ -291,6 +323,8 @@ export const runMigrations = async () => {
   await ensureColumn("transactions", "import_fingerprint", "CHAR(64) NULL");
   await ensureColumn("transactions", "payee_vpa", "VARCHAR(320) NULL");
   await ensureColumn("transactions", "merchant_name", "VARCHAR(255) NULL");
+  await ensureColumn("transactions", "wallet_id", "INT NULL");
+  await ensureColumn("transactions", "created_by_user_id", "INT NULL");
   await ensureColumn("recurring_events", "frequency", "VARCHAR(50) NOT NULL DEFAULT 'monthly'");
   await ensureColumn("recurring_events", "interval_count", "INT NOT NULL DEFAULT 1");
   await ensureColumn("recurring_events", "start_date", "DATE NULL");
@@ -301,6 +335,10 @@ export const runMigrations = async () => {
   await ensureColumn("monthly_report_preferences", "custom_interval_days", "INT NOT NULL DEFAULT 30");
   await ensureColumn("mutual_fund_sip_investments", "investment_type", "VARCHAR(20) NOT NULL DEFAULT 'sip'");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
+  await ensureIndex("transactions", "idx_transactions_wallet_date", "wallet_id, date");
+  await ensureIndex("wallets", "idx_wallets_owner", "owner_user_id");
+  await ensureIndex("wallet_members", "idx_wallet_members_user", "user_id");
+  await ensureIndex("wallet_members", "idx_wallet_members_wallet", "wallet_id");
   await ensureIndex("transactions", "idx_transactions_category", "category");
   await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
   await ensureIndex("transactions", "idx_transactions_user_payee_vpa", "user_id, payee_vpa");
@@ -315,6 +353,32 @@ export const runMigrations = async () => {
   await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
   await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");
   await ensureIndex("ai_advisor_messages", "idx_ai_advisor_user_session", "user_id, session_id, created_at");
+
+  await db.query(`
+    INSERT INTO wallets (name, type, owner_user_id, monthly_expense_target)
+    SELECT CONCAT(users.name, "'s Personal Wallet"), 'personal', users.id, user_profiles.monthly_expense_target
+    FROM users
+    LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM wallets existing_wallets
+      WHERE existing_wallets.owner_user_id = users.id
+        AND existing_wallets.type = 'personal'
+    )
+  `);
+  await db.query(`
+    INSERT IGNORE INTO wallet_members (wallet_id, user_id, role)
+    SELECT wallets.id, wallets.owner_user_id, 'owner'
+    FROM wallets
+    WHERE wallets.type = 'personal'
+  `);
+  await db.query(`
+    UPDATE transactions
+    JOIN wallets ON wallets.owner_user_id = transactions.user_id AND wallets.type = 'personal'
+    SET transactions.wallet_id = wallets.id,
+        transactions.created_by_user_id = COALESCE(transactions.created_by_user_id, transactions.user_id)
+    WHERE transactions.wallet_id IS NULL
+  `);
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
   logger.info("MySQL schema is ready.");

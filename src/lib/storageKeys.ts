@@ -3,4 +3,5 @@ export const storageKeys = {
   sessionExpiresAt: 'sessionExpiresAt',
   theme: 'theme',
   aiAdvisorSession: 'ai-advisor-session',
+  selectedWalletId: 'selected-wallet-id',
 } as const;

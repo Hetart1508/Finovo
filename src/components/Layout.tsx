@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
 import { storageKeys } from '@/src/lib/storageKeys';
 import { authApi } from '@/src/api/authApi';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   RiDashboard2Line,
@@ -23,6 +24,7 @@ import {
   RiFundsLine,
   RiRobot2Line,
   RiUserSettingsLine,
+  RiGroupLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -33,6 +35,7 @@ export default function Layout({ children }: LayoutProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+  const { wallets, selectedWallet, selectedWalletId, walletsLoading, setSelectedWalletId } = useWallets();
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem(storageKeys.user) || '{}'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -99,6 +102,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Profile', path: '/profile', icon: RiUserSettingsLine },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
+  const selectedWalletLabel = selectedWallet?.type === 'family' ? 'Family wallet' : 'Personal wallet';
 
   const renderNavLink = (
     item: typeof navItems[number],
@@ -247,7 +251,23 @@ export default function Layout({ children }: LayoutProps) {
             </h2>
             </div>
           </div>
-          {/* Theme toggle hidden for now. */}
+          <div className="flex min-w-0 items-center gap-2">
+            <RiGroupLine className="hidden text-lg text-[#4F9CF9] sm:block" aria-hidden="true" />
+            <select
+              aria-label="Select wallet"
+              value={selectedWalletId ?? ''}
+              disabled={walletsLoading || wallets.length === 0}
+              onChange={(event) => setSelectedWalletId(Number(event.target.value))}
+              className="h-9 max-w-[13rem] rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] outline-none transition-colors focus-visible:border-[#4F9CF9] focus-visible:ring-2 focus-visible:ring-[#4F9CF9]/20 sm:max-w-[16rem]"
+              title={selectedWallet ? `${selectedWalletLabel}: ${selectedWallet.name}` : 'Select wallet'}
+            >
+              {wallets.map((wallet) => (
+                <option key={wallet.id} value={wallet.id}>
+                  {wallet.type === 'family' ? 'Family' : 'Personal'} - {wallet.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">

@@ -44,6 +44,7 @@ type TransactionsTableCardProps = {
   onViewBill: (transaction: Transaction) => void;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: number) => void;
+  showCreatedBy?: boolean;
 };
 
 export function TransactionsTableCard({
@@ -60,6 +61,7 @@ export function TransactionsTableCard({
   onViewBill,
   onEditTransaction,
   onDeleteTransaction,
+  showCreatedBy = false,
 }: TransactionsTableCardProps) {
   return (
     <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)] dark:border-[#334155]">
@@ -73,6 +75,7 @@ export function TransactionsTableCard({
             <col className="w-[108px]" />
             <col className="w-[94px]" />
             <col className="w-[108px]" />
+            {showCreatedBy ? <col className="w-[112px]" /> : null}
             <col className="w-[78px]" />
           </colgroup>
           <TableHeader className="bg-[#F8FAFC] dark:bg-[#1E293B]">
@@ -84,17 +87,18 @@ export function TransactionsTableCard({
               <SortableHead sort="category" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Category</SortableHead>
               <SortableHead sort="payment_mode" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Mode</SortableHead>
               <SortableHead sort="amount" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="text-center">Amount</SortableHead>
+              {showCreatedBy ? <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Added by</TableHead> : null}
               <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8}><StateMessage>Loading transactions...</StateMessage></TableCell>
+                <TableCell colSpan={showCreatedBy ? 9 : 8}><StateMessage>Loading transactions...</StateMessage></TableCell>
               </TableRow>
             ) : totalTransactions === 0 ? (
               <TableRow>
-                <TableCell colSpan={8}><StateMessage>No transactions found.</StateMessage></TableCell>
+                <TableCell colSpan={showCreatedBy ? 9 : 8}><StateMessage>No transactions found.</StateMessage></TableCell>
               </TableRow>
             ) : (
               transactions.map((transaction, index) => (
@@ -105,6 +109,7 @@ export function TransactionsTableCard({
                   onViewBill={onViewBill}
                   onEditTransaction={onEditTransaction}
                   onDeleteTransaction={onDeleteTransaction}
+                  showCreatedBy={showCreatedBy}
                 />
               ))
             )}
@@ -174,12 +179,14 @@ function TransactionRow({
   onViewBill,
   onEditTransaction,
   onDeleteTransaction,
+  showCreatedBy,
 }: {
   transaction: Transaction;
   serialNumber: number;
   onViewBill: (transaction: Transaction) => void;
   onEditTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: number) => void;
+  showCreatedBy: boolean;
 }) {
   return (
     <TableRow className="border-[#E5E7EB] bg-white hover:bg-[#F8FBFF] dark:border-[#334155] dark:bg-[#111827] dark:hover:bg-[#162033]">
@@ -213,6 +220,13 @@ function TransactionRow({
       )}>
         {formatSignedRupees(transaction.amount, transaction.type === 'income')}
       </TableCell>
+      {showCreatedBy ? (
+        <TableCell className="min-w-0 text-[#6B7280] dark:text-[#6B7280]">
+          <span className="block truncate" title={transaction.created_by_email || transaction.created_by_name || 'Member'}>
+            {transaction.created_by_name || transaction.created_by_email || 'Member'}
+          </span>
+        </TableCell>
+      ) : null}
       <TableCell>
         <div className="flex justify-end gap-1">
           {transaction.bill_url ? (

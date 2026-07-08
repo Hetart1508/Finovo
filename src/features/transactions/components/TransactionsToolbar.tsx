@@ -23,6 +23,7 @@ type TransactionsToolbarProps = {
   onAddTransaction: (event: FormEvent<HTMLFormElement>) => Promise<boolean>;
   onExtractTransaction: (description: string) => Promise<TransactionFormInitialValues | null>;
   extractingTransaction: boolean;
+  selectedWalletName: string;
 };
 
 export function TransactionsToolbar({
@@ -36,6 +37,7 @@ export function TransactionsToolbar({
   onAddTransaction,
   onExtractTransaction,
   extractingTransaction,
+  selectedWalletName,
 }: TransactionsToolbarProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<'ai' | 'manual'>('ai');
@@ -107,6 +109,7 @@ export function TransactionsToolbar({
           <DialogContent className="max-h-[calc(100dvh-2rem)] gap-3 overflow-y-auto p-3 sm:max-w-md">
             <DialogHeader className="pr-8">
               <DialogTitle>Add New Transaction</DialogTitle>
+              <p className="text-xs font-medium text-[#6B7280]">Saving to {selectedWalletName}</p>
             </DialogHeader>
             <div className="flex rounded-lg bg-muted p-1">
               <Button

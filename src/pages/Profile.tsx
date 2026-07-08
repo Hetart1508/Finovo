@@ -9,8 +9,11 @@ import {
   RiShieldUserLine,
   RiUser3Line,
   RiWallet3Line,
+  RiGroupLine,
+  RiDeleteBin6Line,
 } from 'react-icons/ri';
 import { userApi } from '@/src/api/userApi';
+import { walletsApi } from '@/src/api/walletsApi';
 import type { MonthlyReportPreferences, ReportFrequency } from '@/src/api/userApi';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
@@ -20,6 +23,7 @@ import { getApiMessage } from '@/src/lib/toastMessages';
 import { storageKeys } from '@/src/lib/storageKeys';
 import { userProfileQuery } from '@/src/server-state';
 import { queryKeys } from '@/src/server-state/queryKeys';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { RiskAppetite, UserProfile, UserProfilePayload } from '@/src/types/profile';
 import { formatRupees } from '@/src/utils/formatters';
 
@@ -111,13 +115,22 @@ const countCompletedFields = (profile: UserProfile | undefined) => {
 
 export default function Profile() {
   const queryClient = useQueryClient();
+  const { wallets, selectedWallet, selectedWalletId, setSelectedWalletId } = useWallets();
   const { data: profile, isLoading, error } = useQuery(userProfileQuery());
   const reportPreferencesQuery = useQuery({
     queryKey: queryKeys.monthlyReportPreferences,
     queryFn: () => userApi.getMonthlyReportPreferences(),
   });
+  const selectedWalletMembersQuery = useQuery({
+    queryKey: queryKeys.walletMembers(selectedWalletId),
+    queryFn: () => walletsApi.members(selectedWalletId as number),
+    enabled: Boolean(selectedWalletId && selectedWallet?.type === 'family'),
+  });
   const [form, setForm] = useState<ProfileFormState>(emptyForm);
   const [reportForm, setReportForm] = useState<MonthlyReportPreferences>(defaultReportPreferences);
+  const [familyWalletName, setFamilyWalletName] = useState('');
+  const [familyBudget, setFamilyBudget] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
 
   useEffect(() => {
     if (profile) setForm(profileToForm(profile));
@@ -137,6 +150,8 @@ export default function Profile() {
       percent: Math.round((completed / total) * 100),
     };
   }, [profile]);
+  const familyWallets = wallets.filter((wallet) => wallet.type === 'family');
+  const selectedWalletMembers = selectedWalletMembersQuery.data ?? [];
 
   const saveProfile = useMutation({
     mutationFn: (payload: UserProfilePayload) => userApi.updateProfile(payload),
@@ -158,6 +173,44 @@ export default function Profile() {
     onSuccess: (response) => {
       queryClient.setQueryData(queryKeys.monthlyReportPreferences, response.data);
       toast.success('Mail report settings saved.');
+    },
+  });
+
+  const createFamilyWallet = useMutation({
+    mutationFn: (payload: { name: string; monthly_expense_target: number | null }) => walletsApi.create(payload),
+    onSuccess: (wallet) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallets });
+      setSelectedWalletId(wallet.id);
+      setFamilyWalletName('');
+      setFamilyBudget('');
+      toast.success('Family wallet created.');
+    },
+  });
+
+  const saveWalletBudget = useMutation({
+    mutationFn: ({ walletId, budget }: { walletId: number; budget: number | null }) => walletsApi.updateBudget(walletId, budget),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallets });
+      toast.success('Wallet budget saved.');
+    },
+  });
+
+  const addWalletMember = useMutation({
+    mutationFn: ({ walletId, email }: { walletId: number; email: string }) => walletsApi.addMember(walletId, email),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.walletMembers(selectedWalletId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallets });
+      setMemberEmail('');
+      toast.success('Member added to family wallet.');
+    },
+  });
+
+  const removeWalletMember = useMutation({
+    mutationFn: ({ walletId, userId }: { walletId: number; userId: number }) => walletsApi.removeMember(walletId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.walletMembers(selectedWalletId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wallets });
+      toast.success('Member removed.');
     },
   });
 
@@ -207,6 +260,42 @@ export default function Profile() {
       await saveReportPreferences.mutateAsync(payload);
     } catch (saveError) {
       toast.error(getApiMessage(saveError, 'Failed to save mail report settings.'));
+    }
+  };
+
+  const handleCreateFamilyWallet = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      await createFamilyWallet.mutateAsync({
+        name: familyWalletName.trim(),
+        monthly_expense_target: numberOrNull(familyBudget),
+      });
+    } catch (saveError) {
+      toast.error(getApiMessage(saveError, 'Failed to create family wallet.'));
+    }
+  };
+
+  const handleSaveWalletBudget = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedWalletId) return;
+    const formData = new FormData(event.currentTarget);
+    try {
+      await saveWalletBudget.mutateAsync({
+        walletId: selectedWalletId,
+        budget: numberOrNull(String(formData.get('wallet_budget') || '')),
+      });
+    } catch (saveError) {
+      toast.error(getApiMessage(saveError, 'Failed to save wallet budget.'));
+    }
+  };
+
+  const handleAddWalletMember = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedWalletId) return;
+    try {
+      await addWalletMember.mutateAsync({ walletId: selectedWalletId, email: memberEmail.trim() });
+    } catch (saveError) {
+      toast.error(getApiMessage(saveError, 'Failed to add member.'));
     }
   };
 
@@ -293,6 +382,152 @@ export default function Profile() {
               <SummaryRow label="Expense target" value={profile.monthly_expense_target === null ? 'Not set' : formatRupees(profile.monthly_expense_target)} />
               <SummaryRow label="Emergency fund" value={profile.emergency_fund_target === null ? 'Not set' : formatRupees(profile.emergency_fund_target)} />
               <SummaryRow label="Risk appetite" value={profile.risk_appetite ? profile.risk_appetite[0].toUpperCase() + profile.risk_appetite.slice(1) : 'Not set'} />
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel rounded-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiGroupLine className="text-[#4F9CF9]" aria-hidden="true" />
+                Family wallets
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form onSubmit={handleCreateFamilyWallet} className="space-y-3 rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3">
+                <Field label="Wallet name" htmlFor="family-wallet-name">
+                  <Input
+                    id="family-wallet-name"
+                    value={familyWalletName}
+                    onChange={(event) => setFamilyWalletName(event.target.value)}
+                    placeholder="Sharma Family"
+                    required
+                  />
+                </Field>
+                <Field label="Monthly family budget" htmlFor="family-wallet-budget">
+                  <Input
+                    id="family-wallet-budget"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={familyBudget}
+                    onChange={(event) => setFamilyBudget(event.target.value)}
+                    placeholder="85000"
+                  />
+                </Field>
+                <Button type="submit" disabled={createFamilyWallet.isPending} className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5]">
+                  {createFamilyWallet.isPending ? 'Creating...' : 'Create Family Wallet'}
+                </Button>
+              </form>
+
+              {familyWallets.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase text-[#6B7280]">Your family wallets</p>
+                  {familyWallets.map((wallet) => (
+                    <button
+                      key={wallet.id}
+                      type="button"
+                      onClick={() => setSelectedWalletId(wallet.id)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        selectedWalletId === wallet.id
+                          ? 'border-[#4F9CF9] bg-[#EEF6FF] text-[#1F2937]'
+                          : 'border-[#E5E7EB] bg-white text-[#1F2937] hover:bg-[#FAFBFC]'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{wallet.name}</span>
+                        <span className="block text-xs text-[#6B7280]">{wallet.member_count} member{wallet.member_count === 1 ? '' : 's'} - {wallet.role}</span>
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-[#4F9CF9]">
+                        {wallet.monthly_expense_target === null ? 'No budget' : formatRupees(wallet.monthly_expense_target)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-[#6B7280]">
+                  Create a family wallet to share transactions and a whole-family budget.
+                </p>
+              )}
+
+              {selectedWallet?.type === 'family' ? (
+                <div className="space-y-4 rounded-lg border border-[#E5E7EB] bg-white p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[#1F2937]">{selectedWallet.name}</p>
+                    <p className="text-xs text-[#6B7280]">{selectedWallet.role === 'owner' ? 'You can manage this wallet.' : 'You can view and add transactions.'}</p>
+                  </div>
+
+                  <form onSubmit={handleSaveWalletBudget} className="space-y-3">
+                    <Field label="Shared monthly budget" htmlFor="selected-wallet-budget">
+                      <Input
+                        key={`${selectedWallet.id}-${selectedWallet.monthly_expense_target ?? 'none'}`}
+                        id="selected-wallet-budget"
+                        name="wallet_budget"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={selectedWallet.monthly_expense_target ?? ''}
+                        disabled={selectedWallet.role !== 'owner'}
+                        placeholder="85000"
+                      />
+                    </Field>
+                    {selectedWallet.role === 'owner' ? (
+                      <Button type="submit" variant="outline" disabled={saveWalletBudget.isPending} className="w-full">
+                        {saveWalletBudget.isPending ? 'Saving...' : 'Save Budget'}
+                      </Button>
+                    ) : null}
+                  </form>
+
+                  {selectedWallet.role === 'owner' ? (
+                    <form onSubmit={handleAddWalletMember} className="space-y-3">
+                      <Field label="Add registered member" htmlFor="family-member-email">
+                        <Input
+                          id="family-member-email"
+                          type="email"
+                          value={memberEmail}
+                          onChange={(event) => setMemberEmail(event.target.value)}
+                          placeholder="member@example.com"
+                          required
+                        />
+                      </Field>
+                      <Button type="submit" variant="outline" disabled={addWalletMember.isPending} className="w-full">
+                        {addWalletMember.isPending ? 'Adding...' : 'Add Member'}
+                      </Button>
+                    </form>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase text-[#6B7280]">Members</p>
+                    {selectedWalletMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#E5E7EB] px-3 py-2">
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-semibold text-[#1F2937]">{member.name}</span>
+                          <span className="block truncate text-xs text-[#6B7280]">{member.email} - {member.role}</span>
+                        </span>
+                        {selectedWallet.role === 'owner' && member.role !== 'owner' ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="shrink-0 text-[#6B7280] hover:text-[#FF6B6B]"
+                            disabled={removeWalletMember.isPending}
+                            onClick={() => {
+                              if (window.confirm('Remove this member from the family wallet?')) {
+                                removeWalletMember.mutate({ walletId: selectedWallet.id, userId: member.id });
+                              }
+                            }}
+                            aria-label="Remove member"
+                          >
+                            <RiDeleteBin6Line className="text-base" aria-hidden="true" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {!selectedWalletMembers.length && !selectedWalletMembersQuery.isLoading ? (
+                      <p className="text-sm text-[#6B7280]">No members loaded yet.</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

@@ -11,12 +11,14 @@ import { DashboardMetricCards } from '@/src/features/dashboard/components/Dashbo
 import { dashboardChartColors } from '@/src/features/dashboard/dashboard.constants';
 import type { DashboardTransaction } from '@/src/features/dashboard/dashboard.types';
 import { useDashboardAnalysis } from '@/src/features/dashboard/hooks/useDashboardAnalysis';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { RecurringEvent } from '@/src/features/recurring/recurring.types';
 
 const DashboardCharts = lazy(() => import('./DashboardCharts'));
 
 export default function Dashboard() {
-  const transactionsResult = useQuery(dashboardTransactionsQuery());
+  const { selectedWalletId } = useWallets();
+  const transactionsResult = useQuery(dashboardTransactionsQuery(selectedWalletId));
   const recurringResult = useQuery(recurringQuery());
   const transactions = (transactionsResult.data ?? []) as DashboardTransaction[];
   const recurring = (recurringResult.data ?? []) as RecurringEvent[];

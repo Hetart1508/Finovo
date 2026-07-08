@@ -7,11 +7,13 @@ import { transactionsApi } from '@/src/api/transactionsApi';
 import { uploadApi } from '@/src/api/uploadApi';
 import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { ExtractedBill, ExtractedBillData } from '../smartUpload.types';
 import { getExtractionConfidence, getTodayDateString } from '../smartUpload.utils';
 
 export function useSmartUpload() {
   const queryClient = useQueryClient();
+  const { selectedWalletId } = useWallets();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -104,6 +106,7 @@ export function useSmartUpload() {
         payment_mode: 'UPI',
         description: `AI Extracted (${extractedData.confidence}): ${extractedData.data.merchant}`,
         bill_url: billUrl,
+        wallet_id: selectedWalletId,
       });
       toast.success(getApiSuccessMessage(response.data, 'Transaction saved successfully'));
       setFile(null);

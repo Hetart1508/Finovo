@@ -8,6 +8,7 @@ export type StatementImportPreviewPayload = {
 export type StatementImportApprovePayload<TTransaction> = {
   transactions: TTransaction[];
   statementHash: string;
+  wallet_id?: number | null;
 };
 
 export const statementImportApi = {

@@ -10,10 +10,12 @@ import { InsightsHeader } from '@/src/features/insights/components/InsightsHeade
 import { TopCategoriesCard } from '@/src/features/insights/components/TopCategoriesCard';
 import { useGenerateInsights } from '@/src/features/insights/hooks/useGenerateInsights';
 import { useInsightRange } from '@/src/features/insights/hooks/useInsightRange';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
 
 export default function Insights() {
-  const transactionsResult = useQuery(transactionsQuery());
+  const { selectedWalletId } = useWallets();
+  const transactionsResult = useQuery(transactionsQuery(selectedWalletId));
   const transactionsLoading = transactionsResult.isPending || transactionsResult.isFetching;
   const transactions = (transactionsResult.data ?? []) as Transaction[];
   const range = useInsightRange(transactions);

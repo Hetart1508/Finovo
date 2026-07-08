@@ -300,6 +300,61 @@ const toPositiveInteger = (value: unknown) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const getWalletMembership = (walletId: number, userId: number) =>
+  queryOne(`
+    SELECT
+      wallets.id,
+      wallets.name,
+      wallets.type,
+      wallets.owner_user_id,
+      wallets.monthly_expense_target,
+      wallet_members.role
+    FROM wallets
+    JOIN wallet_members ON wallet_members.wallet_id = wallets.id
+    WHERE wallets.id = ? AND wallet_members.user_id = ?
+    LIMIT 1
+  `, [walletId, userId]);
+
+const ensurePersonalWallet = async (userId: number) => {
+  let wallet: any = await queryOne(
+    "SELECT id FROM wallets WHERE owner_user_id = ? AND type = 'personal' ORDER BY id ASC LIMIT 1",
+    [userId]
+  );
+
+  if (!wallet) {
+    const user: any = await queryOne("SELECT name FROM users WHERE id = ?", [userId]);
+    const profile: any = await queryOne("SELECT monthly_expense_target FROM user_profiles WHERE user_id = ?", [userId]);
+    const info = await execute(
+      "INSERT INTO wallets (name, type, owner_user_id, monthly_expense_target) VALUES (?, 'personal', ?, ?)",
+      [`${user?.name || "User"}'s Personal Wallet`, userId, profile?.monthly_expense_target ?? null]
+    );
+    wallet = { id: info.insertId };
+  }
+
+  await execute(
+    "INSERT IGNORE INTO wallet_members (wallet_id, user_id, role) VALUES (?, ?, 'owner')",
+    [wallet.id, userId]
+  );
+  return Number(wallet.id);
+};
+
+const resolveWalletIdForUser = async (userId: number, requestedWalletId?: unknown) => {
+  const walletId = requestedWalletId === undefined || requestedWalletId === null || requestedWalletId === ""
+    ? await ensurePersonalWallet(userId)
+    : toPositiveInteger(requestedWalletId);
+
+  if (!walletId) {
+    return { status: 400, body: { error: "A valid wallet id is required" } };
+  }
+
+  const membership = await getWalletMembership(walletId, userId);
+  if (!membership) {
+    return { status: 403, body: { error: "You do not have access to this wallet" } };
+  }
+
+  return { walletId, membership };
+};
+
 const isValidDateString = (value: unknown) =>
   isNonEmptyString(value) && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -1425,20 +1480,23 @@ const normalizeTransactionBody = (body: any) => {
   return { transaction };
 };
 
-const createTransaction = async (userId: number, body: any) => {
+const createTransaction = async (userId: number, body: any, walletId?: number) => {
   const normalized = normalizeTransactionBody(body);
 
   if ("status" in normalized) {
     return normalized;
   }
 
-  return insertTransaction(userId, normalized.transaction);
+  const resolvedWalletId = walletId ?? await ensurePersonalWallet(userId);
+  return insertTransaction(userId, normalized.transaction, resolvedWalletId);
 };
 
-const insertTransaction = async (userId: number, transaction: NormalizedTransaction) => {
+const insertTransaction = async (userId: number, transaction: NormalizedTransaction, walletId: number) => {
   const info = await execute(`
     INSERT INTO transactions (
       user_id,
+      wallet_id,
+      created_by_user_id,
       amount,
       type,
       category,
@@ -1451,8 +1509,10 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
       payee_vpa,
       merchant_name
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
+    userId,
+    walletId,
     userId,
     transaction.amount,
     transaction.type,
@@ -1472,6 +1532,8 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
     body: {
       id: info.insertId,
       user_id: userId,
+      wallet_id: walletId,
+      created_by_user_id: userId,
       ...transaction,
     },
   };
@@ -1502,23 +1564,23 @@ const getStatementImportFingerprint = (
     transaction.payment_mode.toLowerCase(),
   ]));
 
-const findDuplicateStatementTransaction = (userId: number, transaction: NormalizedTransaction) =>
+const findDuplicateStatementTransaction = (walletId: number, transaction: NormalizedTransaction) =>
   transaction.import_fingerprint
     ? queryOne(
       `
         SELECT id
         FROM transactions
-        WHERE user_id = ?
+        WHERE wallet_id = ?
           AND import_fingerprint = ?
         LIMIT 1
       `,
-      [userId, transaction.import_fingerprint]
+      [walletId, transaction.import_fingerprint]
     )
     : queryOne(
       `
       SELECT id
       FROM transactions
-      WHERE user_id = ?
+      WHERE wallet_id = ?
         AND amount = ?
         AND type = ?
         AND category = ?
@@ -1528,7 +1590,7 @@ const findDuplicateStatementTransaction = (userId: number, transaction: Normaliz
       LIMIT 1
     `,
       [
-        userId,
+        walletId,
         transaction.amount,
         transaction.type,
         transaction.category,
@@ -1620,11 +1682,12 @@ const skipAllStatementTransactions = (transactions: any[], error: string) =>
 const saveStatementTransactions = async (
   userId: number,
   transactions: any[],
-  options: { fileHash?: string } = {}
+  options: { fileHash?: string; walletId?: number } = {}
 ) => {
   const savedTransactions: any[] = [];
   const skipped: Array<{ transaction: any; error: string }> = [];
   const seenStatementRows = new Set<string>();
+  const walletId = options.walletId ?? await ensurePersonalWallet(userId);
 
   if (options.fileHash) {
     const existingImport = await findStatementImport(userId, options.fileHash);
@@ -1693,7 +1756,7 @@ const saveStatementTransactions = async (
     const key = getStatementTransactionKey(normalized.transaction);
     const existing = seenStatementRows.has(key)
       ? { id: null }
-      : await findDuplicateStatementTransaction(userId, normalized.transaction);
+      : await findDuplicateStatementTransaction(walletId, normalized.transaction);
 
     if (existing) {
       skipped.push({
@@ -1703,7 +1766,7 @@ const saveStatementTransactions = async (
       continue;
     }
 
-    const result = await insertTransaction(userId, normalized.transaction);
+    const result = await insertTransaction(userId, normalized.transaction, walletId);
     seenStatementRows.add(key);
     savedTransactions.push(result.body);
   }
@@ -1717,27 +1780,42 @@ const saveStatementTransactions = async (
 };
 
 const findTransactionById = (id: number, userId: number) =>
-  queryOne("SELECT * FROM transactions WHERE id = ? AND user_id = ?", [id, userId]);
+  queryOne(`
+    SELECT
+      transactions.*,
+      users.name AS created_by_name,
+      users.email AS created_by_email
+    FROM transactions
+    LEFT JOIN users ON users.id = transactions.created_by_user_id
+    JOIN wallet_members ON wallet_members.wallet_id = transactions.wallet_id
+    WHERE transactions.id = ? AND wallet_members.user_id = ?
+    LIMIT 1
+  `, [id, userId]);
 
-const getTransactionFilters = (query: any, userId: number) => {
-  const conditions = ["user_id = ?"];
-  const params: any[] = [userId];
+const getTransactionFilters = async (query: any, userId: number) => {
+  const resolved = await resolveWalletIdForUser(userId, query.wallet_id);
+  if ("status" in resolved) {
+    return { error: resolved.body.error, status: resolved.status };
+  }
+
+  const conditions = ["transactions.wallet_id = ?"];
+  const params: any[] = [resolved.walletId];
 
   if (isNonEmptyString(query.type)) {
     if (query.type !== "expense" && query.type !== "income") {
       return { error: "Type must be expense or income" };
     }
-    conditions.push("type = ?");
+    conditions.push("transactions.type = ?");
     params.push(query.type);
   }
 
   if (isNonEmptyString(query.category)) {
-    conditions.push("category = ?");
+    conditions.push("transactions.category = ?");
     params.push(query.category.trim());
   }
 
   if (isNonEmptyString(query.payment_mode)) {
-    conditions.push("payment_mode = ?");
+    conditions.push("transactions.payment_mode = ?");
     params.push(query.payment_mode.trim());
   }
 
@@ -1745,7 +1823,7 @@ const getTransactionFilters = (query: any, userId: number) => {
     if (!isValidDateString(query.from)) {
       return { error: "From date must use YYYY-MM-DD format" };
     }
-    conditions.push("date >= ?");
+    conditions.push("transactions.date >= ?");
     params.push(query.from);
   }
 
@@ -1753,11 +1831,11 @@ const getTransactionFilters = (query: any, userId: number) => {
     if (!isValidDateString(query.to)) {
       return { error: "To date must use YYYY-MM-DD format" };
     }
-    conditions.push("date <= ?");
+    conditions.push("transactions.date <= ?");
     params.push(query.to);
   }
 
-  return { where: conditions.join(" AND "), params };
+  return { where: conditions.join(" AND "), params, walletId: resolved.walletId };
 };
 
 const updateTransaction = async (id: number, userId: number, body: any) => {
@@ -1809,7 +1887,7 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
   await execute(`
     UPDATE transactions
     SET amount = ?, type = ?, category = ?, date = ?, payment_mode = ?, description = ?, bill_url = ?, payee_vpa = ?, merchant_name = ?
-    WHERE id = ? AND user_id = ?
+    WHERE id = ?
   `, [
     transaction.amount,
     transaction.type,
@@ -1821,14 +1899,15 @@ const updateTransaction = async (id: number, userId: number, body: any) => {
     transaction.payee_vpa,
     transaction.merchant_name,
     id,
-    userId,
   ]);
 
   return {
     status: 200,
     body: {
       id,
-      user_id: userId,
+      user_id: existing.user_id,
+      wallet_id: existing.wallet_id,
+      created_by_user_id: existing.created_by_user_id,
       ...transaction,
     },
   };
@@ -3078,6 +3157,139 @@ app.post("/api/auth/logout", (_req, res) => {
   res.json({ message: "Logged out successfully" });
 });
 
+// --- Wallet Routes ---
+app.get("/api/wallets", authenticateToken, async (req: any, res) => {
+  await ensurePersonalWallet(req.user.id);
+  const wallets = await queryAll(`
+    SELECT
+      wallets.id,
+      wallets.name,
+      wallets.type,
+      wallets.owner_user_id,
+      wallets.monthly_expense_target,
+      wallet_members.role,
+      COUNT(all_members.user_id) AS member_count
+    FROM wallets
+    JOIN wallet_members ON wallet_members.wallet_id = wallets.id
+    LEFT JOIN wallet_members all_members ON all_members.wallet_id = wallets.id
+    WHERE wallet_members.user_id = ?
+    GROUP BY wallets.id, wallets.name, wallets.type, wallets.owner_user_id, wallets.monthly_expense_target, wallet_members.role
+    ORDER BY wallets.type = 'personal' DESC, wallets.created_at ASC, wallets.name ASC
+  `, [req.user.id]);
+
+  res.json(wallets);
+});
+
+app.post("/api/wallets", authenticateToken, async (req: any, res) => {
+  const name = isNonEmptyString(req.body?.name) ? req.body.name.trim() : "";
+  const monthlyExpenseTarget = req.body?.monthly_expense_target === undefined || req.body?.monthly_expense_target === ""
+    ? null
+    : toNumber(req.body.monthly_expense_target);
+
+  if (!name || name.length > 255) {
+    return res.status(400).json({ error: "Wallet name is required and must be 255 characters or fewer" });
+  }
+
+  if (monthlyExpenseTarget !== null && monthlyExpenseTarget < 0) {
+    return res.status(400).json({ error: "Monthly budget must be zero or greater" });
+  }
+
+  const info = await execute(
+    "INSERT INTO wallets (name, type, owner_user_id, monthly_expense_target) VALUES (?, 'family', ?, ?)",
+    [name, req.user.id, monthlyExpenseTarget]
+  );
+  await execute(
+    "INSERT INTO wallet_members (wallet_id, user_id, role) VALUES (?, ?, 'owner')",
+    [info.insertId, req.user.id]
+  );
+
+  const wallet = await getWalletMembership(info.insertId, req.user.id);
+  res.status(201).json(wallet);
+});
+
+app.get("/api/wallets/:walletId/members", authenticateToken, async (req: any, res) => {
+  const walletId = toPositiveInteger(req.params.walletId);
+  if (!walletId) return res.status(400).json({ error: "A valid wallet id is required" });
+
+  const membership = await getWalletMembership(walletId, req.user.id);
+  if (!membership) return res.status(403).json({ error: "You do not have access to this wallet" });
+
+  const members = await queryAll(`
+    SELECT users.id, users.name, users.email, wallet_members.role, wallet_members.created_at
+    FROM wallet_members
+    JOIN users ON users.id = wallet_members.user_id
+    WHERE wallet_members.wallet_id = ?
+    ORDER BY wallet_members.role = 'owner' DESC, users.name ASC, users.email ASC
+  `, [walletId]);
+
+  res.json(members);
+});
+
+app.post("/api/wallets/:walletId/members", authenticateToken, async (req: any, res) => {
+  const walletId = toPositiveInteger(req.params.walletId);
+  if (!walletId) return res.status(400).json({ error: "A valid wallet id is required" });
+
+  const membership: any = await getWalletMembership(walletId, req.user.id);
+  if (!membership) return res.status(403).json({ error: "You do not have access to this wallet" });
+  if (membership.type !== "family") return res.status(400).json({ error: "Members can only be added to family wallets" });
+  if (membership.role !== "owner") return res.status(403).json({ error: "Only the owner can add family wallet members" });
+
+  const email = normalizeEmail(req.body?.email);
+  if (!email) return res.status(400).json({ error: "Registered member email is required" });
+
+  const member: any = await queryOne("SELECT id FROM users WHERE email = ?", [email]);
+  if (!member) return res.status(404).json({ error: "No registered user found with this email" });
+
+  await execute(
+    "INSERT IGNORE INTO wallet_members (wallet_id, user_id, role) VALUES (?, ?, 'member')",
+    [walletId, member.id]
+  );
+
+  const members = await queryAll(`
+    SELECT users.id, users.name, users.email, wallet_members.role, wallet_members.created_at
+    FROM wallet_members
+    JOIN users ON users.id = wallet_members.user_id
+    WHERE wallet_members.wallet_id = ?
+    ORDER BY wallet_members.role = 'owner' DESC, users.name ASC, users.email ASC
+  `, [walletId]);
+  res.status(201).json({ members });
+});
+
+app.delete("/api/wallets/:walletId/members/:userId", authenticateToken, async (req: any, res) => {
+  const walletId = toPositiveInteger(req.params.walletId);
+  const memberUserId = toPositiveInteger(req.params.userId);
+  if (!walletId || !memberUserId) return res.status(400).json({ error: "Valid wallet and user ids are required" });
+
+  const membership: any = await getWalletMembership(walletId, req.user.id);
+  if (!membership) return res.status(403).json({ error: "You do not have access to this wallet" });
+  if (membership.role !== "owner") return res.status(403).json({ error: "Only the owner can remove members" });
+  if (memberUserId === Number(membership.owner_user_id)) return res.status(400).json({ error: "The wallet owner cannot be removed" });
+
+  const info = await execute("DELETE FROM wallet_members WHERE wallet_id = ? AND user_id = ?", [walletId, memberUserId]);
+  if (!info.affectedRows) return res.status(404).json({ error: "Wallet member not found" });
+  res.json({ message: "Member removed" });
+});
+
+app.patch("/api/wallets/:walletId/budget", authenticateToken, async (req: any, res) => {
+  const walletId = toPositiveInteger(req.params.walletId);
+  if (!walletId) return res.status(400).json({ error: "A valid wallet id is required" });
+
+  const membership: any = await getWalletMembership(walletId, req.user.id);
+  if (!membership) return res.status(403).json({ error: "You do not have access to this wallet" });
+  if (membership.role !== "owner") return res.status(403).json({ error: "Only the owner can update the wallet budget" });
+
+  const monthlyExpenseTarget = req.body?.monthly_expense_target === undefined || req.body?.monthly_expense_target === ""
+    ? null
+    : toNumber(req.body.monthly_expense_target);
+  if (monthlyExpenseTarget !== null && monthlyExpenseTarget < 0) {
+    return res.status(400).json({ error: "Monthly budget must be zero or greater" });
+  }
+
+  await execute("UPDATE wallets SET monthly_expense_target = ? WHERE id = ?", [monthlyExpenseTarget, walletId]);
+  const wallet = await getWalletMembership(walletId, req.user.id);
+  res.json(wallet);
+});
+
 // --- Transaction Routes ---
 app.get("/api/merchant-aliases", authenticateToken, async (req: any, res) => {
   res.json(await getMerchantAliases(req.user.id));
@@ -3109,9 +3321,9 @@ app.delete("/api/merchant-aliases/:id", authenticateToken, async (req: any, res)
 });
 
 app.get("/api/transactions", authenticateToken, async (req: any, res) => {
-  const filters = getTransactionFilters(req.query, req.user.id);
+  const filters = await getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
-    return res.status(400).json({ error: filters.error });
+    return res.status(filters.status || 400).json({ error: filters.error });
   }
 
   const limit = req.query.limit === undefined ? 100 : toPositiveInteger(req.query.limit);
@@ -3122,10 +3334,14 @@ app.get("/api/transactions", authenticateToken, async (req: any, res) => {
   }
 
   const transactions = await queryAll(`
-    SELECT *
+    SELECT
+      transactions.*,
+      users.name AS created_by_name,
+      users.email AS created_by_email
     FROM transactions
+    LEFT JOIN users ON users.id = transactions.created_by_user_id
     WHERE ${filters.where}
-    ORDER BY date DESC, id DESC
+    ORDER BY transactions.date DESC, transactions.id DESC
     LIMIT ${limit} OFFSET ${offset}
   `, filters.params);
 
@@ -3133,7 +3349,12 @@ app.get("/api/transactions", authenticateToken, async (req: any, res) => {
 });
 
 app.post("/api/transactions", authenticateToken, async (req: any, res) => {
-  const result = await createTransaction(req.user.id, req.body);
+  const resolved = await resolveWalletIdForUser(req.user.id, req.body?.wallet_id);
+  if ("status" in resolved) {
+    return res.status(resolved.status).json(resolved.body);
+  }
+
+  const result = await createTransaction(req.user.id, req.body, resolved.walletId);
   res.status(result.status).json(result.body);
 });
 
@@ -3164,9 +3385,9 @@ app.post("/api/transactions/extract", authenticateToken, async (req: any, res) =
 });
 
 app.get("/api/transactions/summary", authenticateToken, async (req: any, res) => {
-  const filters = getTransactionFilters(req.query, req.user.id);
+  const filters = await getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
-    return res.status(400).json({ error: filters.error });
+    return res.status(filters.status || 400).json({ error: filters.error });
   }
 
   const summary: any = await queryOne(`
@@ -3187,9 +3408,9 @@ app.get("/api/transactions/summary", authenticateToken, async (req: any, res) =>
 });
 
 app.get("/api/transactions/categories", authenticateToken, async (req: any, res) => {
-  const filters = getTransactionFilters(req.query, req.user.id);
+  const filters = await getTransactionFilters(req.query, req.user.id);
   if ("error" in filters) {
-    return res.status(400).json({ error: filters.error });
+    return res.status(filters.status || 400).json({ error: filters.error });
   }
 
   const categories = await queryAll(`
@@ -3244,7 +3465,12 @@ app.delete("/api/transactions/:id", authenticateToken, async (req: any, res) => 
     return res.status(400).json({ error: "Valid transaction id is required" });
   }
 
-  const info = await execute("DELETE FROM transactions WHERE id = ? AND user_id = ?", [id, req.user.id]);
+  const existing = await findTransactionById(id, req.user.id);
+  if (!existing) {
+    return res.status(404).json({ error: "Transaction not found" });
+  }
+
+  const info = await execute("DELETE FROM transactions WHERE id = ?", [id]);
   if (info.affectedRows === 0) {
     return res.status(404).json({ error: "Transaction not found" });
   }
@@ -4190,8 +4416,14 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
     return res.status(400).json({ error: "A maximum of 200 transactions can be approved at once" });
   }
 
+  const resolved = await resolveWalletIdForUser(req.user.id, req.body?.wallet_id);
+  if ("status" in resolved) {
+    return res.status(resolved.status).json(resolved.body);
+  }
+
   const { savedTransactions, skipped, duplicateStatement } = await saveStatementTransactions(req.user.id, transactions, {
     fileHash: statementHash,
+    walletId: resolved.walletId,
   });
 
   res.json({

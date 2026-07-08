@@ -7,10 +7,12 @@ import { CalendarDayDetailsCard } from '@/src/features/calendar/components/Calen
 import { CalendarHeader } from '@/src/features/calendar/components/CalendarHeader';
 import { CalendarMonthCard } from '@/src/features/calendar/components/CalendarMonthCard';
 import { useCalendarView } from '@/src/features/calendar/hooks/useCalendarView';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { Transaction } from '@/src/features/transactions/transactions.types';
 
 export default function CalendarView() {
-  const transactionsResult = useQuery(transactionsQuery());
+  const { selectedWalletId } = useWallets();
+  const transactionsResult = useQuery(transactionsQuery(selectedWalletId));
   const transactions = (transactionsResult.data ?? []) as Transaction[];
   const calendar = useCalendarView(transactions);
 

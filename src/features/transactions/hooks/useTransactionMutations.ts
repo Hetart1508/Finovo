@@ -11,6 +11,7 @@ type UseTransactionMutationsArgs = {
   editingTransaction: Transaction | null;
   transactionDate: string;
   todayDateString: string;
+  selectedWalletId: number | null;
   onAdded: () => void;
   onUpdated: () => void;
 };
@@ -19,6 +20,7 @@ export function useTransactionMutations({
   editingTransaction,
   transactionDate,
   todayDateString,
+  selectedWalletId,
   onAdded,
   onUpdated,
 }: UseTransactionMutationsArgs) {
@@ -67,6 +69,7 @@ export function useTransactionMutations({
         ...data,
         amount: parseFloat(data.amount as string),
         date: transactionDate,
+        wallet_id: selectedWalletId,
       });
       toast.success(getApiSuccessMessage(response.data, 'Transaction added successfully'));
       onAdded();

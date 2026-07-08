@@ -1,6 +1,9 @@
 export const queryKeys = {
   transactions: ['transactions'] as const,
-  dashboardTransactions: ['transactions', { limit: 10_000, offset: 0 }] as const,
+  transactionsForWallet: (walletId: number | null) => ['transactions', { walletId }] as const,
+  dashboardTransactions: (walletId: number | null) => ['transactions', { walletId, limit: 10_000, offset: 0 }] as const,
+  wallets: ['wallets'] as const,
+  walletMembers: (walletId: number | null) => ['wallets', walletId, 'members'] as const,
   recurring: ['recurring'] as const,
   upcomingRecurring: (days = 365) => ['recurring', 'upcoming', { days }] as const,
   merchantAliases: ['merchant-aliases'] as const,

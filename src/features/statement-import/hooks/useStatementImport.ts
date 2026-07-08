@@ -4,11 +4,13 @@ import { toast } from 'react-toastify';
 import { statementImportApi } from '@/src/api/statementImportApi';
 import { invalidateMerchantAliases, invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
+import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { StatementTransaction } from '../statementImport.types';
 import { isFutureTransactionDate, readFileAsBase64 } from '../statementImport.utils';
 
 export function useStatementImport() {
   const queryClient = useQueryClient();
+  const { selectedWalletId } = useWallets();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [statementFile, setStatementFile] = useState<File | null>(null);
   const [transactions, setTransactions] = useState<StatementTransaction[]>([]);
@@ -23,7 +25,7 @@ export function useStatementImport() {
     mutationFn: (payload: { base64Data: string; mimeType: string }) => statementImportApi.preview(payload),
   });
   const approveStatement = useMutation({
-    mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string }) => statementImportApi.approve(payload),
+    mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string; wallet_id?: number | null }) => statementImportApi.approve(payload),
     onSuccess: () => {
       invalidateTransactions(queryClient);
       invalidateMerchantAliases(queryClient);
@@ -125,7 +127,7 @@ export function useStatementImport() {
 
     setApproveLoading(true);
     try {
-      const response = await approveStatement.mutateAsync({ transactions, statementHash });
+      const response = await approveStatement.mutateAsync({ transactions, statementHash, wallet_id: selectedWalletId });
       const savedCount = response.data.savedCount || 0;
       const skippedCount = response.data.skippedCount || 0;
 

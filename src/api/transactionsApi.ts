@@ -6,7 +6,7 @@ export type TransactionPayload = Record<string, unknown>;
 export type ExtractedTransaction = Omit<Transaction, 'id' | 'bill_url' | 'merchant_name' | 'payee_vpa'>;
 
 export const transactionsApi = {
-  list: (params?: { limit?: number; offset?: number }) =>
+  list: (params?: { limit?: number; offset?: number; wallet_id?: number }) =>
     getData<Transaction[]>(api.get('/transactions', { params })),
   create: (payload: TransactionPayload) => api.post('/transactions', payload),
   extract: (description: string) =>
