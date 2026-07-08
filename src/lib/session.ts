@@ -41,4 +41,5 @@ export const saveSession = (user: unknown, expiresAt?: number | null) => {
 export const clearSession = () => {
   localStorage.removeItem(storageKeys.user);
   localStorage.removeItem(storageKeys.sessionExpiresAt);
+  localStorage.removeItem(storageKeys.selectedWalletId);
 };

@@ -20,20 +20,25 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     queryFn: walletsApi.list,
   });
   const wallets = walletsQuery.data ?? [];
-  const [selectedWalletId, setSelectedWalletIdState] = useState<number | null>(() => {
+  const [initialSelectedWalletId] = useState<number | null>(() => {
     const stored = Number(localStorage.getItem(storageKeys.selectedWalletId));
     return Number.isInteger(stored) && stored > 0 ? stored : null;
   });
+  const [selectedWalletId, setSelectedWalletIdState] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!wallets.length) return;
-    const selectedExists = selectedWalletId ? wallets.some((wallet) => wallet.id === selectedWalletId) : false;
-    if (selectedExists) return;
+    if (!wallets.length || selectedWalletId !== null) return;
 
-    const fallbackWallet = wallets.find((wallet) => wallet.type === 'personal') ?? wallets[0];
-    setSelectedWalletIdState(fallbackWallet.id);
-    localStorage.setItem(storageKeys.selectedWalletId, String(fallbackWallet.id));
-  }, [selectedWalletId, wallets]);
+    const selectedExists = initialSelectedWalletId ? wallets.some((wallet) => wallet.id === initialSelectedWalletId) : false;
+    const wallet = selectedExists
+      ? wallets.find((wallet) => wallet.id === initialSelectedWalletId)
+      : wallets.find((wallet) => wallet.type === 'personal') ?? wallets[0];
+
+    if (!wallet) return;
+
+    setSelectedWalletIdState(wallet.id);
+    localStorage.setItem(storageKeys.selectedWalletId, String(wallet.id));
+  }, [initialSelectedWalletId, selectedWalletId, wallets]);
 
   const setSelectedWalletId = (walletId: number) => {
     setSelectedWalletIdState(walletId);

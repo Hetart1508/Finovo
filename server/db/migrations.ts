@@ -356,7 +356,7 @@ export const runMigrations = async () => {
 
   await db.query(`
     INSERT INTO wallets (name, type, owner_user_id, monthly_expense_target)
-    SELECT CONCAT(users.name, "'s Personal Wallet"), 'personal', users.id, user_profiles.monthly_expense_target
+    SELECT CONCAT(users.name, '''s Personal Wallet'), 'personal', users.id, user_profiles.monthly_expense_target
     FROM users
     LEFT JOIN user_profiles ON user_profiles.user_id = users.id
     WHERE NOT EXISTS (

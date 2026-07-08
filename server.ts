@@ -178,7 +178,7 @@ const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
 const getAuthCookieOptions = () => ({
   httpOnly: true,
   secure: IS_PRODUCTION,
-  sameSite: "lax" as const,
+  sameSite: IS_PRODUCTION ? "none" as const : "lax" as const,
   path: "/",
 });
 
