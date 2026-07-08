@@ -14,6 +14,11 @@ const readEnv = (name: string, fallback = "") => {
   return hasMatchingQuotes ? trimmed.slice(1, -1).trim() : trimmed;
 };
 
+const extractGoogleApiKey = (value: string) => {
+  const matches = value.match(/AIza[0-9A-Za-z_-]{35}/g);
+  return matches?.at(-1) || value;
+};
+
 export const allowedOrigins = (readEnv("CORS_ORIGIN") || readEnv("FRONTEND_URL") || "")
   .split(",")
   .map((origin) => origin.trim())
@@ -57,7 +62,9 @@ export const BREVO_FROM_NAME = readEnv("BREVO_FROM_NAME", "Finovo AI");
 
 export const GOOGLE_CLIENT_ID = readEnv("GOOGLE_CLIENT_ID");
 
-export const GEMINI_API_KEY = readEnv("GEMINI_API_KEY") || readEnv("GOOGLE_GEMINI_API_KEY") || readEnv("GOOGLE_API_KEY");
+export const GEMINI_API_KEY = extractGoogleApiKey(
+  readEnv("GEMINI_API_KEY") || readEnv("GOOGLE_GEMINI_API_KEY") || readEnv("GOOGLE_API_KEY")
+);
 export const GEMINI_MODEL = readEnv("GEMINI_MODEL", "gemini-2.5-flash-lite");
 export const GEMINI_FALLBACK_MODELS = readEnv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
   .split(",")

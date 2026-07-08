@@ -132,6 +132,7 @@ const getAiConfigStatus = () => ({
   provider: AI_PROVIDER,
   geminiConfigured: Boolean(GEMINI_API_KEY),
   geminiKeyLength: GEMINI_API_KEY.length,
+  geminiKeyLooksLikeGoogleApiKey: /^(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_-]+)$/.test(GEMINI_API_KEY),
   geminiModel: GEMINI_MODEL,
   geminiFallbackModels: GEMINI_FALLBACK_MODELS,
   geminiModelCount: Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])).length,
@@ -883,6 +884,7 @@ const generateGemini = async (
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: options.maxOutputTokens || 1024,
+            thinkingConfig: { thinkingBudget: 0 },
             ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
           },
         }),
@@ -891,7 +893,7 @@ const generateGemini = async (
 
     if (!response.ok) {
       lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
-      if (response.status === 400 || response.status === 404) {
+      if ([400, 404, 429, 503].includes(response.status)) {
         logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
         continue;
       }
@@ -1013,7 +1015,7 @@ ${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
 
   const result = await generateGemini(
     [{ text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 1800 }
+    { responseMimeType: "application/json", maxOutputTokens: 3000 }
   );
   return normalizeGeminiInsights(result);
 };
