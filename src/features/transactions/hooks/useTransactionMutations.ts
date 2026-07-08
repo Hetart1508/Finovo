@@ -83,7 +83,7 @@ export function useTransactionMutations({
       toast.success('Transaction details extracted. Review before saving.');
       return response.transaction;
     } catch (error: unknown) {
-      toast.error(getApiMessage(error, 'Could not extract transaction details. Try manual add.'));
+      toast.error(getApiMessage(error, 'Add more details like amount, date, and payment mode, then try again.'));
       return null;
     }
   };

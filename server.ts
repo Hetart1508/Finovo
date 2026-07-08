@@ -3156,6 +3156,12 @@ app.post("/api/transactions/extract", authenticateToken, async (req: any, res) =
     return res.status(400).json({ error: "Transaction description must be 1000 characters or fewer" });
   }
 
+  if (!/\d/.test(description)) {
+    return res.status(400).json({
+      error: "Add more transaction details, especially the amount. Example: Spent 1200 on shopping today using UPI.",
+    });
+  }
+
   try {
     const transaction = await extractTransactionFromTextWithGemini(description);
     res.json({ transaction });
