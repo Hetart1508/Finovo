@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { format, parseISO } from 'date-fns';
 import { AppDatePicker } from '@/src/components/ui/app-date-picker';
 import { Button } from '@/src/components/ui/button';
@@ -7,7 +7,7 @@ import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
 import { RiSave3Line } from 'react-icons/ri';
-import { paymentModes, transactionCategories } from '../transactions.constants';
+import { paymentModes, TRANSACTION_CATEGORY_PLACEHOLDER, transactionCategories } from '../transactions.constants';
 import type { Transaction } from '../transactions.types';
 
 export type TransactionFormInitialValues = Partial<Pick<Transaction, 'type' | 'amount' | 'category' | 'date' | 'payment_mode' | 'description'>>;
@@ -37,13 +37,29 @@ export function TransactionForm({
   const idPrefix = isEdit ? 'edit-' : '';
   const values = transaction ?? initialValues;
   const defaultDate = values?.date ? format(parseISO(values.date), 'yyyy-MM-dd') : undefined;
+  const initialType = values?.type ?? 'expense';
+  const initialCategory = initialType === 'income' ? 'Salary' : values?.category ?? TRANSACTION_CATEGORY_PLACEHOLDER;
+  const [transactionType, setTransactionType] = useState<string>(initialType);
+  const [category, setCategory] = useState(initialCategory);
+
+  useEffect(() => {
+    setTransactionType(initialType);
+    setCategory(initialCategory);
+  }, [initialType, initialCategory, transaction?.id, formKey]);
+
+  const handleTypeChange = (value: string) => {
+    setTransactionType(value);
+    if (value === 'income') {
+      setCategory('Salary');
+    }
+  };
 
   return (
     <form key={transaction?.id ?? formKey ?? 'new'} onSubmit={onSubmit} className="space-y-3 py-2">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}type`}>Type</Label>
-          <Select name="type" defaultValue={values?.type ?? 'expense'}>
+          <Select name="type" value={transactionType} onValueChange={handleTypeChange}>
             <SelectTrigger id={`${idPrefix}type`}>
               <SelectValue />
             </SelectTrigger>
@@ -61,11 +77,12 @@ export function TransactionForm({
 
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}category`}>Category</Label>
-        <Select name="category" defaultValue={values?.category ?? 'Food'}>
+        <Select name="category" value={category} onValueChange={setCategory}>
           <SelectTrigger id={`${idPrefix}category`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value={TRANSACTION_CATEGORY_PLACEHOLDER} disabled>Select</SelectItem>
             {transactionCategories.map((category) => (
               <SelectItem key={category} value={category}>{category}</SelectItem>
             ))}
