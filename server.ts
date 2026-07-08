@@ -2012,10 +2012,6 @@ const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPrefe
     ? defaults.custom_interval_days
     : Number(body.custom_interval_days);
   const sendDay = body?.send_day_of_month === undefined ? defaults.send_day_of_month : Number(body.send_day_of_month);
-  const deliveryEmail = body?.delivery_email === undefined || body?.delivery_email === null || body?.delivery_email === ""
-    ? null
-    : normalizeEmail(body.delivery_email);
-
   if (!["daily", "weekly", "monthly", "custom"].includes(frequency)) {
     return { error: "Report frequency must be daily, weekly, monthly, or custom" };
   }
@@ -2028,10 +2024,6 @@ const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPrefe
     return { error: "Send day must be between 1 and 28" };
   }
 
-  if (deliveryEmail !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail)) {
-    return { error: "Delivery email must be a valid email address" };
-  }
-
   return {
     data: {
       email_enabled: body?.email_enabled === undefined ? defaults.email_enabled : Boolean(body.email_enabled),
@@ -2042,7 +2034,7 @@ const validateMonthlyReportPreferences = (body: any): { data: MonthlyReportPrefe
       include_next_month_planning: body?.include_next_month_planning === undefined
         ? defaults.include_next_month_planning
         : Boolean(body.include_next_month_planning),
-      delivery_email: deliveryEmail,
+      delivery_email: null,
     },
   };
 };
@@ -2683,7 +2675,7 @@ const sendMonthlyReportEmail = async (userId: number, month = getPreviousMonthSt
   }
 
   const preferences = await getMonthlyReportPreferences(userId);
-  const deliveryEmail = preferences.delivery_email || report.user.email;
+  const deliveryEmail = report.user.email;
 
   if (!preferences.email_enabled && !options.force) {
     await upsertMonthlyReportLog(userId, month, deliveryEmail, "skipped", "Monthly report email is disabled");

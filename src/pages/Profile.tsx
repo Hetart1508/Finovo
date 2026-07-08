@@ -200,7 +200,7 @@ export default function Profile() {
       ...reportForm,
       custom_interval_days: Math.max(1, Math.min(365, Number(reportForm.custom_interval_days) || 30)),
       send_day_of_month: Math.max(1, Math.min(28, Number(reportForm.send_day_of_month) || 1)),
-      delivery_email: reportForm.delivery_email?.trim() || null,
+      delivery_email: null,
     };
 
     try {
@@ -346,10 +346,8 @@ export default function Profile() {
                   <Input
                     id="report-email"
                     type="email"
-                    value={reportForm.delivery_email || ''}
-                    onChange={(event) => updateReportField('delivery_email', event.target.value)}
-                    placeholder={profile.email}
-                    disabled={!reportForm.email_enabled || reportPreferencesQuery.isLoading || saveReportPreferences.isPending}
+                    value={profile.email}
+                    disabled
                   />
                 </Field>
 
