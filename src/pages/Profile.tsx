@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
@@ -20,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/ca
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { getApiMessage } from '@/src/lib/toastMessages';
+import { clearSession } from '@/src/lib/session';
 import { storageKeys } from '@/src/lib/storageKeys';
 import { userProfileQuery } from '@/src/server-state';
 import { queryKeys } from '@/src/server-state/queryKeys';
@@ -115,6 +117,7 @@ const countCompletedFields = (profile: UserProfile | undefined) => {
 
 export default function Profile() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { wallets, selectedWallet, selectedWalletId, setSelectedWalletId } = useWallets();
   const { data: profile, isLoading, error } = useQuery(userProfileQuery());
   const reportPreferencesQuery = useQuery({
@@ -214,6 +217,16 @@ export default function Profile() {
     },
   });
 
+  const deleteAccount = useMutation({
+    mutationFn: () => userApi.deleteAccount(),
+    onSuccess: () => {
+      clearSession();
+      queryClient.clear();
+      toast.success('Account deleted. Please register again to continue.');
+      navigate('/auth', { replace: true });
+    },
+  });
+
   const updateField = <Key extends keyof ProfileFormState>(key: Key, value: ProfileFormState[Key]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
@@ -296,6 +309,19 @@ export default function Profile() {
       await addWalletMember.mutateAsync({ walletId: selectedWalletId, email: memberEmail.trim() });
     } catch (saveError) {
       toast.error(getApiMessage(saveError, 'Failed to add member.'));
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Delete your account? Your data will remain stored, but this login will stop working and you will need to register again.'
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteAccount.mutateAsync();
+    } catch (deleteError) {
+      toast.error(getApiMessage(deleteError, 'Failed to delete account.'));
     }
   };
 
@@ -635,6 +661,29 @@ export default function Profile() {
                   {saveReportPreferences.isPending ? 'Saving...' : 'Save Mail Settings'}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel rounded-lg border-[#FFD6D6]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiDeleteBin6Line className="text-[#FF6B6B]" aria-hidden="true" />
+                Account
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm leading-6 text-[#6B7280]">
+                Delete this login while keeping the stored account data in the database. To use Finovo again, register a new account.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full border-[#FF6B6B] text-[#FF6B6B] hover:bg-[#FFF1F1]"
+                disabled={deleteAccount.isPending}
+                onClick={handleDeleteAccount}
+              >
+                {deleteAccount.isPending ? 'Deleting...' : 'Delete Account'}
+              </Button>
             </CardContent>
           </Card>
         </div>

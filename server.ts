@@ -1435,7 +1435,7 @@ const authenticateGoogleCredential = async (credential: string, res?: Response) 
   const email = normalizeEmail(googleUser.email);
   const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
 
-  let user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+  let user: any = await queryOne("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL", [email]);
 
   if (!user) {
     const randomPasswordHash = await bcrypt.hash(`google:${googleUser.sub}:${crypto.randomUUID()}`, 10);
@@ -3129,7 +3129,7 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
   }
 
   try {
-    const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    const user: any = await queryOne("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL", [email]);
     if (!user) {
       await bcrypt.compare(password, "$2b$10$CwTycUXWue0Thq9StjUM0uJ8Q4aHj2zBgVeq9DXtjLrG6xXWgUG1e");
       return res.status(401).json({ error: GENERIC_AUTH_ERROR });
@@ -3159,7 +3159,7 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
 });
 
 app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
-  const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ?", [req.user.id]);
+  const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ? AND deleted_at IS NULL", [req.user.id]);
   if (!user) return res.sendStatus(401);
   res.json({ user });
 });
@@ -3572,6 +3572,26 @@ app.patch("/api/user/profile/ai-personalization", authenticateToken, async (req:
 
   const updatedProfile = await getUserProfile(req.user.id);
   res.json(updatedProfile);
+});
+
+app.delete("/api/user/account", authenticateToken, async (req: any, res) => {
+  const user: any = await queryOne("SELECT id, email FROM users WHERE id = ? AND deleted_at IS NULL", [req.user.id]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const archivedEmail = `deleted+${user.id}+${Date.now()}@deleted.finovo.local`;
+  await execute(`
+    UPDATE users
+    SET
+      deleted_at = CURRENT_TIMESTAMP,
+      deleted_email = email,
+      email = ?,
+      failed_login_attempts = 0,
+      locked_until = NULL
+    WHERE id = ? AND deleted_at IS NULL
+  `, [archivedEmail, user.id]);
+
+  res.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
+  res.json({ message: "Account deleted. Please register again to use Finovo." });
 });
 
 app.get("/api/user/monthly-report/preferences", authenticateToken, async (req: any, res) => {

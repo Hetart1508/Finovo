@@ -1,8 +1,16 @@
 import DatePicker from 'react-datepicker';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Label } from '@/src/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/src/components/ui/select';
 import type { RangeMode } from '../insights.constants';
+
+const rangeModeLabels: Record<RangeMode, string> = {
+  currentMonth: 'Current Month',
+  last30Days: 'Last 30 Days',
+  last4Months: 'Last 4 Months',
+  selectedMonth: 'Selected Month',
+  custom: 'Custom Range',
+};
 
 type InsightRangeCardProps = {
   rangeLabel: string;
@@ -45,14 +53,12 @@ export function InsightRangeCard({
             <Label>Range</Label>
             <Select value={rangeMode} onValueChange={(value) => onRangeModeChange(value as RangeMode)}>
               <SelectTrigger>
-                <SelectValue />
+                <span className="min-w-0 flex-1 truncate text-left">{rangeModeLabels[rangeMode]}</span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="currentMonth">Current-Month</SelectItem>
-                <SelectItem value="last30Days">Last-30-Days</SelectItem>
-                <SelectItem value="last4Months">Last-4-Months</SelectItem>
-                <SelectItem value="selectedMonth">Pick-Month</SelectItem>
-                <SelectItem value="custom">Custom-Range</SelectItem>
+                {(Object.entries(rangeModeLabels) as [RangeMode, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

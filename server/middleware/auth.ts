@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config/env";
+import { queryOne } from "../db/client";
 
 const parseCookieHeader = (cookieHeader: string | undefined) => {
   if (!cookieHeader) return {};
@@ -28,12 +29,19 @@ export const authenticateToken: RequestHandler = (req: any, res, next) => {
 
   if (!token) return res.sendStatus(401);
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  jwt.verify(token, JWT_SECRET, async (err: any, user: any) => {
     if (err?.name === "TokenExpiredError") {
       return res.status(401).json({ error: "Session expired. Please login again." });
     }
     if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
+
+    try {
+      const activeUser = await queryOne("SELECT id FROM users WHERE id = ? AND deleted_at IS NULL", [user.id]);
+      if (!activeUser) return res.status(401).json({ error: "Account is no longer active. Please register again." });
+      req.user = user;
+      next();
+    } catch {
+      return res.sendStatus(500);
+    }
   });
 };
