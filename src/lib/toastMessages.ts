@@ -9,6 +9,7 @@ export const getApiMessage = (error: any, fallback = "Something went wrong") => 
 
   return (
     data?.error ||
+    data?.detail ||
     data?.message ||
     error?.message ||
     fallback
