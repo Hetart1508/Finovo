@@ -12,12 +12,23 @@ import {
   RiWallet3Line,
   RiGroupLine,
   RiDeleteBin6Line,
+  RiEdit2Line,
+  RiArrowLeftLine,
+  RiArrowRightLine,
 } from 'react-icons/ri';
 import { userApi } from '@/src/api/userApi';
 import { walletsApi } from '@/src/api/walletsApi';
 import type { MonthlyReportPreferences, ReportFrequency } from '@/src/api/userApi';
 import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/src/components/ui/dialog';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { getApiMessage } from '@/src/lib/toastMessages';
@@ -45,6 +56,8 @@ type ProfileFormState = {
   ai_personalization_enabled: boolean;
 };
 
+type ProfileSection = 'summary' | 'wallets' | 'reports' | 'account';
+
 const emptyForm: ProfileFormState = {
   name: '',
   date_of_birth: '',
@@ -60,6 +73,15 @@ const emptyForm: ProfileFormState = {
   preferred_currency: 'INR',
   ai_personalization_enabled: false,
 };
+
+const profileFormSteps = ['Basic info', 'Financial info', 'AI personalization'] as const;
+const lastProfileFormStep = profileFormSteps.length - 1;
+const profileSections: Array<{ value: ProfileSection; label: string }> = [
+  { value: 'summary', label: 'Summary' },
+  { value: 'wallets', label: 'Wallets' },
+  { value: 'reports', label: 'Reports' },
+  { value: 'account', label: 'Account' },
+];
 
 const defaultReportPreferences: MonthlyReportPreferences = {
   email_enabled: true,
@@ -130,6 +152,9 @@ export default function Profile() {
     enabled: Boolean(selectedWalletId && selectedWallet?.type === 'family'),
   });
   const [form, setForm] = useState<ProfileFormState>(emptyForm);
+  const [isProfileFormOpen, setIsProfileFormOpen] = useState(false);
+  const [profileFormStep, setProfileFormStep] = useState(0);
+  const [profileSection, setProfileSection] = useState<ProfileSection>('summary');
   const [reportForm, setReportForm] = useState<MonthlyReportPreferences>(defaultReportPreferences);
   const [familyWalletName, setFamilyWalletName] = useState('');
   const [familyBudget, setFamilyBudget] = useState('');
@@ -138,6 +163,10 @@ export default function Profile() {
   useEffect(() => {
     if (profile) setForm(profileToForm(profile));
   }, [profile]);
+
+  useEffect(() => {
+    if (isProfileFormOpen) setProfileFormStep(0);
+  }, [isProfileFormOpen]);
 
   useEffect(() => {
     if (reportPreferencesQuery.data) {
@@ -166,6 +195,7 @@ export default function Profile() {
         name: response.data.name,
         email: response.data.email,
       }));
+      setIsProfileFormOpen(false);
       window.dispatchEvent(new Event('profile-updated'));
       toast.success('Profile updated successfully.');
     },
@@ -692,39 +722,83 @@ export default function Profile() {
           <CardHeader>
             <CardTitle className="text-lg font-semibold">Profile information</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <section className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-bold uppercase text-[#6B7280]">Basic info</h2>
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field label="Full name" htmlFor="profile-name">
-                    <Input id="profile-name" value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
-                  </Field>
-                  <Field label="Email" htmlFor="profile-email">
-                    <Input id="profile-email" value={profile.email} disabled />
-                  </Field>
-                  <Field label="Date of birth" htmlFor="profile-dob">
-                    <Input id="profile-dob" type="date" value={form.date_of_birth} onChange={(event) => updateField('date_of_birth', event.target.value)} />
-                  </Field>
-                  <Field label="Occupation" htmlFor="profile-occupation">
-                    <Input id="profile-occupation" value={form.occupation} onChange={(event) => updateField('occupation', event.target.value)} placeholder="Product manager, founder, student" />
-                  </Field>
-                  <Field label="City" htmlFor="profile-city">
-                    <Input id="profile-city" value={form.city} onChange={(event) => updateField('city', event.target.value)} placeholder="Mumbai" />
-                  </Field>
-                  <Field label="Country" htmlFor="profile-country">
-                    <Input id="profile-country" value={form.country} onChange={(event) => updateField('country', event.target.value)} placeholder="India" />
-                  </Field>
-                </div>
-              </section>
+          <CardContent className="space-y-4">
+            <p className="text-sm leading-6 text-[#6B7280]">
+              Profile details are edited in a smaller step-by-step popup, so this page stays short and your summary remains visible.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <SummaryRow label="Basic" value={`${Math.min(completion.completed, 6)} of 6`} />
+              <SummaryRow label="Finance" value={`${Math.max(Math.min(completion.completed - 6, 5), 0)} of 5`} />
+              <SummaryRow label="AI" value={profile.ai_personalization_enabled ? 'Enabled' : 'Off'} />
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
+                setForm(profileToForm(profile));
+                setIsProfileFormOpen(true);
+              }}
+              className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] sm:w-auto"
+            >
+              <RiEdit2Line aria-hidden="true" />
+              {completion.completed > 1 ? 'Edit Profile' : 'Add Profile'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
+      <Dialog open={isProfileFormOpen} onOpenChange={setIsProfileFormOpen}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{completion.completed > 1 ? 'Edit profile' : 'Add profile'}</DialogTitle>
+            <DialogDescription>
+              Step {profileFormStep + 1} of {profileFormSteps.length}: {profileFormSteps[profileFormStep]}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-3 gap-2" aria-label="Profile form progress">
+              {profileFormSteps.map((step, index) => (
+                <button
+                  key={step}
+                  type="button"
+                  onClick={() => setProfileFormStep(index)}
+                  className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                    profileFormStep === index
+                      ? 'border-[#4F9CF9] bg-[#EEF6FF] text-[#1F2937]'
+                      : 'border-[#E5E7EB] bg-white text-[#6B7280] hover:bg-[#FAFBFC]'
+                  }`}
+                >
+                  {step}
+                </button>
+              ))}
+            </div>
+
+            {profileFormStep === 0 ? (
+              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Full name" htmlFor="profile-name">
+                  <Input id="profile-name" value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
+                </Field>
+                <Field label="Email" htmlFor="profile-email">
+                  <Input id="profile-email" value={profile.email} disabled />
+                </Field>
+                <Field label="Date of birth" htmlFor="profile-dob">
+                  <Input id="profile-dob" type="date" value={form.date_of_birth} onChange={(event) => updateField('date_of_birth', event.target.value)} />
+                </Field>
+                <Field label="Occupation" htmlFor="profile-occupation">
+                  <Input id="profile-occupation" value={form.occupation} onChange={(event) => updateField('occupation', event.target.value)} placeholder="Product manager, founder, student" />
+                </Field>
+                <Field label="City" htmlFor="profile-city">
+                  <Input id="profile-city" value={form.city} onChange={(event) => updateField('city', event.target.value)} placeholder="Mumbai" />
+                </Field>
+                <Field label="Country" htmlFor="profile-country">
+                  <Input id="profile-country" value={form.country} onChange={(event) => updateField('country', event.target.value)} placeholder="India" />
+                </Field>
+              </section>
+            ) : null}
+
+            {profileFormStep === 1 ? (
               <section className="space-y-4">
-                <div>
-                  <h2 className="text-sm font-bold uppercase text-[#6B7280]">Financial info</h2>
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Monthly income" htmlFor="profile-income">
                     <Input id="profile-income" type="number" min="0" step="0.01" value={form.monthly_income} onChange={(event) => updateField('monthly_income', event.target.value)} placeholder="150000" />
                   </Field>
@@ -765,7 +839,9 @@ export default function Profile() {
                   />
                 </Field>
               </section>
+            ) : null}
 
+            {profileFormStep === 2 ? (
               <section className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-4">
                 <label className="flex items-start gap-3">
                   <input
@@ -782,25 +858,44 @@ export default function Profile() {
                   </span>
                 </label>
               </section>
+            ) : null}
 
-              <div className="flex flex-col gap-3 border-t border-[#E5E7EB] pt-4 sm:flex-row sm:items-center sm:justify-end">
+            <DialogFooter className="sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setForm(profileToForm(profile))}
+                disabled={saveProfile.isPending}
+              >
+                Reset
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProfileFormStep((current) => Math.max(current - 1, 0))}
+                disabled={profileFormStep === 0 || saveProfile.isPending}
+              >
+                <RiArrowLeftLine aria-hidden="true" />
+                Back
+              </Button>
+              {profileFormStep < lastProfileFormStep ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={() => setForm(profileToForm(profile))}
-                  disabled={saveProfile.isPending}
-                  className="w-full sm:w-auto"
+                  onClick={() => setProfileFormStep((current) => Math.min(current + 1, lastProfileFormStep))}
+                  className="bg-[#4F9CF9] hover:bg-[#3F8BE5]"
                 >
-                  Reset
+                  Next
+                  <RiArrowRightLine aria-hidden="true" />
                 </Button>
-                <Button type="submit" disabled={saveProfile.isPending} className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] sm:w-auto">
+              ) : (
+                <Button type="submit" disabled={saveProfile.isPending} className="bg-[#4F9CF9] hover:bg-[#3F8BE5]">
                   {saveProfile.isPending ? 'Saving...' : 'Save Profile'}
                 </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
