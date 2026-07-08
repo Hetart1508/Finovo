@@ -5,21 +5,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/src/api/authApi';
 import { getApiMessage, getApiSuccessMessage, TOAST_AUTO_CLOSE_MS } from '@/src/lib/toastMessages';
 import { saveSession } from '@/src/lib/session';
-import { storageKeys } from '@/src/lib/storageKeys';
 import { decodeGoogleRedirectPayload, getGoogleRedirectLoginUri, isAppleMobileDevice } from '@/src/features/auth/auth.utils';
 import { AuthBrandPanel } from '@/src/features/auth/components/AuthBrandPanel';
 import { AuthLoginCard } from '@/src/features/auth/components/AuthLoginCard';
 import { AuthRegisterCard } from '@/src/features/auth/components/AuthRegisterCard';
 import { AuthTabSwitch } from '@/src/features/auth/components/AuthTabSwitch';
 import { GoogleAuthSection } from '@/src/features/auth/components/GoogleAuthSection';
-import { ThemeToggleButton } from '@/src/features/auth/components/ThemeToggleButton';
 
 export default function Auth() {
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
-  const [theme, setTheme] = useState(() => (
-    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  ));
   const [currentTab, setCurrentTab] = useState<'login' | 'register'>('login');
   const [registerStep, setRegisterStep] = useState<'details' | 'verify'>('details');
   const [loginStep, setLoginStep] = useState<'login' | 'forgot' | 'reset'>('login');
@@ -70,11 +65,6 @@ export default function Auth() {
       toast.error('Failed to finish Google sign-in.');
     }
   }, [navigate, queryClient]);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem(storageKeys.theme, theme);
-  }, [theme]);
 
   const handleGoogleCredential = useCallback(async (credential?: string) => {
     if (!credential) {
@@ -370,10 +360,7 @@ export default function Auth() {
 
   return (
     <div className="flex h-dvh items-start justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:p-4">
-      <ThemeToggleButton
-        theme={theme}
-        onToggle={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-      />
+      {/* Theme toggle hidden for now. */}
       <div className="mx-auto grid w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_0.95fr] lg:rounded-xl">
         <AuthBrandPanel />
 

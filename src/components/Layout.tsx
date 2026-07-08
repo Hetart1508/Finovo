@@ -12,10 +12,8 @@ import {
   RiFileUploadLine,
   RiHistoryLine,
   RiLogoutCircleRLine,
-  RiMoonLine,
   RiScanLine,
   RiSparkling2Line,
-  RiSunLine,
   RiUser3Line,
   RiWallet3Line,
   RiCalendarEventLine,
@@ -37,9 +35,6 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem(storageKeys.user) || '{}'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [theme, setTheme] = useState(() => (
-    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-  ));
 
   const finishLogout = (message: string) => {
     clearSession();
@@ -76,11 +71,6 @@ export default function Layout({ children }: LayoutProps) {
       if (timeout) window.clearTimeout(timeout);
     };
   }, [navigate, queryClient]);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem(storageKeys.theme, theme);
-  }, [theme]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -257,15 +247,7 @@ export default function Layout({ children }: LayoutProps) {
             </h2>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
-          >
-            {theme === 'dark' ? <RiSunLine className="text-base" aria-hidden="true" /> : <RiMoonLine className="text-base" aria-hidden="true" />}
-          </Button>
+          {/* Theme toggle hidden for now. */}
         </header>
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
