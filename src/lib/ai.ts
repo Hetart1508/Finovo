@@ -24,23 +24,13 @@ type FinancialInsights = {
   model?: string;
 };
 
-const isLocalDevelopmentHost = () => {
-  if (typeof window === 'undefined') return false;
-  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-};
-
 export const extractBillData = async (base64Data: string, mimeType: string): Promise<BillData> => {
   try {
     const { data } = await api.post('/ai/extract-bill', { base64Data, mimeType });
     return data;
   } catch (error) {
     const status = (error as any)?.response?.status;
-    if (status && status < 500 && !isLocalDevelopmentHost()) {
-      throw error;
-    }
-
-    if (!isLocalDevelopmentHost()) {
-      console.warn('Gemini bill extraction failed in production; local Ollama fallback is disabled:', error);
+    if (status && status < 500) {
       throw error;
     }
 
@@ -55,11 +45,6 @@ export const getFinancialInsights = async (transactions: any[], recurringEvents:
     const { data } = await api.post('/ai/insights', { transactions, recurringEvents });
     return data;
   } catch (error) {
-    if (!isLocalDevelopmentHost()) {
-      console.warn('Gemini insights failed in production; local Ollama fallback is disabled:', error);
-      throw error;
-    }
-
     console.warn('Gemini insights failed, falling back to local Ollama:', error);
     const ollama = await import('./ollama');
     return ollama.getFinancialInsights(transactions);

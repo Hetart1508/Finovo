@@ -1830,7 +1830,7 @@ const findTransactionById = (id: number, userId: number) =>
 const getTransactionFilters = async (query: any, userId: number) => {
   const resolved = await resolveWalletIdForUser(userId, query.wallet_id);
   if ("status" in resolved) {
-    return { error: resolved.body?.error ?? "Unable to resolve wallet", status: resolved.status ?? 400 };
+    return { error: resolved.body.error, status: resolved.status };
   }
 
   const conditions = ["transactions.wallet_id = ?"];
