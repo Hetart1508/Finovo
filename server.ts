@@ -96,6 +96,7 @@ app.get("/api/health", (_req, res) => {
     service: "finovo-api",
     environment: process.env.NODE_ENV || "development",
     email: getEmailConfigStatus(),
+    ai: getAiConfigStatus(),
   });
 });
 
@@ -126,6 +127,15 @@ const getEmailConfigStatus = () => {
     socketTimeoutMs: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
   };
 };
+
+const getAiConfigStatus = () => ({
+  provider: AI_PROVIDER,
+  geminiConfigured: Boolean(GEMINI_API_KEY),
+  geminiKeyLength: GEMINI_API_KEY.length,
+  geminiModel: GEMINI_MODEL,
+  geminiFallbackModels: GEMINI_FALLBACK_MODELS,
+  geminiModelCount: Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])).length,
+});
 
 type GeminiCategory = typeof GEMINI_CATEGORIES[number];
 type GeminiStatementTransaction = {
@@ -4236,6 +4246,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "AI Wealth Advisor failed",
       detail: IS_PRODUCTION ? undefined : error.message,
+      hint: getGeminiImportHint(error.message || String(error)),
     });
   }
 });
@@ -4278,6 +4289,7 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "Gemini bill extraction failed",
       detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
     });
   }
 });
@@ -4298,6 +4310,7 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "Gemini insights generation failed",
       detail: IS_PRODUCTION ? undefined : error.message,
+      hint: getGeminiImportHint(error.message || String(error)),
     });
   }
 });
@@ -4441,7 +4454,7 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 
 const getGeminiImportHint = (message: string) => {
   if (/API key|permission|403|401/i.test(message)) {
-    return "Check GEMINI_API_KEY in .env and restart npm run dev.";
+    return "Check GEMINI_API_KEY in your local .env or Render environment variables, then restart/redeploy the service.";
   }
 
   if (/quota|rate|429/i.test(message)) {
