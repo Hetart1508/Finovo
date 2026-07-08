@@ -435,7 +435,7 @@ export default function Profile() {
                     >
                       <span className="min-w-0">
                         <span className="block truncate font-semibold">{wallet.name}</span>
-                        <span className="block text-xs text-[#6B7280]">{wallet.member_count} member{wallet.member_count === 1 ? '' : 's'} - {wallet.role}</span>
+                        <span className="block text-xs text-[#6B7280]">Family wallet - {wallet.role}</span>
                       </span>
                       <span className="shrink-0 text-xs font-semibold text-[#4F9CF9]">
                         {wallet.monthly_expense_target === null ? 'No budget' : formatRupees(wallet.monthly_expense_target)}

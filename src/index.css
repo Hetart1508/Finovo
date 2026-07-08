@@ -136,6 +136,9 @@
     }
   html {
     @apply font-sans antialiased;
+    height: 100%;
+    overflow: hidden;
+    scroll-behavior: smooth;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -143,10 +146,19 @@
     }
   body {
     @apply bg-background text-foreground;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
     background: var(--background);
     font-family: var(--font-sans);
     letter-spacing: 0;
     }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
 
   h1,
   h2,
@@ -198,6 +210,17 @@
 
   .app-shell {
     @apply min-h-screen bg-background text-foreground;
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
   }
 
   .surface-panel {

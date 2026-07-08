@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/src/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/src/components/ui/select';
 import { toast } from 'react-toastify';
 import { clearSession, getSessionExpiresAt } from '@/src/lib/session';
 import { storageKeys } from '@/src/lib/storageKeys';
@@ -102,9 +103,8 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Profile', path: '/profile', icon: RiUserSettingsLine },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
-  const selectedWalletLabel = selectedWallet?.type === 'family' ? 'Family wallet' : 'Personal wallet';
   const getWalletLabel = (wallet: typeof wallets[number]) =>
-    `${wallet.type === 'family' ? 'Family wallet' : 'Personal wallet'} - ${wallet.name}`;
+    wallet.type === 'family' ? wallet.name : 'Personal wallet';
 
   const renderNavLink = (
     item: typeof navItems[number],
@@ -233,7 +233,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      <main className="flex flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="surface-panel m-3 mb-0 flex min-h-16 items-center justify-between gap-3 rounded-lg px-3 sm:m-4 sm:mb-0 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <Button
@@ -255,22 +255,30 @@ export default function Layout({ children }: LayoutProps) {
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
             <RiGroupLine className="hidden text-lg text-[#4F9CF9] sm:block" aria-hidden="true" />
-            <select
+            <Select
               aria-label="Select wallet"
-              value={selectedWalletId ?? ''}
+              value={selectedWalletId ? String(selectedWalletId) : undefined}
               disabled={walletsLoading || wallets.length === 0}
-              onChange={(event) => setSelectedWalletId(Number(event.target.value))}
-              className="h-9 w-[min(58vw,18rem)] rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] outline-none transition-colors focus-visible:border-[#4F9CF9] focus-visible:ring-2 focus-visible:ring-[#4F9CF9]/20 sm:w-72 lg:w-80"
-              title={selectedWallet ? `${selectedWalletLabel}: ${selectedWallet.name}` : 'Select wallet'}
+              onValueChange={(value) => setSelectedWalletId(Number(value))}
             >
-              {wallets.map((wallet) => (
-                <option key={wallet.id} value={wallet.id}>{getWalletLabel(wallet)}</option>
-              ))}
-            </select>
+              <SelectTrigger
+                className="h-9 w-[min(58vw,18rem)] border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] sm:w-72 lg:w-80"
+                title={selectedWallet ? getWalletLabel(selectedWallet) : 'Select wallet'}
+              >
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {selectedWallet ? getWalletLabel(selectedWallet) : 'Select wallet'}
+                </span>
+              </SelectTrigger>
+              <SelectContent align="start" className="z-[90]">
+                {wallets.map((wallet) => (
+                  <SelectItem key={wallet.id} value={String(wallet.id)}>{getWalletLabel(wallet)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8">
+        <div className="app-scroll flex-1 p-3 sm:p-4 lg:p-8">
           {children}
         </div>
       </main>
