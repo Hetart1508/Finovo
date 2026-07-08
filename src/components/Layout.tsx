@@ -103,6 +103,8 @@ export default function Layout({ children }: LayoutProps) {
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
   const selectedWalletLabel = selectedWallet?.type === 'family' ? 'Family wallet' : 'Personal wallet';
+  const getWalletLabel = (wallet: typeof wallets[number]) =>
+    `${wallet.type === 'family' ? 'Family wallet' : 'Personal wallet'} - ${wallet.name}`;
 
   const renderNavLink = (
     item: typeof navItems[number],
@@ -251,20 +253,18 @@ export default function Layout({ children }: LayoutProps) {
             </h2>
             </div>
           </div>
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             <RiGroupLine className="hidden text-lg text-[#4F9CF9] sm:block" aria-hidden="true" />
             <select
               aria-label="Select wallet"
               value={selectedWalletId ?? ''}
               disabled={walletsLoading || wallets.length === 0}
               onChange={(event) => setSelectedWalletId(Number(event.target.value))}
-              className="h-9 max-w-[13rem] rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] outline-none transition-colors focus-visible:border-[#4F9CF9] focus-visible:ring-2 focus-visible:ring-[#4F9CF9]/20 sm:max-w-[16rem]"
+              className="h-9 w-[min(58vw,18rem)] rounded-lg border border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] outline-none transition-colors focus-visible:border-[#4F9CF9] focus-visible:ring-2 focus-visible:ring-[#4F9CF9]/20 sm:w-72 lg:w-80"
               title={selectedWallet ? `${selectedWalletLabel}: ${selectedWallet.name}` : 'Select wallet'}
             >
               {wallets.map((wallet) => (
-                <option key={wallet.id} value={wallet.id}>
-                  {wallet.type === 'family' ? 'Family' : 'Personal'} - {wallet.name}
-                </option>
+                <option key={wallet.id} value={wallet.id}>{getWalletLabel(wallet)}</option>
               ))}
             </select>
           </div>
