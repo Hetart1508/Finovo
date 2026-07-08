@@ -847,34 +847,6 @@ const normalizeGeminiStatementTransactions = (text: string) => {
   return normalized.slice(0, 150);
 };
 
-const parseGeminiErrorResponse = async (response: Response) => {
-  const text = await response.text();
-  let message = text;
-  let code: string | number | undefined = response.status;
-  let retryAfter: string | undefined;
-
-  try {
-    const data = JSON.parse(text);
-    const error = data?.error;
-    if (error) {
-      message = error.message || message;
-      code = error.code ?? error.status ?? code;
-      if (Array.isArray(error.details)) {
-        const retryInfo = error.details.find((detail: any) =>
-          typeof detail["@type"] === "string" && detail["@type"].includes("RetryInfo")
-        );
-        if (retryInfo?.retryDelay) {
-          retryAfter = retryInfo.retryDelay;
-        }
-      }
-    }
-  } catch {
-    // ignore parse errors and use raw text
-  }
-
-  return { message, code, retryAfter, text };
-};
-
 const generateGemini = async (
   parts: any[],
   options: { responseMimeType?: "application/json" | "text/plain"; maxOutputTokens?: number } = {}
@@ -908,18 +880,11 @@ const generateGemini = async (
     );
 
     if (!response.ok) {
-      const { message, code, retryAfter } = await parseGeminiErrorResponse(response);
-      lastError = `Gemini error using ${model}: ${response.status} ${message}${retryAfter ? ` (retry after ${retryAfter})` : ""}`;
-
-      if (response.status === 429 || code === 429 || String(code).toUpperCase().includes("RESOURCE_EXHAUSTED")) {
-        throw new Error(lastError);
-      }
-
+      lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
       if (response.status === 400 || response.status === 404) {
-        logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status, code, message });
+        logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
         continue;
       }
-
       throw new Error(lastError);
     }
 
@@ -3414,12 +3379,8 @@ app.post("/api/transactions/extract", authenticateToken, async (req: any, res) =
     const transaction = await extractTransactionFromTextWithGemini(description);
     res.json({ transaction });
   } catch (error: any) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error("AI transaction extraction failed", { error: message });
-    res.status(502).json({
-      error: "Could not extract transaction details. Try manual add.",
-      detail: message,
-    });
+    logger.error("AI transaction extraction failed", { error: error?.message });
+    res.status(502).json({ error: "Could not extract transaction details. Try manual add." });
   }
 });
 
@@ -4313,10 +4274,10 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
       return res.status(400).json({ error: message });
     }
 
-    logger.error("Gemini bill extraction error", { error: message });
+    logger.error("Gemini bill extraction error", { error });
     res.status(502).json({
       error: "Gemini bill extraction failed",
-      detail: message,
+      detail: IS_PRODUCTION ? undefined : message,
     });
   }
 });
@@ -4333,11 +4294,10 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
     const insights = await getFinancialInsightsWithGemini(transactions, recurringEvents);
     res.json({ ...insights, provider: "gemini", model: GEMINI_MODEL });
   } catch (error: any) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error("Gemini insights error", { error: message });
+    logger.error("Gemini insights error", { error });
     res.status(502).json({
       error: "Gemini insights generation failed",
-      detail: message,
+      detail: IS_PRODUCTION ? undefined : error.message,
     });
   }
 });
