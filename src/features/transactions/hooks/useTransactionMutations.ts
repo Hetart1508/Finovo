@@ -5,6 +5,7 @@ import { transactionsApi } from '@/src/api/transactionsApi';
 import { invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import type { ExtractedTransaction } from '@/src/api/transactionsApi';
+import { TRANSACTION_CATEGORY_PLACEHOLDER } from '../transactions.constants';
 import type { Transaction } from '../transactions.types';
 
 type UseTransactionMutationsArgs = {
@@ -61,6 +62,11 @@ export function useTransactionMutations({
 
     if (transactionDate > todayDateString) {
       toast.error('Transaction date cannot be in the future.');
+      return false;
+    }
+
+    if (data.category === TRANSACTION_CATEGORY_PLACEHOLDER) {
+      toast.error('Please select a category.');
       return false;
     }
 

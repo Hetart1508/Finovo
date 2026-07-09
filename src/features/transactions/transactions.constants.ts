@@ -13,4 +13,6 @@ export const sortLabels: Record<SortKey, string> = {
 
 export const transactionCategories = ['Food', 'Transport', 'Shopping', 'Utilities', 'Entertainment', 'Health', 'Other', 'Salary'];
 
+export const TRANSACTION_CATEGORY_PLACEHOLDER = '__select_category__';
+
 export const paymentModes = ['UPI', 'Card', 'Cash', 'Net Banking', 'Bank Transfer', 'Bank Statement', 'Wallet'];

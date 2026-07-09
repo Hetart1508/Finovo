@@ -24,4 +24,5 @@ export const userApi = {
     getData<MonthlyReportPreferences>(api.get('/user/monthly-report/preferences')),
   updateMonthlyReportPreferences: (payload: MonthlyReportPreferences) =>
     api.put<MonthlyReportPreferences>('/user/monthly-report/preferences', payload),
+  deleteAccount: () => api.delete('/user/account'),
 };

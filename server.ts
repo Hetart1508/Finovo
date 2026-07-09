@@ -96,6 +96,7 @@ app.get("/api/health", (_req, res) => {
     service: "finovo-api",
     environment: process.env.NODE_ENV || "development",
     email: getEmailConfigStatus(),
+    ai: getAiConfigStatus(),
   });
 });
 
@@ -126,6 +127,16 @@ const getEmailConfigStatus = () => {
     socketTimeoutMs: Number(process.env.EMAIL_SOCKET_TIMEOUT_MS || 30000),
   };
 };
+
+const getAiConfigStatus = () => ({
+  provider: AI_PROVIDER,
+  geminiConfigured: Boolean(GEMINI_API_KEY),
+  geminiKeyLength: GEMINI_API_KEY.length,
+  geminiKeyLooksLikeGoogleApiKey: /^(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_-]+)$/.test(GEMINI_API_KEY),
+  geminiModel: GEMINI_MODEL,
+  geminiFallbackModels: GEMINI_FALLBACK_MODELS,
+  geminiModelCount: Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])).length,
+});
 
 type GeminiCategory = typeof GEMINI_CATEGORIES[number];
 type GeminiStatementTransaction = {
@@ -873,6 +884,7 @@ const generateGemini = async (
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: options.maxOutputTokens || 1024,
+            thinkingConfig: { thinkingBudget: 0 },
             ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
           },
         }),
@@ -881,7 +893,7 @@ const generateGemini = async (
 
     if (!response.ok) {
       lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
-      if (response.status === 400 || response.status === 404) {
+      if ([400, 404, 429, 503].includes(response.status)) {
         logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
         continue;
       }
@@ -1003,7 +1015,7 @@ ${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
 
   const result = await generateGemini(
     [{ text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 1800 }
+    { responseMimeType: "application/json", maxOutputTokens: 3000 }
   );
   return normalizeGeminiInsights(result);
 };
@@ -1423,7 +1435,7 @@ const authenticateGoogleCredential = async (credential: string, res?: Response) 
   const email = normalizeEmail(googleUser.email);
   const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
 
-  let user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+  let user: any = await queryOne("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL", [email]);
 
   if (!user) {
     const randomPasswordHash = await bcrypt.hash(`google:${googleUser.sub}:${crypto.randomUUID()}`, 10);
@@ -3117,7 +3129,7 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
   }
 
   try {
-    const user: any = await queryOne("SELECT * FROM users WHERE email = ?", [email]);
+    const user: any = await queryOne("SELECT * FROM users WHERE email = ? AND deleted_at IS NULL", [email]);
     if (!user) {
       await bcrypt.compare(password, "$2b$10$CwTycUXWue0Thq9StjUM0uJ8Q4aHj2zBgVeq9DXtjLrG6xXWgUG1e");
       return res.status(401).json({ error: GENERIC_AUTH_ERROR });
@@ -3147,7 +3159,7 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
 });
 
 app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
-  const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ?", [req.user.id]);
+  const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ? AND deleted_at IS NULL", [req.user.id]);
   if (!user) return res.sendStatus(401);
   res.json({ user });
 });
@@ -3560,6 +3572,26 @@ app.patch("/api/user/profile/ai-personalization", authenticateToken, async (req:
 
   const updatedProfile = await getUserProfile(req.user.id);
   res.json(updatedProfile);
+});
+
+app.delete("/api/user/account", authenticateToken, async (req: any, res) => {
+  const user: any = await queryOne("SELECT id, email FROM users WHERE id = ? AND deleted_at IS NULL", [req.user.id]);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const archivedEmail = `deleted+${user.id}+${Date.now()}@deleted.finovo.local`;
+  await execute(`
+    UPDATE users
+    SET
+      deleted_at = CURRENT_TIMESTAMP,
+      deleted_email = email,
+      email = ?,
+      failed_login_attempts = 0,
+      locked_until = NULL
+    WHERE id = ? AND deleted_at IS NULL
+  `, [archivedEmail, user.id]);
+
+  res.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
+  res.json({ message: "Account deleted. Please register again to use Finovo." });
 });
 
 app.get("/api/user/monthly-report/preferences", authenticateToken, async (req: any, res) => {
@@ -4236,6 +4268,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "AI Wealth Advisor failed",
       detail: IS_PRODUCTION ? undefined : error.message,
+      hint: getGeminiImportHint(error.message || String(error)),
     });
   }
 });
@@ -4278,6 +4311,7 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "Gemini bill extraction failed",
       detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
     });
   }
 });
@@ -4298,6 +4332,7 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
     res.status(502).json({
       error: "Gemini insights generation failed",
       detail: IS_PRODUCTION ? undefined : error.message,
+      hint: getGeminiImportHint(error.message || String(error)),
     });
   }
 });
@@ -4441,7 +4476,7 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 
 const getGeminiImportHint = (message: string) => {
   if (/API key|permission|403|401/i.test(message)) {
-    return "Check GEMINI_API_KEY in .env and restart npm run dev.";
+    return "Check GEMINI_API_KEY in your local .env or Render environment variables, then restart/redeploy the service.";
   }
 
   if (/quota|rate|429/i.test(message)) {

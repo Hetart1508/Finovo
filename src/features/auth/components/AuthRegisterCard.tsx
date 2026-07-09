@@ -83,9 +83,12 @@ export function AuthRegisterCard({
             <div className="space-y-2">
               <Label htmlFor="reg-otp">OTP Code</Label>
               <Input
+                key={`register-otp-${registerEmail}`}
                 id="reg-otp"
+                name="otp"
                 type="text"
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 maxLength={6}
                 value={otpCode}
                 onChange={(event) => onOtpCodeChange(event.target.value.replace(/\D/g, ''))}

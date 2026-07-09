@@ -315,6 +315,8 @@ export const runMigrations = async () => {
   await ensureColumn("users", "password_enabled", "BOOLEAN NOT NULL DEFAULT TRUE");
   await ensureColumn("users", "failed_login_attempts", "INT NOT NULL DEFAULT 0");
   await ensureColumn("users", "locked_until", "BIGINT NULL");
+  await ensureColumn("users", "deleted_at", "TIMESTAMP NULL");
+  await ensureColumn("users", "deleted_email", "VARCHAR(255) NULL");
   await db.query("ALTER TABLE pending_registrations MODIFY COLUMN otp VARCHAR(255) NOT NULL");
   await ensureColumn("pending_registrations", "attempt_count", "INT NOT NULL DEFAULT 0");
   await db.query("ALTER TABLE password_resets MODIFY COLUMN otp VARCHAR(255) NOT NULL");

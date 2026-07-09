@@ -145,11 +145,13 @@ export default function Auth() {
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    setOtpCode('');
     setLoading(true);
 
     const toastId = toast.loading('Sending verification OTP...');
 
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
     try {
@@ -165,6 +167,7 @@ export default function Auth() {
       setOtpCode('');
       setRegisterStep('verify');
       setResendTimer(300);
+      form.reset();
     } catch (error: unknown) {
       const message = getApiMessage(error, 'Failed to create account.');
       toast.update(toastId, {
@@ -241,6 +244,7 @@ export default function Auth() {
   const handleForgotPassword = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
+    setOtpCode('');
     setLoading(true);
     const toastId = toast.loading('Sending password reset OTP...');
     const formData = new FormData(form);
@@ -307,6 +311,7 @@ export default function Auth() {
   const handleResendOTP = () => {
     if (!lastRegisterForm) return;
 
+    setOtpCode('');
     setLoading(true);
     const toastId = toast.loading('Resending verification OTP...');
     authApi.register(lastRegisterForm)
@@ -334,6 +339,7 @@ export default function Auth() {
   const handleResendResetOTP = () => {
     if (!resetEmail) return;
 
+    setOtpCode('');
     setLoading(true);
     const toastId = toast.loading('Resending password reset OTP...');
     authApi.forgotPassword(resetEmail)
