@@ -12,13 +12,13 @@ type AIAnalysisCardProps = {
 
 export function AIAnalysisCard({ insights, insightsLoading, rangeLabel }: AIAnalysisCardProps) {
   return (
-    <Card className="lg:col-span-2 border-none bg-gradient-to-br from-[#EEF6FF]/80 to-white text-[#1F2937] shadow-sm dark:from-[#10213A] dark:to-[#111827] dark:text-[#F8FAFC]">
+    <Card className="lg:col-span-2 border-none bg-gradient-to-br from-[#EEF6FF]/80 to-white text-[#1F2937] shadow-sm">
       <CardHeader>
         <div className="flex items-center gap-2 text-[#4F9CF9]">
           <RiSparkling2Line className="text-lg" aria-hidden="true" />
-          <CardTitle className="text-xl text-[#1F2937] dark:text-[#F8FAFC]">AI Analysis</CardTitle>
+          <CardTitle className="text-xl text-[#1F2937]">AI Analysis</CardTitle>
         </div>
-        <CardDescription className="text-[#6B7280] dark:text-[#CBD5E1]">
+        <CardDescription className="text-[#6B7280]">
           Based on transactions from {rangeLabel}
           {insights?.model ? ` using ${insights.model}.` : '.'}
         </CardDescription>
@@ -34,12 +34,12 @@ export function AIAnalysisCard({ insights, insightsLoading, rangeLabel }: AIAnal
         ) : insights ? (
           <div className="space-y-6">
             {insights.summary && (
-              <div className="rounded-lg border border-[#DCEBFF] bg-white/70 p-4 dark:border-[#334155] dark:bg-[#0F172A]/70">
-                <h3 className="flex items-center gap-2 text-lg font-semibold text-[#1F2937] dark:text-[#F8FAFC]">
+              <div className="rounded-lg border border-[#DCEBFF] bg-white/70 p-4">
+                <h3 className="flex items-center gap-2 text-lg font-semibold text-[#1F2937]">
                   <RiSparkling2Line className="text-lg text-[#4F9CF9]" aria-hidden="true" />
                   AI Financial Analysis
                 </h3>
-                <p className="mt-2 leading-relaxed text-[#334155] dark:text-[#E2E8F0]">{insights.summary}</p>
+                <p className="mt-2 leading-relaxed text-[#334155]">{insights.summary}</p>
               </div>
             )}
 
@@ -49,9 +49,9 @@ export function AIAnalysisCard({ insights, insightsLoading, rangeLabel }: AIAnal
                 if (!Array.isArray(items) || items.length === 0) return null;
 
                 return (
-                  <section key={key} className="rounded-lg border border-[#DCEBFF] bg-white/70 p-4 dark:border-[#334155] dark:bg-[#0F172A]/70">
+                  <section key={key} className="rounded-lg border border-[#DCEBFF] bg-white/70 p-4">
                     <h4 className="text-sm font-bold uppercase text-[#4F9CF9]">{title}</h4>
-                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[#334155] dark:text-[#E2E8F0]">
+                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-[#334155]">
                       {items.map((item, index) => (
                         <li key={`${key}-${index}`} className="flex gap-2">
                           <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#34C759]" aria-hidden="true" />
@@ -66,8 +66,8 @@ export function AIAnalysisCard({ insights, insightsLoading, rangeLabel }: AIAnal
           </div>
         ) : (
           <div className="py-12 text-center">
-            <p className="font-medium text-[#1F2937] dark:text-[#F8FAFC]">AI insights have not been generated yet.</p>
-            <p className="mt-2 text-sm text-[#6B7280] dark:text-[#CBD5E1]">Click Generate AI Insights when you want to use AI tokens.</p>
+            <p className="font-medium text-[#1F2937]">AI insights have not been generated yet.</p>
+            <p className="mt-2 text-sm text-[#6B7280]">Click Generate AI Insights when you want to use AI tokens.</p>
           </div>
         )}
       </CardContent>

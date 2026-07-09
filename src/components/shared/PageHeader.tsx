@@ -21,7 +21,7 @@ export function PageHeader({ title, description, actions, align = 'left', classN
     >
       <div>
         <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-        {description ? <p className="text-[#6B7280] dark:text-[#CBD5E1]">{description}</p> : null}
+        {description ? <p className="text-[#6B7280]">{description}</p> : null}
       </div>
       {actions ? <div className={cn(centered && 'flex justify-center')}>{actions}</div> : null}
     </div>

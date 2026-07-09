@@ -38,7 +38,7 @@ export function SipCalculatorCard({
     <Card className="surface-panel rounded-lg">
       <CardHeader>
         <CardTitle className="text-lg font-semibold">SIP Calculator</CardTitle>
-        <p className="text-sm text-[#6B7280] dark:text-[#CBD5E1]">Estimate future value using monthly compounding and expected CAGR.</p>
+        <p className="text-sm text-[#6B7280]">Estimate future value using monthly compounding and expected CAGR.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -52,7 +52,7 @@ export function SipCalculatorCard({
           </div>
           <div className="space-y-2">
             <Label htmlFor="calculator-invested">Total Invested (₹)</Label>
-            <Input id="calculator-invested" value={result.totalInvested} readOnly className="bg-[#FAFBFC] dark:bg-[#111827]" />
+            <Input id="calculator-invested" value={result.totalInvested} readOnly className="bg-[#FAFBFC]" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -66,16 +66,16 @@ export function SipCalculatorCard({
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 pt-1">
-          <div className="rounded-lg bg-[#EEF6FF] p-3 text-center dark:bg-[#1E293B]">
+          <div className="rounded-lg bg-[#EEF6FF] p-3 text-center">
             <p className="text-xs font-semibold uppercase text-[#6B7280]">Future Value</p>
             <p className="mt-1 text-lg font-bold text-[#4F9CF9]">{currency.format(result.futureValue)}</p>
           </div>
-          <div className="rounded-lg bg-[#EAFBF0] p-3 text-center dark:bg-[#1E293B]">
+          <div className="rounded-lg bg-[#EAFBF0] p-3 text-center">
             <p className="text-xs font-semibold uppercase text-[#6B7280]">Capital Gain</p>
             <p className={`mt-1 text-lg font-bold ${result.capitalGain < 0 ? 'text-[#FF6B6B]' : 'text-[#34C759]'}`}>{currency.format(result.capitalGain)}</p>
           </div>
         </div>
-        <p className="text-center text-xs text-[#6B7280] dark:text-[#CBD5E1]">
+        <p className="text-center text-xs text-[#6B7280]">
           {result.months} months • figures are estimates, not guaranteed returns
         </p>
       </CardContent>

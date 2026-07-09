@@ -23,9 +23,9 @@ export function TopCategoriesCard({ categoryData, loading }: TopCategoriesCardPr
       </CardHeader>
       <CardContent className="h-[250px]">
         {loading ? (
-          <div className="h-full flex items-center justify-center text-[#6B7280] dark:text-[#CBD5E1]">Loading data...</div>
+          <div className="h-full flex items-center justify-center text-[#6B7280]">Loading data...</div>
         ) : categoryData.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-[#6B7280] dark:text-[#CBD5E1]">No data</div>
+          <div className="h-full flex items-center justify-center text-[#6B7280]">No data</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={categoryData}>

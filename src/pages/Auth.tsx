@@ -360,7 +360,6 @@ export default function Auth() {
 
   return (
     <div className="flex h-dvh items-start justify-center overflow-y-auto bg-[#FAFBFC] p-4 text-[#1F2937] sm:p-6 lg:p-4">
-      {/* Theme toggle hidden for now. */}
       <div className="mx-auto grid w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_30px_90px_rgba(31,41,55,0.12)] sm:max-w-lg lg:max-w-6xl lg:grid-cols-[1.05fr_0.95fr] lg:rounded-xl">
         <AuthBrandPanel />
 

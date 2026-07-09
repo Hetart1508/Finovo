@@ -57,7 +57,7 @@ export function AuthLoginCard({
   onResetPasswordChange,
 }: AuthLoginCardProps) {
   return (
-    <Card className="relative z-0 w-full rounded-xl border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.08)] dark:border-[#334155] dark:bg-[#111827]">
+    <Card className="relative z-0 w-full rounded-xl border-[#E5E7EB] bg-white shadow-[0_16px_40px_rgba(31,41,55,0.08)]">
       {loginStep === 'login' ? (
         <form onSubmit={onLogin}>
           <CardHeader className={cardHeaderClass}>

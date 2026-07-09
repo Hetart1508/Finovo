@@ -53,7 +53,7 @@ export default function Recurring() {
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Recurring planner</p>
           <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Subscriptions and future payments</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#6B7280] dark:text-[#CBD5E1]">
+          <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
             Track monthly subscriptions, EMIs, rent, and fees so upcoming payments are visible before they arrive.
           </p>
         </div>

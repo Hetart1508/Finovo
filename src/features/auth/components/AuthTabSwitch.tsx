@@ -9,7 +9,7 @@ type AuthTabSwitchProps = {
 
 export function AuthTabSwitch({ currentTab, onChange }: AuthTabSwitchProps) {
   return (
-    <div className="grid h-11 w-full grid-cols-2 overflow-hidden rounded-lg bg-[#EEF6FF] p-1 dark:bg-[#1E293B]">
+    <div className="grid h-11 w-full grid-cols-2 overflow-hidden rounded-lg bg-[#EEF6FF] p-1">
       {(['login', 'register'] as const).map((tab) => (
         <button
           key={tab}
@@ -19,7 +19,7 @@ export function AuthTabSwitch({ currentTab, onChange }: AuthTabSwitchProps) {
             'h-9 rounded-md text-sm font-bold capitalize transition-colors',
             currentTab === tab
               ? 'bg-[#4F9CF9] text-white'
-              : 'text-[#6B7280] hover:text-[#1F2937] dark:text-[#CBD5E1] dark:hover:text-white'
+              : 'text-[#6B7280] hover:text-[#1F2937]'
           )}
         >
           {tab}

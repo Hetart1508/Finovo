@@ -30,7 +30,7 @@ export function CalendarDayDetailsCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 text-center">
-        <div className="space-y-4 rounded-xl bg-[#FAFBFC] p-4 dark:bg-[#FAFBFC]">
+        <div className="space-y-4 rounded-xl bg-[#FAFBFC] p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1 text-center">
               <p className="text-sm text-[#6B7280]">Net Balance</p>
@@ -52,11 +52,11 @@ export function CalendarDayDetailsCard({
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
+            <div className="rounded-lg bg-white p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Income</p>
               <p className="mt-1 text-base font-bold text-[#34C759]">{formatRupees(selectedDaySummary.income)}</p>
             </div>
-            <div className="rounded-lg bg-white p-3 dark:bg-[#4F9CF9]">
+            <div className="rounded-lg bg-white p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-[#6B7280]">Expense</p>
               <p className="mt-1 text-base font-bold text-[#FF6B6B]">{formatRupees(selectedDaySummary.expense)}</p>
             </div>
@@ -67,7 +67,7 @@ export function CalendarDayDetailsCard({
           <p className="text-center text-sm font-semibold uppercase tracking-wider text-[#6B7280]">Transactions</p>
           {transactions.length > 0 ? (
             transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-center justify-between py-2 border-b border-[#E5E7EB] dark:border-[#E5E7EB] last:border-0">
+              <div key={transaction.id} className="flex items-center justify-between py-2 border-b border-[#E5E7EB] last:border-0">
                 <div>
                   <p className="text-sm font-medium">{transaction.description || transaction.category}</p>
                   <p className="text-xs text-[#6B7280]">{transaction.category} • {transaction.payment_mode}</p>

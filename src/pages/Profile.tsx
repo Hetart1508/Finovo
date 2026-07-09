@@ -329,7 +329,7 @@ export default function Profile() {
           <div>
             <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Profile</p>
             <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Personal finance context</h1>
-            <p className="mt-2 max-w-2xl text-sm text-[#6B7280] dark:text-[#CBD5E1]">
+            <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
               Keep your personal and financial details current so Finovo can personalize future planning and AI features with your permission.
             </p>
           </div>

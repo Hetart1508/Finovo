@@ -57,7 +57,7 @@ export default function Investments() {
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Investment planner</p>
           <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Mutual Funds & Investments</h1>
-          <p className="mt-2 max-w-2xl text-sm text-[#6B7280] dark:text-[#CBD5E1]">
+          <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
             Track SIP commitments, lumpsum capital, current portfolio value, and expected growth.
           </p>
         </div>

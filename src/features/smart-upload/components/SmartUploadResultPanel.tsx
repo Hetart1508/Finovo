@@ -60,8 +60,8 @@ export function SmartUploadResultPanel({
 
   if (!extractedData) {
     return (
-      <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-[#FAFBFC] dark:bg-[#FAFBFC]">
-        <div className="w-12 h-12 bg-white dark:bg-[#EEF6FF] rounded-full flex items-center justify-center shadow-sm mb-4">
+      <Card className="h-full flex flex-col items-center justify-center p-8 text-center border-none bg-[#FAFBFC]">
+        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
           <RiRefreshLine className={cn('text-2xl text-[#4F9CF9]', loading && 'animate-spin')} aria-hidden="true" />
         </div>
         <h3 className="font-semibold">Gemini Extraction Ready</h3>
@@ -144,7 +144,7 @@ export function SmartUploadResultPanel({
               </Select>
             </div>
             {extractedData.data.rawText ? (
-              <details className="rounded-md border border-[#E5E7EB] bg-[#FAFBFC] p-3 text-left dark:border-[#E5E7EB] dark:bg-[#FAFBFC]">
+              <details className="rounded-md border border-[#E5E7EB] bg-[#FAFBFC] p-3 text-left">
                 <summary className="cursor-pointer text-sm font-medium text-[#1F2937] text-[#1F2937]">
                   OCR text
                 </summary>

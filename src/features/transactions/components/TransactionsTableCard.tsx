@@ -64,7 +64,7 @@ export function TransactionsTableCard({
   showCreatedBy = false,
 }: TransactionsTableCardProps) {
   return (
-    <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)] dark:border-[#334155]">
+    <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)]">
       <CardContent className="p-0">
         <Table className="table-fixed">
           <colgroup>
@@ -78,17 +78,17 @@ export function TransactionsTableCard({
             {showCreatedBy ? <col className="w-[112px]" /> : null}
             <col className="w-[78px]" />
           </colgroup>
-          <TableHeader className="bg-[#F8FAFC] dark:bg-[#1E293B]">
-            <TableRow className="border-[#D9DEE7] hover:bg-transparent dark:border-[#334155]">
-              <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">SR No</TableHead>
+          <TableHeader className="bg-[#F8FAFC]">
+            <TableRow className="border-[#D9DEE7] hover:bg-transparent">
+              <TableHead className="font-bold text-[#4B5563]">SR No</TableHead>
               <SortableHead sort="type" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Type</SortableHead>
               <SortableHead sort="date" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="text-center">Date</SortableHead>
               <SortableHead sort="description" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Description</SortableHead>
               <SortableHead sort="category" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Category</SortableHead>
               <SortableHead sort="payment_mode" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Mode</SortableHead>
               <SortableHead sort="amount" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="text-center">Amount</SortableHead>
-              {showCreatedBy ? <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Added by</TableHead> : null}
-              <TableHead className="font-bold text-[#4B5563] dark:text-[#CBD5E1]">Actions</TableHead>
+              {showCreatedBy ? <TableHead className="font-bold text-[#4B5563]">Added by</TableHead> : null}
+              <TableHead className="font-bold text-[#4B5563]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -152,7 +152,7 @@ function SortableHead({
   return (
     <TableHead
       aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={cn('font-bold text-[#4B5563] dark:text-[#CBD5E1]', className)}
+      className={cn('font-bold text-[#4B5563]', className)}
     >
       <button
         type="button"
@@ -189,8 +189,8 @@ function TransactionRow({
   showCreatedBy: boolean;
 }) {
   return (
-    <TableRow className="border-[#E5E7EB] bg-white hover:bg-[#F8FBFF] dark:border-[#334155] dark:bg-[#111827] dark:hover:bg-[#162033]">
-      <TableCell className="font-medium text-[#6B7280] dark:text-[#6B7280]">{serialNumber}</TableCell>
+    <TableRow className="border-[#E5E7EB] bg-white hover:bg-[#F8FBFF]">
+      <TableCell className="font-medium text-[#6B7280]">{serialNumber}</TableCell>
       <TableCell>
         <div className={cn(
           'flex h-7 w-7 items-center justify-center rounded-full',
@@ -199,7 +199,7 @@ function TransactionRow({
           {transaction.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
         </div>
       </TableCell>
-      <TableCell className="text-center text-[#6B7280] dark:text-[#6B7280]">
+      <TableCell className="text-center text-[#6B7280]">
         {format(parseISO(transaction.date), 'dd MMM yyyy')}
       </TableCell>
       <TableCell className="min-w-0">
@@ -211,7 +211,7 @@ function TransactionRow({
       <TableCell>
         <Badge variant="secondary" className="max-w-full truncate font-normal" title={transaction.category}>{transaction.category}</Badge>
       </TableCell>
-      <TableCell className="min-w-0 text-[#6B7280] dark:text-[#6B7280]">
+      <TableCell className="min-w-0 text-[#6B7280]">
         <span className="block truncate" title={transaction.payment_mode}>{transaction.payment_mode}</span>
       </TableCell>
       <TableCell className={cn(
@@ -221,7 +221,7 @@ function TransactionRow({
         {formatSignedRupees(transaction.amount, transaction.type === 'income')}
       </TableCell>
       {showCreatedBy ? (
-        <TableCell className="min-w-0 text-[#6B7280] dark:text-[#6B7280]">
+        <TableCell className="min-w-0 text-[#6B7280]">
           <span className="block truncate" title={transaction.created_by_email || transaction.created_by_name || 'Member'}>
             {transaction.created_by_name || transaction.created_by_email || 'Member'}
           </span>
@@ -279,7 +279,7 @@ function TablePagination({
   onPageChange: (updater: number | ((page: number) => number)) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-[#FBFCFE] px-4 py-3 text-sm text-[#6B7280] dark:border-[#334155] dark:bg-[#111827] dark:text-[#CBD5E1] sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-t border-[#E5E7EB] bg-[#FBFCFE] px-4 py-3 text-sm text-[#6B7280] sm:flex-row sm:items-center sm:justify-between">
       <p>
         {totalTransactions === 0
           ? 'Showing 0 transactions'
@@ -306,7 +306,7 @@ function TablePagination({
         >
           <RiArrowLeftSLine className="text-base" aria-hidden="true" />
         </Button>
-        <span className="min-w-[6rem] text-center font-medium text-[#1F2937] dark:text-[#CBD5E1]">
+        <span className="min-w-[6rem] text-center font-medium text-[#1F2937]">
           Page {safeCurrentPage} / {totalPages}
         </span>
         <Button

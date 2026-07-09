@@ -3,9 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-@custom-variant dark (&:is(.dark *));
-
-
 @theme inline {
     --font-heading: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -94,40 +91,6 @@
     --kt-app-border: color-mix(in oklab, oklch(0.89 0.025 232) 78%, transparent);
     --kt-app-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
     --kt-transition: 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.dark {
-    --background: #0F172A;
-    --foreground: #F8FAFC;
-    --card: #111827;
-    --card-foreground: #F8FAFC;
-    --popover: #111827;
-    --popover-foreground: #F8FAFC;
-    --primary: #4F9CF9;
-    --primary-foreground: #FFFFFF;
-    --secondary: #1E293B;
-    --secondary-foreground: #F8FAFC;
-    --muted: #1E293B;
-    --muted-foreground: #CBD5E1;
-    --accent: #1E293B;
-    --accent-foreground: #F8FAFC;
-    --destructive: #FF6B6B;
-    --border: #334155;
-    --input: #334155;
-    --ring: #4F9CF9;
-    --chart-1: #4F9CF9;
-    --chart-2: #34C759;
-    --chart-3: #FFB84D;
-    --chart-4: #FF6B6B;
-    --chart-5: #6B7280;
-    --sidebar: #111827;
-    --sidebar-foreground: #F8FAFC;
-    --sidebar-primary: #4F9CF9;
-    --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #1E293B;
-    --sidebar-accent-foreground: #F8FAFC;
-    --sidebar-border: #334155;
-    --sidebar-ring: #4F9CF9;
 }
 
 @layer base {
@@ -342,58 +305,6 @@
   color: #6B7280 !important;
 }
 
-.dark [data-slot="card"],
-.dark .surface-panel,
-.dark .metric-card {
-  border-color: #334155 !important;
-  background-color: #111827 !important;
-  color: #F8FAFC !important;
-  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.28) !important;
-}
-
-.dark [class~="bg-white"],
-.dark [class~="bg-[#FAFBFC]"] {
-  background-color: #111827 !important;
-}
-
-.dark [class~="bg-[#EEF6FF]"] {
-  background-color: #1E293B !important;
-}
-
-.dark [class~="border-[#E5E7EB]"] {
-  border-color: #334155 !important;
-}
-
-.dark [class~="text-[#1F2937]"] {
-  color: #F8FAFC !important;
-}
-
-.dark [class~="text-[#6B7280]"] {
-  color: #CBD5E1 !important;
-}
-
-.dark [class~="hover:bg-[#FAFBFC]"]:hover,
-.dark [class~="hover:bg-[#EEF6FF]"]:hover {
-  background-color: #1E293B !important;
-}
-
-.dark [class~="hover:text-[#1F2937]"]:hover {
-  color: #F8FAFC !important;
-}
-
-.dark [data-slot="input"],
-.dark [data-slot="select-trigger"],
-.dark .react-datepicker__input-container input {
-  background-color: #111827 !important;
-  border-color: #334155 !important;
-  color: #F8FAFC !important;
-}
-
-.dark [data-slot="input"]::placeholder,
-.dark .react-datepicker__input-container input::placeholder {
-  color: #CBD5E1 !important;
-}
-
 .recharts-cartesian-axis-tick-value,
 .recharts-legend-item-text {
   fill: #6B7280;
@@ -491,43 +402,4 @@
 .react-datepicker__year-text--selected {
   background-color: #4F9CF9 !important;
   color: #FFFFFF !important;
-}
-
-.dark .recharts-cartesian-axis-tick-value,
-.dark .recharts-legend-item-text {
-  fill: #CBD5E1;
-  color: #CBD5E1 !important;
-}
-
-.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: #111827 !important;
-  border-color: #334155 !important;
-  color: #F8FAFC !important;
-  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.32) !important;
-}
-
-.dark .react-datepicker {
-  border-color: #334155 !important;
-  background-color: #111827 !important;
-  color: #F8FAFC !important;
-}
-
-.dark .react-datepicker__header {
-  border-color: #334155 !important;
-  background-color: #1E293B !important;
-}
-
-.dark .react-datepicker__current-month,
-.dark .react-datepicker-time__header,
-.dark .react-datepicker-year-header,
-.dark .react-datepicker__day-name,
-.dark .react-datepicker__day {
-  color: #F8FAFC !important;
-}
-
-.dark .react-datepicker__day:hover,
-.dark .react-datepicker__month-text:hover,
-.dark .react-datepicker__quarter-text:hover,
-.dark .react-datepicker__year-text:hover {
-  background-color: #1E293B !important;
 }

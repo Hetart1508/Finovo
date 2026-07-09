@@ -32,17 +32,17 @@ export function BillPreviewDialog({ transaction, onOpenChange }: BillPreviewDial
             <DialogTitle>Invoice Bill</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3 dark:border-[#334155] dark:bg-[#111827]">
-              <p className="truncate text-sm font-semibold text-[#1F2937] dark:text-[#CBD5E1]">
+            <div className="rounded-lg border border-[#E5E7EB] bg-[#F8FAFC] p-3">
+              <p className="truncate text-sm font-semibold text-[#1F2937]">
                 {transaction.description || transaction.category}
               </p>
-              <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">
+              <p className="mt-1 text-xs text-[#6B7280]">
                 {format(parseISO(transaction.date), 'dd MMM yyyy')} - {formatRupees(transaction.amount)}
               </p>
             </div>
 
             {isPdfBill(transaction.bill_url) ? (
-              <div className="h-[70vh] overflow-hidden rounded-lg border border-[#E5E7EB] dark:border-[#334155]">
+              <div className="h-[70vh] overflow-hidden rounded-lg border border-[#E5E7EB]">
                 <iframe
                   src={getBillUrl(transaction.bill_url)}
                   title="Invoice bill PDF"
@@ -50,7 +50,7 @@ export function BillPreviewDialog({ transaction, onOpenChange }: BillPreviewDial
                 />
               </div>
             ) : (
-              <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-lg border border-[#E5E7EB] bg-[#0F172A]/5 p-3 dark:border-[#334155]">
+              <div className="flex max-h-[70vh] items-center justify-center overflow-auto rounded-lg border border-[#E5E7EB] bg-[#0F172A]/5 p-3">
                 <img
                   src={getBillUrl(transaction.bill_url)}
                   alt="Invoice bill"

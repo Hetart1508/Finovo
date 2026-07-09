@@ -27,7 +27,7 @@ export function SipGrowthChartCard({ growthData }: SipGrowthChartCardProps) {
     <Card className="surface-panel rounded-lg">
       <CardHeader>
         <CardTitle className="text-lg font-semibold">Projected SIP Growth</CardTitle>
-        <p className="text-sm text-[#6B7280] dark:text-[#CBD5E1]">Month-wise up to 3 years, then year-wise for longer plans.</p>
+        <p className="text-sm text-[#6B7280]">Month-wise up to 3 years, then year-wise for longer plans.</p>
       </CardHeader>
       <CardContent className="h-[360px]">
         {growthData.length ? (
@@ -47,10 +47,10 @@ export function SipGrowthChartCard({ growthData }: SipGrowthChartCardProps) {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[#DCE3EC] bg-[#FAFBFC] px-6 text-center dark:border-[#334155] dark:bg-[#111827]">
+          <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-[#DCE3EC] bg-[#FAFBFC] px-6 text-center">
             <RiLineChartLine className="text-4xl text-[#4F9CF9]" aria-hidden="true" />
             <p className="mt-3 font-semibold">Enter a valid SIP plan to see its growth</p>
-            <p className="mt-1 max-w-sm text-sm text-[#6B7280] dark:text-[#CBD5E1]">The end date must be after the start date and the monthly amount must be greater than zero.</p>
+            <p className="mt-1 max-w-sm text-sm text-[#6B7280]">The end date must be after the start date and the monthly amount must be greater than zero.</p>
           </div>
         )}
       </CardContent>

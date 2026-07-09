@@ -32,7 +32,7 @@ export function RecurringPaymentsTable({ events, loading, onEdit, onDelete }: Re
       <CardContent className="p-0">
         <Table>
           <TableHeader>
-            <TableRow className="border-[#E5E7EB] hover:bg-transparent dark:border-[#334155]">
+            <TableRow className="border-[#E5E7EB] hover:bg-transparent">
               <TableHead>Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Schedule</TableHead>
@@ -53,10 +53,10 @@ export function RecurringPaymentsTable({ events, loading, onEdit, onDelete }: Re
               </TableRow>
             ) : (
               events.map((event) => (
-                <TableRow key={event.id} className="border-[#E5E7EB] dark:border-[#334155]">
+                <TableRow key={event.id} className="border-[#E5E7EB]">
                   <TableCell className="font-medium">{event.name}</TableCell>
                   <TableCell><Badge variant="secondary" className="font-normal">{event.category}</Badge></TableCell>
-                  <TableCell className="text-[#6B7280] dark:text-[#CBD5E1]">{getScheduleLabel(event)}</TableCell>
+                  <TableCell className="text-[#6B7280]">{getScheduleLabel(event)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn('capitalize', getTypeClassName(event.type))}>
                       {event.type}
@@ -68,7 +68,7 @@ export function RecurringPaymentsTable({ events, loading, onEdit, onDelete }: Re
                         {event.payment_mode === 'auto' || event.autopay_enabled ? 'Auto' : 'Manual'}
                       </Badge>
                       {event.payment_account ? (
-                        <p className="max-w-[9rem] truncate text-xs text-[#6B7280] dark:text-[#CBD5E1]">{event.payment_account}</p>
+                        <p className="max-w-[9rem] truncate text-xs text-[#6B7280]">{event.payment_account}</p>
                       ) : null}
                     </div>
                   </TableCell>

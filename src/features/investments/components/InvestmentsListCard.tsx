@@ -37,7 +37,7 @@ export function InvestmentsListCard({
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
           <CardTitle className="text-lg font-semibold">Your Investments</CardTitle>
-          <p className="mt-1 text-sm text-[#6B7280] dark:text-[#CBD5E1]">{investments.length} fund{investments.length === 1 ? '' : 's'} tracked</p>
+          <p className="mt-1 text-sm text-[#6B7280]">{investments.length} fund{investments.length === 1 ? '' : 's'} tracked</p>
         </div>
         <Badge variant="secondary">{summary?.sip_count || 0} SIPs - {summary?.lumpsum_count || 0} Lumpsums</Badge>
       </CardHeader>
@@ -105,10 +105,10 @@ function InvestmentTableRow({
     <TableRow>
       <TableCell className="max-w-[16rem] whitespace-normal">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-semibold text-[#1F2937] dark:text-[#F8FAFC]">{investment.sip_name}</p>
+          <p className="font-semibold text-[#1F2937]">{investment.sip_name}</p>
           <Badge variant="secondary">{getInvestmentTypeLabel(investmentType)}</Badge>
         </div>
-        <p className="mt-1 text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.fund_name}</p>
+        <p className="mt-1 text-xs text-[#6B7280]">{investment.fund_name}</p>
         {investment.notes ? <p className="mt-1 truncate text-xs text-[#6B7280]" title={investment.notes}>{investment.notes}</p> : null}
       </TableCell>
       <TableCell className="text-right font-semibold">
@@ -117,7 +117,7 @@ function InvestmentTableRow({
       <TableCell className="text-right">{currency.format(Number(investment.total_invested_amount))}</TableCell>
       <TableCell className="text-right font-semibold text-[#34C759]">{currency.format(Number(investment.current_value))}</TableCell>
       <TableCell className="text-center"><Badge variant="outline" className="border-[#DCEEFF] text-[#4F9CF9]">{Number(investment.expected_cagr)}%</Badge></TableCell>
-      <TableCell className="text-[#6B7280] dark:text-[#CBD5E1]">
+      <TableCell className="text-[#6B7280]">
         {format(parseISO(investment.start_date), 'dd MMM yyyy')} - {format(parseISO(investment.end_date), 'dd MMM yyyy')}
       </TableCell>
       <TableCell>
@@ -143,11 +143,11 @@ function InvestmentMobileCard({
   const investmentType = getInvestmentType(investment);
 
   return (
-    <div className="rounded-lg border border-[#E5E7EB] bg-white p-4 dark:border-[#334155] dark:bg-[#111827]">
+    <div className="rounded-lg border border-[#E5E7EB] bg-white p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-semibold">{investment.sip_name}</p>
-          <p className="mt-1 truncate text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.fund_name}</p>
+          <p className="mt-1 truncate text-xs text-[#6B7280]">{investment.fund_name}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <Badge variant="secondary">{getInvestmentTypeLabel(investmentType)}</Badge>
@@ -162,8 +162,8 @@ function InvestmentMobileCard({
         <div><p className="text-xs text-[#6B7280]">Current Value</p><p className="mt-1 font-semibold text-[#34C759]">{currency.format(Number(investment.current_value))}</p></div>
         <div className="col-span-2"><p className="text-xs text-[#6B7280]">Period</p><p className="mt-1">{format(parseISO(investment.start_date), 'dd MMM yyyy')} - {format(parseISO(investment.end_date), 'dd MMM yyyy')}</p></div>
       </div>
-      {investment.notes ? <p className="mt-3 text-xs text-[#6B7280] dark:text-[#CBD5E1]">{investment.notes}</p> : null}
-      <div className="mt-4 flex justify-end gap-2 border-t border-[#E5E7EB] pt-3 dark:border-[#334155]">
+      {investment.notes ? <p className="mt-3 text-xs text-[#6B7280]">{investment.notes}</p> : null}
+      <div className="mt-4 flex justify-end gap-2 border-t border-[#E5E7EB] pt-3">
         <Button variant="outline" size="sm" onClick={() => onEditInvestment(investment)}><RiPencilLine className="mr-2" />Edit</Button>
         <Button variant="outline" size="sm" className="text-[#FF6B6B]" onClick={() => onDeleteInvestment(investment)} disabled={isDeleting}><RiDeleteBin6Line className="mr-2" />Delete</Button>
       </div>

@@ -63,7 +63,7 @@ export function AppDatePicker({
         popperPlacement="bottom-start"
         popperClassName="modern-date-popper"
         calendarClassName="modern-date-calendar"
-        customInput={<Input id={id} className="cursor-pointer bg-white pr-10 dark:bg-[#111827]" readOnly />}
+        customInput={<Input id={id} className="cursor-pointer bg-white pr-10" readOnly />}
       />
       <RiCalendarLine className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#4F9CF9]" aria-hidden="true" />
       {name ? <input type="hidden" name={name} value={selectedValue} required={required} /> : null}

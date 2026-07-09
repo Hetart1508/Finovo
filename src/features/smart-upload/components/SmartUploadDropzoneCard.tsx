@@ -14,14 +14,14 @@ export function SmartUploadDropzoneCard({ preview, dropzone, onClearPreview }: S
   const { getRootProps, getInputProps, isDragActive } = dropzone;
 
   return (
-    <Card className="border-dashed border-2 border-[#E5E7EB] dark:border-[#E5E7EB] bg-transparent">
+    <Card className="border-dashed border-2 border-[#E5E7EB] bg-transparent">
       <CardContent className="p-0">
         {!preview ? (
           <div
             {...getRootProps()}
             className={cn(
               'h-[400px] flex flex-col items-center justify-center cursor-pointer transition-colors p-8 text-center',
-              isDragActive ? 'bg-[#EEF6FF] bg-[#EEF6FF]' : 'hover:bg-[#FAFBFC] dark:hover:bg-[#FAFBFC]/50'
+              isDragActive ? 'bg-[#EEF6FF] bg-[#EEF6FF]' : 'hover:bg-[#FAFBFC]'
             )}
           >
             <input {...getInputProps()} />

@@ -8,7 +8,7 @@ type StateMessageProps = {
 
 export function StateMessage({ children, className }: StateMessageProps) {
   return (
-    <p className={cn('py-8 text-center text-sm text-[#6B7280] dark:text-[#CBD5E1]', className)}>
+    <p className={cn('py-8 text-center text-sm text-[#6B7280]', className)}>
       {children}
     </p>
   );

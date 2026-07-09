@@ -8,7 +8,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_12px_32px_rgba(31,41,55,0.08)] dark:border-[#334155] dark:bg-[#111827]"
+      className="relative w-full overflow-x-auto rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_12px_32px_rgba(31,41,55,0.08)]"
     >
       <table
         data-slot="table"
@@ -60,7 +60,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "!border-b !border-[#E8EAF0] bg-white transition-colors hover:!bg-[#F7F8FC] has-aria-expanded:!bg-[#F1F3F8] data-[state=selected]:!bg-[#EEF2FF] dark:!border-[#273449] dark:bg-[#111827] dark:hover:!bg-[#172033]",
+        "!border-b !border-[#E8EAF0] bg-white transition-colors hover:!bg-[#F7F8FC] has-aria-expanded:!bg-[#F1F3F8] data-[state=selected]:!bg-[#EEF2FF]",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "border-0 px-4 py-3.5 align-middle whitespace-nowrap text-[#2F3038] dark:text-[#E5E7EB] [&:has([role=checkbox])]:pr-0",
+        "border-0 px-4 py-3.5 align-middle whitespace-nowrap text-[#2F3038] [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}

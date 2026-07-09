@@ -65,7 +65,7 @@ export function StatementPreviewCard({
       <CardContent className="p-0">
         <Table>
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-[#E5E7EB] dark:border-[#E5E7EB]">
+            <TableRow className="hover:bg-transparent border-[#E5E7EB]">
               <TableHead className="w-[100px]">Type</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Description</TableHead>
@@ -88,7 +88,7 @@ export function StatementPreviewCard({
               </TableRow>
             ) : (
               transactions.map((transaction, index) => (
-                <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB] dark:border-[#E5E7EB]">
+                <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB]">
                   <TableCell>
                     <button
                       type="button"
@@ -105,7 +105,7 @@ export function StatementPreviewCard({
                         : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
                     </button>
                   </TableCell>
-                  <TableCell className="text-[#6B7280] dark:text-[#6B7280]">
+                  <TableCell className="text-[#6B7280]">
                     {format(parseISO(transaction.date), 'dd MMM yyyy')}
                   </TableCell>
                   <TableCell className="min-w-[260px] font-medium">
@@ -136,7 +136,7 @@ export function StatementPreviewCard({
                   <TableCell>
                     <Badge variant="secondary" className="font-normal">{transaction.category}</Badge>
                   </TableCell>
-                  <TableCell className="text-[#6B7280] dark:text-[#6B7280]">{transaction.payment_mode}</TableCell>
+                  <TableCell className="text-[#6B7280]">{transaction.payment_mode}</TableCell>
                   <TableCell className={cn(
                     'text-right font-bold',
                     transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'

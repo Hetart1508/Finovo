@@ -82,11 +82,11 @@ export function InvestmentForm({
         </div>
         <div className={compactFieldClass}>
           <Label htmlFor="investment-total" className={compactLabelClass}>{selectedInvestmentType === 'sip' ? 'Total Invested Amount (₹)' : 'Invested Amount (₹)'}</Label>
-          <Input id="investment-total" name="total_invested_amount" type="number" min="0" step="0.01" value={Number.isFinite(formTotalInvested) ? formTotalInvested : ''} readOnly className={`${compactInputClass} bg-[#FAFBFC] dark:bg-[#111827]`} required />
+          <Input id="investment-total" name="total_invested_amount" type="number" min="0" step="0.01" value={Number.isFinite(formTotalInvested) ? formTotalInvested : ''} readOnly className={`${compactInputClass} bg-[#FAFBFC]`} required />
         </div>
         <div className={compactFieldClass}>
           <Label htmlFor="investment-current" className={compactLabelClass}>Calculated Current Value (₹)</Label>
-          <Input id="investment-current" name="current_value" type="number" min="0" step="0.01" value={formCurrentValue} readOnly className={`${compactInputClass} bg-[#FAFBFC] dark:bg-[#111827]`} required />
+          <Input id="investment-current" name="current_value" type="number" min="0" step="0.01" value={formCurrentValue} readOnly className={`${compactInputClass} bg-[#FAFBFC]`} required />
         </div>
       </div>
 
