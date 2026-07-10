@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
 import {
   ActionBarPrimitive,
@@ -104,7 +104,10 @@ function MarkdownText() {
 
 function AssistantMessage() {
   const isRunning = useAuiState((state) => state.thread.isRunning);
-  const isEmpty = useAuiState((state) => state.message.content.length === 0);
+  const isEmpty = useAuiState((state) =>
+    state.message.content.length === 0 ||
+    state.message.content.every((part) => part.type === 'text' && !part.text)
+  );
 
   if (isRunning && isEmpty) {
     return (
@@ -151,6 +154,10 @@ function AdvisorThread({
   onRetryLoad,
   newChatMutation,
   onShowRecentChats,
+  viewportRef,
+  onViewportScroll,
+  onFollowLatest,
+  showScrollToBottom,
 }: {
   hasConversation: boolean;
   isLoading: boolean;
@@ -160,15 +167,21 @@ function AdvisorThread({
   onRetryLoad: () => void;
   newChatMutation: UseMutationResult<AdvisorSession, Error, void, unknown>;
   onShowRecentChats: () => void;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  onViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
+  onFollowLatest: () => void;
+  showScrollToBottom: boolean;
 }) {
   return (
     <ThreadPrimitive.Root className="relative flex min-h-0 flex-1 flex-col">
       <ThreadPrimitive.Viewport
-        autoScroll
+        ref={viewportRef}
+        autoScroll={false}
         scrollToBottomOnInitialize={false}
         scrollToBottomOnThreadSwitch={false}
         scrollToBottomOnRunStart={false}
-        className="min-h-0 flex-1 scroll-smooth overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 md:rounded-lg md:border md:border-border md:px-2"
+        onScroll={onViewportScroll}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 md:rounded-lg md:border md:border-border md:px-2"
       >
         <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
 
@@ -202,13 +215,17 @@ function AdvisorThread({
 
       </ThreadPrimitive.Viewport>
 
-      <ThreadPrimitive.ScrollToBottom
-        className="absolute bottom-[6.75rem] left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:text-foreground"
-        aria-label="Scroll to latest message"
-        title="Scroll to latest message"
-      >
-        <RiArrowDownLine aria-hidden="true" />
-      </ThreadPrimitive.ScrollToBottom>
+      {showScrollToBottom ? (
+        <button
+          type="button"
+          onClick={onFollowLatest}
+          className="absolute bottom-[6.75rem] left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:text-foreground"
+          aria-label="Scroll to latest message"
+          title="Scroll to latest message"
+        >
+          <RiArrowDownLine aria-hidden="true" />
+        </button>
+      ) : null}
 
       {sendError ? (
         <div className="mx-2 mt-2 flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive md:mx-0">
@@ -277,20 +294,81 @@ export function AdvisorChatPanel({
   onRetryLoad,
   onShowRecentChats,
 }: AdvisorChatPanelProps) {
+  const [stagedUserMessage, setStagedUserMessage] = useState<AdvisorMessage | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<AdvisorMessage | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const streamActiveRef = useRef(true);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const shouldFollowRef = useRef(false);
+  const manualScrollRef = useRef(false);
+  const manualScrollTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => () => {
     streamActiveRef.current = false;
+    if (manualScrollTimeoutRef.current) window.clearTimeout(manualScrollTimeoutRef.current);
   }, []);
 
   const runtimeMessages = useMemo(
-    () => streamingMessage
-      ? [introMessage, ...messages, streamingMessage]
-      : [introMessage, ...messages],
-    [introMessage, messages, streamingMessage]
+    () => [
+      introMessage,
+      ...messages,
+      ...(stagedUserMessage ? [stagedUserMessage] : []),
+      ...(streamingMessage ? [streamingMessage] : []),
+    ],
+    [introMessage, messages, stagedUserMessage, streamingMessage]
   );
+
+  useLayoutEffect(() => {
+    if (!shouldFollowRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = viewportRef.current;
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+        setShowScrollToBottom(false);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [stagedUserMessage, streamingMessage?.content]);
+
+  const handleViewportScroll = (event: UIEvent<HTMLDivElement>) => {
+    const viewport = event.currentTarget;
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+    if (manualScrollRef.current) {
+      if (distanceFromBottom < 4) {
+        manualScrollRef.current = false;
+        shouldFollowRef.current = true;
+        setShowScrollToBottom(false);
+        if (manualScrollTimeoutRef.current) {
+          window.clearTimeout(manualScrollTimeoutRef.current);
+          manualScrollTimeoutRef.current = null;
+        }
+      }
+      return;
+    }
+
+    shouldFollowRef.current = distanceFromBottom < 120;
+    setShowScrollToBottom(distanceFromBottom >= 120);
+  };
+
+  const scrollToLatest = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    manualScrollRef.current = true;
+    shouldFollowRef.current = false;
+    setShowScrollToBottom(false);
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+
+    if (manualScrollTimeoutRef.current) window.clearTimeout(manualScrollTimeoutRef.current);
+    manualScrollTimeoutRef.current = window.setTimeout(() => {
+      manualScrollRef.current = false;
+      shouldFollowRef.current = true;
+      setShowScrollToBottom(false);
+      manualScrollTimeoutRef.current = null;
+    }, 1200);
+  };
 
   const revealResponse = async (response: AdvisorChatResponse) => {
     const completeMessage = response.message;
@@ -304,7 +382,7 @@ export function AdvisorChatPanel({
       if (!streamActiveRef.current) return;
       visibleContent += pieces.slice(index, index + batchSize).join('');
       setStreamingMessage({ ...completeMessage, content: visibleContent });
-      await new Promise((resolve) => window.setTimeout(resolve, 20));
+      await new Promise((resolve) => window.setTimeout(resolve, 32));
     }
   };
 
@@ -322,7 +400,28 @@ export function AdvisorChatPanel({
         .trim();
 
       if (!content) return;
+      const optimisticId = -Date.now();
+      const createdAt = new Date().toISOString();
+      shouldFollowRef.current = true;
+      setStagedUserMessage({
+        id: optimisticId,
+        session_id: introMessage.session_id,
+        role: 'user',
+        content,
+        created_at: createdAt,
+      });
+
+      // Allow the blue user bubble to paint before adding the assistant turn.
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+
       setIsStreaming(true);
+      setStreamingMessage({
+        id: optimisticId - 1,
+        session_id: introMessage.session_id,
+        role: 'assistant',
+        content: '',
+        created_at: createdAt,
+      });
       const requestStartedAt = Date.now();
 
       try {
@@ -333,7 +432,12 @@ export function AdvisorChatPanel({
         }
         await revealResponse(response);
         await onResponseComplete();
+        setStagedUserMessage(null);
         setStreamingMessage(null);
+      } catch (error) {
+        setStagedUserMessage(null);
+        setStreamingMessage(null);
+        throw error;
       } finally {
         if (streamActiveRef.current) setIsStreaming(false);
       }
@@ -345,7 +449,7 @@ export function AdvisorChatPanel({
       <CardContent className="flex min-h-0 flex-1 flex-col px-0 py-0 md:p-2">
         <AssistantRuntimeProvider runtime={runtime}>
           <AdvisorThread
-            hasConversation={messages.length > 0}
+            hasConversation={messages.length > 0 || Boolean(stagedUserMessage)}
             isLoading={isLoading}
             loadError={loadError}
             sendError={sendMutation.isError}
@@ -353,6 +457,10 @@ export function AdvisorChatPanel({
             onRetryLoad={onRetryLoad}
             newChatMutation={newChatMutation}
             onShowRecentChats={onShowRecentChats}
+            viewportRef={viewportRef}
+            onViewportScroll={handleViewportScroll}
+            onFollowLatest={scrollToLatest}
+            showScrollToBottom={showScrollToBottom}
           />
         </AssistantRuntimeProvider>
       </CardContent>
