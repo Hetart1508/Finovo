@@ -17,6 +17,12 @@ type AdvisorSidebarProps = {
   onSelectSession: (sessionId: string) => void;
 };
 
+const dismissKeyboard = () => {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+};
+
 export function AdvisorSidebar({
   sessions,
   sessionId,
@@ -62,6 +68,7 @@ export function AdvisorSidebar({
                 aria-label="New advisor chat"
                 title="New chat"
                 onClick={() => {
+                  dismissKeyboard();
                   if (!newChatMutation.isPending) newChatMutation.mutate();
                 }}
                 disabled={newChatMutation.isPending}
@@ -101,7 +108,10 @@ export function AdvisorSidebar({
                       'min-w-0 flex-1 truncate rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition',
                       isActive ? 'bg-[#EEF6FF] text-[#1F2937]' : 'text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]'
                     )}
-                    onClick={() => onSelectSession(session.session_id)}
+                    onClick={() => {
+                      dismissKeyboard();
+                      onSelectSession(session.session_id);
+                    }}
                     title={session.title}
                   >
                     {session.title}
@@ -112,7 +122,10 @@ export function AdvisorSidebar({
                     size="icon-xs"
                     aria-label="Delete advisor chat"
                     className="opacity-100 md:opacity-0 md:group-hover:opacity-100"
-                    onClick={() => deleteChatMutation.mutate(session.session_id)}
+                    onClick={() => {
+                      dismissKeyboard();
+                      deleteChatMutation.mutate(session.session_id);
+                    }}
                     disabled={deleteChatMutation.isPending}
                   >
                     <RiDeleteBinLine aria-hidden="true" />

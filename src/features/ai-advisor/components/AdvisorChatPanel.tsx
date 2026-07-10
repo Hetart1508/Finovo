@@ -14,17 +14,15 @@ import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import type { AdvisorChatResponse, AdvisorMessage, AdvisorSession } from '@/src/api/aiAdvisorApi';
+import type { AdvisorChatResponse, AdvisorMessage } from '@/src/api/aiAdvisorApi';
 import { formatIndianTime, parseApiDateTime } from '@/src/utils/formatters';
 import {
-  RiAddLine,
   RiArrowDownLine,
   RiCheckLine,
   RiFileCopyLine,
   RiRefreshLine,
   RiRobot2Line,
   RiSendPlane2Line,
-  RiSideBarLine,
   RiSparkling2Line,
 } from 'react-icons/ri';
 
@@ -40,10 +38,8 @@ type AdvisorChatPanelProps = {
   isLoading: boolean;
   loadError: boolean;
   sendMutation: UseMutationResult<AdvisorChatResponse, Error, string, unknown>;
-  newChatMutation: UseMutationResult<AdvisorSession, Error, void, unknown>;
   onResponseComplete: () => Promise<unknown>;
   onRetryLoad: () => void;
-  onShowRecentChats: () => void;
 };
 
 const convertMessage = (message: AdvisorMessage): ThreadMessageLike => ({
@@ -152,8 +148,6 @@ function AdvisorThread({
   sendError,
   onDismissSendError,
   onRetryLoad,
-  newChatMutation,
-  onShowRecentChats,
   viewportRef,
   onViewportScroll,
   onFollowLatest,
@@ -165,8 +159,6 @@ function AdvisorThread({
   sendError: boolean;
   onDismissSendError: () => void;
   onRetryLoad: () => void;
-  newChatMutation: UseMutationResult<AdvisorSession, Error, void, unknown>;
-  onShowRecentChats: () => void;
   viewportRef: RefObject<HTMLDivElement | null>;
   onViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
   onFollowLatest: () => void;
@@ -236,27 +228,7 @@ function AdvisorThread({
 
       <ComposerPrimitive.Root className="shrink-0 border-t bg-white/95 p-2 md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3">
         <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm transition focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20 md:rounded-xl">
-          <button
-            type="button"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground md:hidden"
-            aria-label="Show recent chats"
-            title="Recent chats"
-            onClick={onShowRecentChats}
-          >
-            <RiSideBarLine aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-40 md:hidden"
-            aria-label="New advisor chat"
-            title="New chat"
-            onClick={() => newChatMutation.mutate()}
-            disabled={newChatMutation.isPending}
-          >
-            <RiAddLine aria-hidden="true" />
-          </button>
           <ComposerPrimitive.Input
-            autoFocus
             submitMode="enter"
             unstable_insertNewlineOnTouchEnter
             maxLength={2000}
@@ -289,10 +261,8 @@ export function AdvisorChatPanel({
   isLoading,
   loadError,
   sendMutation,
-  newChatMutation,
   onResponseComplete,
   onRetryLoad,
-  onShowRecentChats,
 }: AdvisorChatPanelProps) {
   const [stagedUserMessage, setStagedUserMessage] = useState<AdvisorMessage | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<AdvisorMessage | null>(null);
@@ -491,8 +461,6 @@ export function AdvisorChatPanel({
             sendError={sendMutation.isError}
             onDismissSendError={sendMutation.reset}
             onRetryLoad={onRetryLoad}
-            newChatMutation={newChatMutation}
-            onShowRecentChats={onShowRecentChats}
             viewportRef={viewportRef}
             onViewportScroll={handleViewportScroll}
             onFollowLatest={scrollToLatest}

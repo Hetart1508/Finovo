@@ -1,10 +1,16 @@
 import { Button } from '@/src/components/ui/button';
 import { cn } from '@/lib/utils';
-import { RiSideBarLine } from 'react-icons/ri';
+import { RiAddLine, RiSideBarLine } from 'react-icons/ri';
 import { AdvisorChatPanel } from '@/src/features/ai-advisor/components/AdvisorChatPanel';
 import { AdvisorHeader } from '@/src/features/ai-advisor/components/AdvisorHeader';
 import { AdvisorSidebar } from '@/src/features/ai-advisor/components/AdvisorSidebar';
 import { useAIAdvisor } from '@/src/features/ai-advisor/hooks/useAIAdvisor';
+
+const dismissKeyboard = () => {
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur();
+  }
+};
 
 export default function AIWealthAdvisor() {
   const advisor = useAIAdvisor();
@@ -16,6 +22,36 @@ export default function AIWealthAdvisor() {
         clearMutation={advisor.clearMutation}
         summaryCards={advisor.summaryCards}
       />
+
+      <div className="flex items-center gap-2 pb-2 md:hidden">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="Show recent chats"
+          title="Recent chats"
+          onClick={() => {
+            dismissKeyboard();
+            advisor.setShowRecentChats(true);
+          }}
+        >
+          <RiSideBarLine aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          aria-label="New advisor chat"
+          title="New chat"
+          onClick={() => {
+            dismissKeyboard();
+            advisor.newChatMutation.mutate();
+          }}
+          disabled={advisor.newChatMutation.isPending}
+        >
+          <RiAddLine aria-hidden="true" />
+        </Button>
+      </div>
 
       <div className={cn('grid min-h-0 flex-1 grid-cols-1 md:gap-2', advisor.showRecentChats ? 'md:grid-cols-[2.25rem_14rem_minmax(0,1fr)]' : 'md:grid-cols-[2.25rem_minmax(0,1fr)]')}>
         <div className="hidden min-h-0 justify-center md:flex">
@@ -52,10 +88,8 @@ export default function AIWealthAdvisor() {
           isLoading={advisor.isLoading}
           loadError={advisor.messagesLoadError}
           sendMutation={advisor.sendMutation}
-          newChatMutation={advisor.newChatMutation}
           onResponseComplete={advisor.refreshMessages}
           onRetryLoad={() => advisor.retryMessages()}
-          onShowRecentChats={() => advisor.setShowRecentChats(true)}
         />
       </div>
     </div>
