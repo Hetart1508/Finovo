@@ -301,12 +301,15 @@ export function AdvisorChatPanel({
   const streamActiveRef = useRef(true);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(false);
+  const initializedSessionRef = useRef<string | null>(null);
   const manualScrollRef = useRef(false);
   const manualScrollTimeoutRef = useRef<number | null>(null);
+  const initialScrollCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => {
     streamActiveRef.current = false;
     if (manualScrollTimeoutRef.current) window.clearTimeout(manualScrollTimeoutRef.current);
+    initialScrollCleanupRef.current?.();
   }, []);
 
   const runtimeMessages = useMemo(
@@ -318,6 +321,39 @@ export function AdvisorChatPanel({
     ],
     [introMessage, messages, stagedUserMessage, streamingMessage]
   );
+
+  useLayoutEffect(() => {
+    if (isLoading || initializedSessionRef.current === introMessage.session_id) return;
+
+    initializedSessionRef.current = introMessage.session_id;
+    shouldFollowRef.current = true;
+    initialScrollCleanupRef.current?.();
+
+    const scrollToBottom = () => {
+      const viewport = viewportRef.current;
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+        setShowScrollToBottom(false);
+      }
+    };
+
+    const frame = window.requestAnimationFrame(() => {
+      scrollToBottom();
+      window.requestAnimationFrame(scrollToBottom);
+    });
+    const timers = [50, 150, 350, 700].map((delay) => window.setTimeout(scrollToBottom, delay));
+    const observer = new ResizeObserver(scrollToBottom);
+    if (viewportRef.current) observer.observe(viewportRef.current);
+
+    initialScrollCleanupRef.current = () => {
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      observer.disconnect();
+      initialScrollCleanupRef.current = null;
+    };
+
+    return initialScrollCleanupRef.current;
+  }, [introMessage.session_id, isLoading, runtimeMessages.length]);
 
   useLayoutEffect(() => {
     if (!shouldFollowRef.current) return;
