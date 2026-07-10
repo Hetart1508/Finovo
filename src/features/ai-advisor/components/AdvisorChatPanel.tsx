@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
 import {
   ActionBarPrimitive,
@@ -11,11 +12,10 @@ import {
 } from '@assistant-ui/react';
 import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import type { AdvisorMessage, AdvisorSession } from '@/src/api/aiAdvisorApi';
+import type { AdvisorChatResponse, AdvisorMessage, AdvisorSession } from '@/src/api/aiAdvisorApi';
 import { formatIndianTime, parseApiDateTime } from '@/src/utils/formatters';
-import { cn } from '@/lib/utils';
 import {
   RiAddLine,
   RiArrowDownLine,
@@ -39,8 +39,9 @@ type AdvisorChatPanelProps = {
   introMessage: AdvisorMessage;
   isLoading: boolean;
   loadError: boolean;
-  sendMutation: UseMutationResult<unknown, Error, string, unknown>;
+  sendMutation: UseMutationResult<AdvisorChatResponse, Error, string, unknown>;
   newChatMutation: UseMutationResult<AdvisorSession, Error, void, unknown>;
+  onResponseComplete: () => Promise<unknown>;
   onRetryLoad: () => void;
   onShowRecentChats: () => void;
 };
@@ -148,6 +149,8 @@ function AdvisorThread({
   sendError,
   onDismissSendError,
   onRetryLoad,
+  newChatMutation,
+  onShowRecentChats,
 }: {
   hasConversation: boolean;
   isLoading: boolean;
@@ -155,6 +158,8 @@ function AdvisorThread({
   sendError: boolean;
   onDismissSendError: () => void;
   onRetryLoad: () => void;
+  newChatMutation: UseMutationResult<AdvisorSession, Error, void, unknown>;
+  onShowRecentChats: () => void;
 }) {
   return (
     <ThreadPrimitive.Root className="relative flex min-h-0 flex-1 flex-col">
@@ -214,6 +219,25 @@ function AdvisorThread({
 
       <ComposerPrimitive.Root className="shrink-0 border-t bg-white/95 p-2 md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3">
         <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm transition focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20 md:rounded-xl">
+          <button
+            type="button"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground md:hidden"
+            aria-label="Show recent chats"
+            title="Recent chats"
+            onClick={onShowRecentChats}
+          >
+            <RiSideBarLine aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-40 md:hidden"
+            aria-label="New advisor chat"
+            title="New chat"
+            onClick={() => newChatMutation.mutate()}
+            disabled={newChatMutation.isPending}
+          >
+            <RiAddLine aria-hidden="true" />
+          </button>
           <ComposerPrimitive.Input
             autoFocus
             submitMode="enter"
@@ -249,14 +273,46 @@ export function AdvisorChatPanel({
   loadError,
   sendMutation,
   newChatMutation,
+  onResponseComplete,
   onRetryLoad,
   onShowRecentChats,
 }: AdvisorChatPanelProps) {
+  const [streamingMessage, setStreamingMessage] = useState<AdvisorMessage | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const streamActiveRef = useRef(true);
+
+  useEffect(() => () => {
+    streamActiveRef.current = false;
+  }, []);
+
+  const runtimeMessages = useMemo(
+    () => streamingMessage
+      ? [introMessage, ...messages, streamingMessage]
+      : [introMessage, ...messages],
+    [introMessage, messages, streamingMessage]
+  );
+
+  const revealResponse = async (response: AdvisorChatResponse) => {
+    const completeMessage = response.message;
+    const pieces = completeMessage.content.split(/(\s+)/).filter(Boolean);
+    const batchSize = Math.max(1, Math.ceil(pieces.length / 220));
+    let visibleContent = '';
+
+    setStreamingMessage({ ...completeMessage, content: '' });
+
+    for (let index = 0; index < pieces.length; index += batchSize) {
+      if (!streamActiveRef.current) return;
+      visibleContent += pieces.slice(index, index + batchSize).join('');
+      setStreamingMessage({ ...completeMessage, content: visibleContent });
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    }
+  };
+
   const runtime = useExternalStoreRuntime({
-    messages: [introMessage, ...messages],
+    messages: runtimeMessages,
     convertMessage,
     isLoading,
-    isRunning: sendMutation.isPending,
+    isRunning: sendMutation.isPending || isStreaming,
     isSendDisabled: isLoading || loadError,
     onNew: async (message) => {
       const content = message.content
@@ -266,39 +322,27 @@ export function AdvisorChatPanel({
         .trim();
 
       if (!content) return;
-      await sendMutation.mutateAsync(content);
+      setIsStreaming(true);
+      const requestStartedAt = Date.now();
+
+      try {
+        const response = await sendMutation.mutateAsync(content);
+        const remainingThinkingTime = Math.max(0, 350 - (Date.now() - requestStartedAt));
+        if (remainingThinkingTime) {
+          await new Promise((resolve) => window.setTimeout(resolve, remainingThinkingTime));
+        }
+        await revealResponse(response);
+        await onResponseComplete();
+        setStreamingMessage(null);
+      } finally {
+        if (streamActiveRef.current) setIsStreaming(false);
+      }
     },
   });
 
   return (
-    <Card className="flex min-h-0 flex-1 rounded-none border-0 bg-transparent py-0 shadow-none md:rounded-lg md:border md:bg-card md:py-4 md:shadow-sm">
-      <CardHeader className="shrink-0 border-b bg-white/95 px-2 py-2 md:bg-transparent md:px-4 md:py-3">
-        <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-1 md:flex md:justify-between md:gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <Button type="button" variant="ghost" size="icon-lg" className="md:hidden" aria-label="Show recent chats" title="Show recent chats" onClick={onShowRecentChats}>
-              <RiSideBarLine aria-hidden="true" />
-            </Button>
-            <CardTitle className="hidden items-center gap-2 md:flex">
-              <RiSparkling2Line className="text-[#4F9CF9]" aria-hidden="true" /> Advisor Chat
-            </CardTitle>
-          </div>
-          <p className="min-w-0 truncate text-center text-sm font-semibold text-[#1F2937] md:hidden">Wealth Advisor</p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-lg"
-            className="justify-self-end md:hidden"
-            aria-label="New advisor chat"
-            title="New chat"
-            onClick={() => newChatMutation.mutate()}
-            disabled={newChatMutation.isPending}
-          >
-            <RiAddLine aria-hidden="true" />
-          </Button>
-        </div>
-        <CardDescription className="hidden md:block">Ask freely, answer follow-ups, and get a focused plan.</CardDescription>
-      </CardHeader>
-      <CardContent className={cn('flex min-h-0 flex-1 flex-col px-0 pt-0 md:px-4 md:pt-3')}>
+    <Card className="flex min-h-0 flex-1 rounded-none border-0 bg-transparent py-0 shadow-none md:rounded-lg md:border md:bg-card md:shadow-sm">
+      <CardContent className="flex min-h-0 flex-1 flex-col px-0 py-0 md:p-2">
         <AssistantRuntimeProvider runtime={runtime}>
           <AdvisorThread
             hasConversation={messages.length > 0}
@@ -307,6 +351,8 @@ export function AdvisorChatPanel({
             sendError={sendMutation.isError}
             onDismissSendError={sendMutation.reset}
             onRetryLoad={onRetryLoad}
+            newChatMutation={newChatMutation}
+            onShowRecentChats={onShowRecentChats}
           />
         </AssistantRuntimeProvider>
       </CardContent>

@@ -4,12 +4,19 @@ import { getData } from './http';
 
 export type { AdvisorMessage, AdvisorSession } from '@/src/types/ai';
 
+export type AdvisorChatResponse = {
+  message: AdvisorMessage;
+  reply: string;
+  provider: string;
+  portfolio?: unknown;
+};
+
 export const aiAdvisorApi = {
   listSessions: () => getData<AdvisorSession[]>(api.get('/ai-advisor/sessions')),
   listMessages: (sessionId: string) =>
     getData<AdvisorMessage[]>(api.get('/ai-advisor/messages', { params: { sessionId } })),
   sendMessage: (message: string, sessionId: string) =>
-    getData(api.post('/ai-advisor/chat', { message, sessionId })),
+    getData<AdvisorChatResponse>(api.post('/ai-advisor/chat', { message, sessionId })),
   clearMessages: (sessionId: string) =>
     getData(api.delete('/ai-advisor/messages', { params: { sessionId } })),
   createSession: () => getData<AdvisorSession>(api.post('/ai-advisor/sessions')),

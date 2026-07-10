@@ -50,11 +50,8 @@ export function useAIAdvisor() {
 
   const sendMutation = useMutation({
     mutationFn: (content: string) => aiAdvisorApi.sendMessage(content, sessionId),
-    onSuccess: async () => {
-      await Promise.all([
-        invalidateAdvisorMessages(queryClient, sessionId),
-        invalidateAdvisorSessions(queryClient),
-      ]);
+    onSuccess: () => {
+      void invalidateAdvisorSessions(queryClient);
     },
     onError: async (error) => {
       // The API saves the user's message before generating a response. Refreshing
@@ -114,6 +111,8 @@ export function useAIAdvisor() {
     setShowRecentChats(false);
   };
 
+  const refreshMessages = () => invalidateAdvisorMessages(queryClient, sessionId);
+
   return {
     sessionId,
     showRecentChats,
@@ -125,6 +124,7 @@ export function useAIAdvisor() {
     isLoading,
     messagesLoadError: messagesResult.isError,
     retryMessages: messagesResult.refetch,
+    refreshMessages,
     sendMutation,
     clearMutation,
     newChatMutation,

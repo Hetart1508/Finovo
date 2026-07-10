@@ -53,6 +53,7 @@ export default function AIWealthAdvisor() {
           loadError={advisor.messagesLoadError}
           sendMutation={advisor.sendMutation}
           newChatMutation={advisor.newChatMutation}
+          onResponseComplete={advisor.refreshMessages}
           onRetryLoad={() => advisor.retryMessages()}
           onShowRecentChats={() => advisor.setShowRecentChats(true)}
         />
