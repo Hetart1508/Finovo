@@ -426,3 +426,40 @@
   background-color: #4F9CF9 !important;
   color: #FFFFFF !important;
 }
+
+@media (max-width: 1023px) {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+
+  body {
+    overscroll-behavior-y: auto;
+  }
+
+  .app-shell {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+  }
+
+  .app-shell > main {
+    overflow: visible !important;
+  }
+
+  .app-scroll {
+    min-height: auto;
+    overflow: visible !important;
+    overscroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

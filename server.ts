@@ -538,6 +538,40 @@ const getTodayDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getAdvisorCurrentContext = () => {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(now);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value || "";
+
+  return {
+    timezone: "Asia/Kolkata",
+    locale: "en-IN",
+    iso_utc: now.toISOString(),
+    current_year: Number(getPart("year")),
+    current_month: getPart("month"),
+    current_day_of_month: Number(getPart("day")),
+    current_weekday: getPart("weekday"),
+    current_time: `${getPart("hour")}:${getPart("minute")} ${getPart("dayPeriod")}`.trim(),
+    current_date_label: new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(now),
+  };
+};
+
 const isFutureDateString = (value: string) => value > getTodayDateString();
 
 const MONTH_NAME_TO_NUMBER: Record<string, string> = {
@@ -1046,6 +1080,62 @@ const getAdvisorFallbackReply = (message: string, investments: any[], summary: a
   return `Based on your tracked investments, you have invested about ₹${invested.toLocaleString("en-IN")} and the current value is about ₹${currentValue.toLocaleString("en-IN")}. For a better answer, share the target amount, timeline, risk comfort, and monthly capacity if relevant. Short timelines usually need lower risk; 5+ year timelines can usually handle more growth exposure. This is planning guidance, not financial advice.`;
 };
 
+const getAgeFromDateOfBirth = (dateOfBirth: string | null | undefined) => {
+  if (!dateOfBirth) return null;
+  const parsed = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getUTCFullYear() - parsed.getUTCFullYear();
+  const birthdayThisYear = Date.UTC(today.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate());
+  if (Date.now() < birthdayThisYear) age -= 1;
+  return age >= 0 && age <= 120 ? age : null;
+};
+
+const getAdvisorProfileContext = async (userId: number) => {
+  const profile = await getUserProfile(userId);
+  const monthly_report_preferences = await getMonthlyReportPreferences(userId);
+
+  if (!profile) {
+    return {
+      personalization_enabled: false,
+      note: "No user profile was found.",
+    };
+  }
+
+  return {
+    personalization_enabled: Boolean(profile.ai_personalization_enabled),
+    note: profile.ai_personalization_enabled
+      ? "Full profile context is available for personalized finance answers."
+      : "User profile personalization is disabled. Do not use profile details unless the user shares them in chat.",
+    derived: {
+      age: getAgeFromDateOfBirth(profile.date_of_birth),
+      location: [profile.city, profile.country].filter(Boolean).join(", ") || null,
+    },
+    full_profile: {
+      id: Number(profile.id),
+      email: profile.email || null,
+      name: profile.name || null,
+      daily_threshold: Number(profile.daily_threshold || 0),
+      date_of_birth: profile.date_of_birth || null,
+      occupation: profile.occupation || null,
+      city: profile.city || null,
+      country: profile.country || "India",
+      monthly_income: profile.monthly_income === null ? null : Number(profile.monthly_income),
+      monthly_expense_target: profile.monthly_expense_target === null ? null : Number(profile.monthly_expense_target),
+      emergency_fund_target: profile.emergency_fund_target === null ? null : Number(profile.emergency_fund_target),
+      risk_appetite: profile.risk_appetite || null,
+      investment_goal: profile.investment_goal || null,
+      financial_dependents: profile.financial_dependents === null ? null : Number(profile.financial_dependents),
+      preferred_currency: profile.preferred_currency || "INR",
+      ai_personalization_enabled: Boolean(profile.ai_personalization_enabled),
+      profile_context_version: Number(profile.profile_context_version || 1),
+      profile_updated_at: profile.profile_updated_at || null,
+    },
+    monthly_report_preferences,
+  };
+};
+
 const getAdvisorPortfolioContext = async (userId: number) => {
   const investments = await queryAll(`
     SELECT id, investment_type, sip_name, fund_name, monthly_sip_amount, total_invested_amount,
@@ -1081,20 +1171,34 @@ const getAdvisorPortfolioContext = async (userId: number) => {
   };
 };
 
-const getWealthAdvisorReply = async (message: string, investments: any[], summary: any, history: any[]) => {
+const getWealthAdvisorReply = async (message: string, investments: any[], summary: any, history: any[], profileContext: any) => {
   if (!GEMINI_API_KEY || AI_PROVIDER !== "gemini") {
     return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
   }
 
-  const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's portfolio and chat history to answer any investment, wealth, goal, SIP, retirement, or money planning question.
+  const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's profile, portfolio, and chat history to answer any investment, wealth, goal, SIP, retirement, or money planning question.
 
 Rules:
+- If the user's latest message is only a greeting, thanks, acknowledgement, or small talk, reply in one short friendly line and ask how you can help. Do not mention profile, portfolio, goals, retirement, SIPs, calculations, or disclaimer for those messages.
+- Use current_context for all relative time/date questions such as today, tomorrow, this week, this month, this year, age, and birthday weekday/date calculations.
+- Use profile and portfolio context only when the user asks a finance, investment, planning, goal, or follow-up question that needs it.
 - Ask focused follow-up questions when important data is missing.
 - When enough data exists, give practical calculations, required SIP/lumpsum, feasibility, assumptions, and next steps.
+- Personalize the reply using all relevant fields from full_profile, derived profile values, and monthly_report_preferences when personalization_enabled is true.
+- Do not repeat sensitive profile fields such as email, date of birth, or internal ids unless the user directly asks or it is clearly needed for the answer.
+- If profile values conflict with the user's latest message, trust the latest message and mention the assumption.
+- Adapt tone and risk suggestions to age, dependents, income, emergency fund target, risk appetite, and stated investment goal when present.
 - Use INR formatting like ₹15,00,000.
 - Do not recommend specific stocks, funds, crypto, or guaranteed returns.
-- Keep the answer concise, under 170 words.
+- Match the answer length to the user's need: short questions can get short replies, but complex planning questions should get a clear explanation, calculations, assumptions, and next steps without an artificial character or word limit.
+- Use readable sections or bullets when the answer is longer.
 - End with a short disclaimer that this is planning guidance, not financial advice.
+
+Current context:
+${JSON.stringify(getAdvisorCurrentContext())}
+
+Profile context:
+${JSON.stringify(profileContext)}
 
 Portfolio summary:
 ${JSON.stringify(summary)}
@@ -1108,7 +1212,7 @@ ${JSON.stringify(history.slice(-8))}
 User message:
 ${message}`;
 
-  const reply = await generateGemini([{ text: prompt }], { responseMimeType: "text/plain", maxOutputTokens: 700 });
+  const reply = await generateGemini([{ text: prompt }], { responseMimeType: "text/plain", maxOutputTokens: 1800 });
   return { reply, provider: "gemini", model: GEMINI_MODEL };
 };
 
@@ -4242,10 +4346,13 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
       ORDER BY created_at ASC, id ASC
       LIMIT 30
     `, [req.user.id, sessionId]);
-    const { investments, summary } = await getAdvisorPortfolioContext(req.user.id);
+    const [{ investments, summary }, profileContext] = await Promise.all([
+      getAdvisorPortfolioContext(req.user.id),
+      getAdvisorProfileContext(req.user.id),
+    ]);
     const advisor = requestedTitle
       ? { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" }
-      : await getWealthAdvisorReply(message, investments, summary, history);
+      : await getWealthAdvisorReply(message, investments, summary, history, profileContext);
 
     const info = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
@@ -4261,6 +4368,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
         created_at: new Date().toISOString(),
       },
       portfolio: summary,
+      profile: profileContext,
       ...advisor,
     });
   } catch (error: any) {

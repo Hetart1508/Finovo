@@ -265,8 +265,17 @@ export default function Profile() {
     setReportForm((current) => ({ ...current, [key]: value }));
   };
 
+  const goToNextProfileStep = () => {
+    setProfileFormStep((current) => Math.min(current + 1, lastProfileFormStep));
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (profileFormStep < lastProfileFormStep) {
+      goToNextProfileStep();
+      return;
+    }
+
     const payload: UserProfilePayload = {
       name: form.name.trim(),
       date_of_birth: form.date_of_birth || null,
@@ -881,7 +890,10 @@ export default function Profile() {
               {profileFormStep < lastProfileFormStep ? (
                 <Button
                   type="button"
-                  onClick={() => setProfileFormStep((current) => Math.min(current + 1, lastProfileFormStep))}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    goToNextProfileStep();
+                  }}
                   className="bg-[#4F9CF9] hover:bg-[#3F8BE5]"
                 >
                   Next
