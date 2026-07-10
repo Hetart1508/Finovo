@@ -14,6 +14,7 @@ import remarkGfm from 'remark-gfm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import type { AdvisorMessage, AdvisorSession } from '@/src/api/aiAdvisorApi';
+import { formatIndianTime, parseApiDateTime } from '@/src/utils/formatters';
 import { cn } from '@/lib/utils';
 import {
   RiAddLine,
@@ -48,7 +49,7 @@ const convertMessage = (message: AdvisorMessage): ThreadMessageLike => ({
   id: `${message.session_id}-${message.id}`,
   role: message.role,
   content: [{ type: 'text', text: message.content }],
-  createdAt: new Date(message.created_at),
+  createdAt: parseApiDateTime(message.created_at),
   status: message.role === 'assistant' ? { type: 'complete', reason: 'stop' } : undefined,
 });
 
@@ -58,7 +59,7 @@ function MessageTime() {
 
   return (
     <time className="mt-1 block text-[0.68rem] text-muted-foreground" dateTime={createdAt.toISOString()}>
-      {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      {formatIndianTime(createdAt)}
     </time>
   );
 }
@@ -159,7 +160,10 @@ function AdvisorThread({
     <ThreadPrimitive.Root className="relative flex min-h-0 flex-1 flex-col">
       <ThreadPrimitive.Viewport
         autoScroll
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 md:rounded-lg md:border md:border-border md:px-2"
+        scrollToBottomOnInitialize={false}
+        scrollToBottomOnThreadSwitch={false}
+        scrollToBottomOnRunStart={false}
+        className="min-h-0 flex-1 scroll-smooth overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 md:rounded-lg md:border md:border-border md:px-2"
       >
         <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
 

@@ -1,5 +1,4 @@
 import type { UseMutationResult } from '@tanstack/react-query';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import { RiDeleteBinLine } from 'react-icons/ri';
 
@@ -11,33 +10,31 @@ type AdvisorHeaderProps = {
 
 export function AdvisorHeader({ messageCount, clearMutation, summaryCards }: AdvisorHeaderProps) {
   return (
-    <>
-      <div className="hidden min-h-0 flex-col gap-2 md:flex md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-[#1F2937] sm:text-2xl">AI Wealth Advisor</h1>
-          <p className="text-sm text-[#6B7280]">Goal planning based on your saved investments.</p>
-        </div>
-        <Button
-          variant="outline"
-          className="h-9 w-fit gap-2"
-          onClick={() => clearMutation.mutate()}
-          disabled={!messageCount || clearMutation.isPending}
-        >
-          <RiDeleteBinLine aria-hidden="true" />
-          Clear Chat
-        </Button>
+    <div className="hidden min-h-0 items-center gap-3 rounded-lg border bg-card px-3 py-2 shadow-sm md:flex">
+      <div className="min-w-40 shrink-0">
+        <h1 className="text-lg font-bold tracking-tight text-[#1F2937]">AI Wealth Advisor</h1>
+        <p className="text-xs text-[#6B7280]">Based on your investments</p>
       </div>
 
-      <div className="hidden min-h-0 grid-cols-2 gap-2 md:grid md:grid-cols-4">
+      <div className="grid min-w-0 flex-1 grid-cols-4 divide-x divide-border rounded-md border bg-[#FAFBFC]">
         {summaryCards.map(([label, value]) => (
-          <Card key={label} className="rounded-lg py-1.5 shadow-sm sm:py-2">
-            <CardHeader className="px-3 py-2 sm:py-3">
-              <CardDescription>{label}</CardDescription>
-              <CardTitle className="text-lg sm:text-2xl">{value}</CardTitle>
-            </CardHeader>
-          </Card>
+          <div key={label} className="min-w-0 px-3 py-1.5">
+            <p className="truncate text-[0.68rem] text-[#6B7280]">{label}</p>
+            <p className="truncate text-sm font-bold text-[#1F2937]">{value}</p>
+          </div>
         ))}
       </div>
-    </>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="shrink-0 gap-1.5"
+        onClick={() => clearMutation.mutate()}
+        disabled={!messageCount || clearMutation.isPending}
+      >
+        <RiDeleteBinLine aria-hidden="true" />
+        <span className="hidden xl:inline">Clear Chat</span>
+      </Button>
+    </div>
   );
 }
