@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import {
@@ -19,10 +19,8 @@ import { formatAdvisorCurrency } from '../aiAdvisor.utils';
 
 export function useAIAdvisor() {
   const queryClient = useQueryClient();
-  const [message, setMessage] = useState('');
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(storageKeys.aiAdvisorSession) || defaultAdvisorSessionId);
   const [showRecentChats, setShowRecentChats] = useState(() => window.matchMedia('(min-width: 768px)').matches);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const investmentsResult = useQuery(investmentsQuery());
   const summaryResult = useQuery(investmentSummaryQuery());
   const sessionsResult = useQuery(aiAdvisorSessionsQuery());
@@ -52,12 +50,16 @@ export function useAIAdvisor() {
 
   const sendMutation = useMutation({
     mutationFn: (content: string) => aiAdvisorApi.sendMessage(content, sessionId),
-    onSuccess: () => {
-      setMessage('');
-      invalidateAdvisorMessages(queryClient, sessionId);
-      invalidateAdvisorSessions(queryClient);
+    onSuccess: async () => {
+      await Promise.all([
+        invalidateAdvisorMessages(queryClient, sessionId),
+        invalidateAdvisorSessions(queryClient),
+      ]);
     },
-    onError: (error) => {
+    onError: async (error) => {
+      // The API saves the user's message before generating a response. Refreshing
+      // here keeps that question visible even when the AI provider is unavailable.
+      await invalidateAdvisorMessages(queryClient, sessionId);
       toast.error(getApiMessage(error, 'AI Wealth Advisor failed.'));
     },
   });
@@ -79,7 +81,7 @@ export function useAIAdvisor() {
     onSuccess: (session) => {
       setSessionId(session.session_id);
       localStorage.setItem(storageKeys.aiAdvisorSession, session.session_id);
-      setMessage('');
+      sendMutation.reset();
       invalidateAdvisorSessions(queryClient);
     },
     onError: (error) => {
@@ -103,42 +105,30 @@ export function useAIAdvisor() {
   });
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length, sendMutation.isPending]);
-
-  useEffect(() => {
     localStorage.setItem(storageKeys.aiAdvisorSession, sessionId);
   }, [sessionId]);
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const trimmed = message.trim();
-    if (!trimmed || sendMutation.isPending) return;
-    sendMutation.mutate(trimmed);
-  };
-
   const selectSession = (nextSessionId: string) => {
     setSessionId(nextSessionId);
+    sendMutation.reset();
     setShowRecentChats(false);
   };
 
   return {
-    message,
-    setMessage,
     sessionId,
     showRecentChats,
     setShowRecentChats,
-    messagesEndRef,
     messages,
     sessions,
     summaryCards,
     introMessage,
     isLoading,
+    messagesLoadError: messagesResult.isError,
+    retryMessages: messagesResult.refetch,
     sendMutation,
     clearMutation,
     newChatMutation,
     deleteChatMutation,
-    handleSubmit,
     selectSession,
   };
 }

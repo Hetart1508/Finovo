@@ -46,15 +46,14 @@ export default function AIWealthAdvisor() {
         ) : null}
 
         <AdvisorChatPanel
-          message={advisor.message}
+          key={advisor.sessionId}
           messages={advisor.messages}
           introMessage={advisor.introMessage}
           isLoading={advisor.isLoading}
-          messagesEndRef={advisor.messagesEndRef}
+          loadError={advisor.messagesLoadError}
           sendMutation={advisor.sendMutation}
           newChatMutation={advisor.newChatMutation}
-          onMessageChange={advisor.setMessage}
-          onSubmit={advisor.handleSubmit}
+          onRetryLoad={() => advisor.retryMessages()}
           onShowRecentChats={() => advisor.setShowRecentChats(true)}
         />
       </div>

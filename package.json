@@ -14,6 +14,8 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.26",
+    "@assistant-ui/react-markdown": "^0.14.5",
     "@base-ui/react": "^1.4.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@tailwindcss/vite": "^4.1.14",
@@ -44,6 +46,7 @@
     "react-router-dom": "^7.14.1",
     "react-toastify": "^11.0.5",
     "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1",
     "sass": "^1.101.0",
     "shadcn": "^4.2.0",
     "tailwind-merge": "^3.5.0",
