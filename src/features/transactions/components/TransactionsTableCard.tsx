@@ -66,24 +66,30 @@ export function TransactionsTableCard({
   return (
     <Card className="min-w-0 overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)]">
       <CardContent className="min-w-0 p-0">
-        <div className="min-w-0 max-w-full [&_[data-slot=table-container]]:touch-pan-x [&_[data-slot=table-container]]:overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-          <Table className="min-w-[1050px] table-fixed">
+        <div className="min-w-0 max-w-full">
+          <Table
+            className={cn(
+              'table-fixed [&_th]:px-2 [&_td]:px-2',
+              showCreatedBy ? 'min-w-[860px]' : 'min-w-[760px]'
+            )}
+            containerClassName="touch-auto overflow-x-auto overflow-y-visible overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+          >
           <colgroup>
-            <col className="w-[52px]" />
-            <col className="w-[60px]" />
-            <col className="w-[96px]" />
-            <col className="w-[28%]" />
-            <col className="w-[108px]" />
+            <col className="w-[40px]" />
+            <col className="w-[38px]" />
+            <col className="w-[76px]" />
+            <col className="w-[26%]" />
+            <col className="w-[76px]" />
+            <col className="w-[68px]" />
             <col className="w-[94px]" />
-            <col className="w-[108px]" />
-            {showCreatedBy ? <col className="w-[112px]" /> : null}
-            <col className="w-[78px]" />
+            {showCreatedBy ? <col className="w-[104px]" /> : null}
+            <col className="w-[92px]" />
           </colgroup>
           <TableHeader className="bg-[#F8FAFC]">
             <TableRow className="border-[#D9DEE7] hover:bg-transparent">
-              <TableHead className="font-bold text-[#4B5563]">SR No</TableHead>
-              <SortableHead sort="type" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Type</SortableHead>
-              <SortableHead sort="date" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="text-center">Date</SortableHead>
+              <TableHead className="px-1 font-bold text-[#4B5563]">SR No</TableHead>
+              <SortableHead sort="type" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="px-1">Type</SortableHead>
+              <SortableHead sort="date" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort} className="px-1 text-center text-xs">Date</SortableHead>
               <SortableHead sort="description" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Description</SortableHead>
               <SortableHead sort="category" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Category</SortableHead>
               <SortableHead sort="payment_mode" sortKey={sortKey} sortDirection={sortDirection} onSort={onSort}>Mode</SortableHead>
@@ -192,8 +198,8 @@ function TransactionRow({
 }) {
   return (
     <TableRow className="border-[#E5E7EB] bg-white hover:bg-[#F8FBFF]">
-      <TableCell className="font-medium text-[#6B7280]">{serialNumber}</TableCell>
-      <TableCell>
+      <TableCell className="px-1 font-medium text-[#6B7280]">{serialNumber}</TableCell>
+      <TableCell className="px-1">
         <div className={cn(
           'flex h-7 w-7 items-center justify-center rounded-full',
           transaction.type === 'income' ? 'bg-[#EAFBF0] text-[#34C759]' : 'bg-[#FFF1F1] text-[#FF6B6B]'
@@ -201,7 +207,7 @@ function TransactionRow({
           {transaction.type === 'income' ? <RiArrowRightUpLine className="text-base" aria-hidden="true" /> : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
         </div>
       </TableCell>
-      <TableCell className="text-center text-[#6B7280]">
+      <TableCell className="px-1 text-center text-xs text-[#6B7280]">
         {format(parseISO(transaction.date), 'dd MMM yyyy')}
       </TableCell>
       <TableCell className="min-w-0">

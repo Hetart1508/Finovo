@@ -233,7 +233,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="surface-panel m-3 mb-0 flex min-h-16 items-center justify-between gap-3 rounded-lg px-3 sm:m-4 sm:mb-0 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <Button
@@ -278,8 +278,8 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        <div className="app-scroll flex-1 p-3 sm:p-4 lg:p-6 xl:p-8">
-          <div className="mx-auto w-full max-w-[100rem]">
+        <div className="app-scroll min-w-0 flex-1 p-3 sm:p-4 lg:p-6 xl:p-8">
+          <div className="mx-auto min-w-0 w-full max-w-[100rem]">
             {children}
           </div>
         </div>

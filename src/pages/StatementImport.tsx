@@ -31,7 +31,7 @@ export default function StatementImport() {
   const { aliasEdits, setAliasEdits, deleteAlias, updateAlias } = useMerchantAliasMutations();
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full min-w-0 max-w-7xl space-y-6 overflow-x-hidden">
       <PageHeader
         title="Statement Import"
         description="Extract income and expenses from a bank, card, UPI, or wallet statement before saving them."

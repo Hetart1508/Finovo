@@ -47,9 +47,9 @@ export function StatementPreviewCard({
   onRemoveRow,
 }: StatementPreviewCardProps) {
   return (
-    <Card className="border-none shadow-sm">
-      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
+    <Card className="min-w-0 w-full border-none shadow-sm">
+      <CardHeader className="min-w-0 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <CardTitle className="text-lg">Preview Transactions</CardTitle>
           <CardDescription>Review extracted income and outgoing rows. Nothing is saved until you approve.</CardDescription>
         </div>
@@ -62,8 +62,12 @@ export function StatementPreviewCard({
           {approveLoading ? 'Saving...' : `Approve All${transactions.length ? ` (${transactions.length})` : ''}`}
         </Button>
       </CardHeader>
-      <CardContent className="p-0">
-        <Table>
+      <CardContent className="min-w-0 p-0">
+        <div className="w-full min-w-0 max-w-full">
+        <Table
+          className="min-w-[850px]"
+          containerClassName="max-w-full touch-auto overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+        >
           <TableHeader>
             <TableRow className="hover:bg-transparent border-[#E5E7EB]">
               <TableHead className="w-[100px]">Type</TableHead>
@@ -158,6 +162,7 @@ export function StatementPreviewCard({
             )}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );

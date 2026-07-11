@@ -11,8 +11,8 @@ type StatementSummaryCardsProps = {
 
 export function StatementSummaryCards({ statementFile, model, totals }: StatementSummaryCardsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-      <Card className="border-none shadow-sm">
+    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-3">
+      <Card className="min-w-0 border-none shadow-sm">
         <CardContent className="p-5">
           <p className="text-sm text-[#6B7280]">Statement</p>
           <div className="mt-2 flex items-center gap-3">
@@ -23,14 +23,14 @@ export function StatementSummaryCards({ statementFile, model, totals }: Statemen
         </CardContent>
       </Card>
 
-      <Card className="compact-metric-card border-none shadow-sm">
+      <Card className="compact-metric-card min-w-0 border-none shadow-sm">
         <CardContent className="p-5 text-center">
           <p className="text-sm text-[#6B7280]">Income Found</p>
           <p className="mt-2 text-2xl font-black text-[#34C759]">{formatRupees(totals.income)}</p>
         </CardContent>
       </Card>
 
-      <Card className="compact-metric-card border-none shadow-sm">
+      <Card className="compact-metric-card min-w-0 border-none shadow-sm">
         <CardContent className="p-5 text-center">
           <p className="text-sm text-[#6B7280]">Expense Found</p>
           <p className="mt-2 text-2xl font-black text-[#FF6B6B]">{formatRupees(totals.expense)}</p>

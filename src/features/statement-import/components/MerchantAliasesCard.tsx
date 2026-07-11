@@ -25,7 +25,7 @@ export function MerchantAliasesCard({
   deleteAlias,
 }: MerchantAliasesCardProps) {
   return (
-    <Card className="border-none shadow-sm">
+    <Card className="min-w-0 w-full border-none shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <RiStore2Line className="text-[#4F9CF9]" aria-hidden="true" />
