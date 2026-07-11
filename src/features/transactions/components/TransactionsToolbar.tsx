@@ -76,7 +76,7 @@ export function TransactionsToolbar({
 
   return (
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-      <div className="relative max-w-md flex-1">
+      <div className="relative w-full max-w-md flex-1">
         <RiSearchLine className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-[#6B7280]" aria-hidden="true" />
         <Input
           placeholder="Search description, category, or mode..."
@@ -86,9 +86,9 @@ export function TransactionsToolbar({
         />
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="grid w-full grid-cols-2 items-center gap-3 md:flex md:w-auto">
         <Select value={filter} onValueChange={onFilterChange}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-full md:w-[150px]">
             <RiFilter3Line className="mr-2 text-base" aria-hidden="true" />
             <SelectValue placeholder="Filter" />
           </SelectTrigger>
@@ -101,8 +101,8 @@ export function TransactionsToolbar({
 
         <Dialog open={addDialogOpen} onOpenChange={handleAddDialogOpenChange}>
           <DialogTrigger>
-            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]">
-              <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
+            <Button className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5]">
+              <RiAddCircleLine className="shrink-0 text-base" aria-hidden="true" />
               Add Transaction
             </Button>
           </DialogTrigger>

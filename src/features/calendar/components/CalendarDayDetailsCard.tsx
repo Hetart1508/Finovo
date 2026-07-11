@@ -23,7 +23,7 @@ export function CalendarDayDetailsCard({
   threshold,
 }: CalendarDayDetailsCardProps) {
   return (
-    <Card className="border-none shadow-sm">
+    <Card className="min-w-0 border-none shadow-sm">
       <CardHeader className="text-center">
         <CardTitle className="text-lg">
           {selectedDate ? format(selectedDate, 'dd MMMM yyyy') : 'Select a date'}
@@ -63,17 +63,24 @@ export function CalendarDayDetailsCard({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <p className="text-center text-sm font-semibold uppercase tracking-wider text-[#6B7280]">Transactions</p>
           {transactions.length > 0 ? (
             transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-center justify-between py-2 border-b border-[#E5E7EB] last:border-0">
-                <div>
-                  <p className="text-sm font-medium">{transaction.description || transaction.category}</p>
-                  <p className="text-xs text-[#6B7280]">{transaction.category} • {transaction.payment_mode}</p>
+              <div
+                key={transaction.id}
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-[#E5E7EB] py-3 text-left last:border-0"
+              >
+                <div className="min-w-0">
+                  <p className="[overflow-wrap:anywhere] text-sm font-medium leading-5">
+                    {transaction.description || transaction.category}
+                  </p>
+                  <p className="mt-1 [overflow-wrap:anywhere] text-xs leading-4 text-[#6B7280]">
+                    {transaction.category} • {transaction.payment_mode}
+                  </p>
                 </div>
                 <p className={cn(
-                  'text-sm font-bold',
+                  'whitespace-nowrap text-right text-sm font-bold leading-5',
                   transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
                 )}>
                   {formatSignedRupees(transaction.amount, transaction.type === 'income')}

@@ -406,9 +406,37 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[22rem_1fr]">
-        <div className="space-y-6">
-          <Card className="surface-panel rounded-lg">
+      <Card className="surface-panel rounded-lg">
+        <CardContent className="flex flex-col gap-4 pt-0 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#1F2937]">Profile information</p>
+            <p className="mt-1 text-sm leading-5 text-[#6B7280]">
+              Review your profile status or update your personal and financial details.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="grid grid-cols-3 gap-2">
+              <SummaryRow label="Basic" value={`${Math.min(completion.completed, 6)} of 6`} />
+              <SummaryRow label="Finance" value={`${Math.max(Math.min(completion.completed - 6, 5), 0)} of 5`} />
+              <SummaryRow label="AI" value={profile.ai_personalization_enabled ? 'Enabled' : 'Off'} />
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
+                setForm(profileToForm(profile));
+                setIsProfileFormOpen(true);
+              }}
+              className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] lg:w-auto"
+            >
+              <RiEdit2Line aria-hidden="true" />
+              {completion.completed > 1 ? 'Edit Profile' : 'Add Profile'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="columns-1 gap-3 sm:gap-6 md:columns-2">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
@@ -435,7 +463,7 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          <Card className="surface-panel rounded-lg">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiWallet3Line className="text-[#34C759]" aria-hidden="true" />
@@ -450,7 +478,7 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          <Card className="surface-panel rounded-lg">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiGroupLine className="text-[#4F9CF9]" aria-hidden="true" />
@@ -596,7 +624,7 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          <Card className="surface-panel rounded-lg">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiShieldUserLine className="text-[#4F9CF9]" aria-hidden="true" />
@@ -617,7 +645,7 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          <Card className="surface-panel rounded-lg">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiMailLine className="text-[#F59E0B]" aria-hidden="true" />
@@ -703,7 +731,7 @@ export default function Profile() {
             </CardContent>
           </Card>
 
-          <Card className="surface-panel rounded-lg border-[#FFD6D6]">
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg border-[#FFD6D6] sm:mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <RiDeleteBin6Line className="text-[#FF6B6B]" aria-hidden="true" />
@@ -725,38 +753,10 @@ export default function Profile() {
               </Button>
             </CardContent>
           </Card>
-        </div>
-
-        <Card className="surface-panel rounded-lg">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Profile information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm leading-6 text-[#6B7280]">
-              Profile details are edited in a smaller step-by-step popup, so this page stays short and your summary remains visible.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <SummaryRow label="Basic" value={`${Math.min(completion.completed, 6)} of 6`} />
-              <SummaryRow label="Finance" value={`${Math.max(Math.min(completion.completed - 6, 5), 0)} of 5`} />
-              <SummaryRow label="AI" value={profile.ai_personalization_enabled ? 'Enabled' : 'Off'} />
-            </div>
-            <Button
-              type="button"
-              onClick={() => {
-                setForm(profileToForm(profile));
-                setIsProfileFormOpen(true);
-              }}
-              className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] sm:w-auto"
-            >
-              <RiEdit2Line aria-hidden="true" />
-              {completion.completed > 1 ? 'Edit Profile' : 'Add Profile'}
-            </Button>
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={isProfileFormOpen} onOpenChange={setIsProfileFormOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[34rem] flex-col overflow-hidden sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{completion.completed > 1 ? 'Edit profile' : 'Add profile'}</DialogTitle>
             <DialogDescription>
@@ -764,7 +764,7 @@ export default function Profile() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-5">
             <div className="grid grid-cols-3 gap-2" aria-label="Profile form progress">
               {profileFormSteps.map((step, index) => (
                 <button
@@ -782,8 +782,9 @@ export default function Profile() {
               ))}
             </div>
 
-            {profileFormStep === 0 ? (
-              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1 [&_input:not([type=checkbox])]:border-[#9CA3AF] [&_select]:border-[#9CA3AF] [&_textarea]:border-[#9CA3AF]">
+              {profileFormStep === 0 ? (
+                <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Full name" htmlFor="profile-name">
                   <Input id="profile-name" value={form.name} onChange={(event) => updateField('name', event.target.value)} required />
                 </Field>
@@ -802,11 +803,11 @@ export default function Profile() {
                 <Field label="Country" htmlFor="profile-country">
                   <Input id="profile-country" value={form.country} onChange={(event) => updateField('country', event.target.value)} placeholder="India" />
                 </Field>
-              </section>
-            ) : null}
+                </section>
+              ) : null}
 
-            {profileFormStep === 1 ? (
-              <section className="space-y-4">
+              {profileFormStep === 1 ? (
+                <section className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Monthly income" htmlFor="profile-income">
                     <Input id="profile-income" type="number" min="0" step="0.01" value={form.monthly_income} onChange={(event) => updateField('monthly_income', event.target.value)} placeholder="150000" />
@@ -847,11 +848,11 @@ export default function Profile() {
                     className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   />
                 </Field>
-              </section>
-            ) : null}
+                </section>
+              ) : null}
 
-            {profileFormStep === 2 ? (
-              <section className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-4">
+              {profileFormStep === 2 ? (
+                <section className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-4">
                 <label className="flex items-start gap-3">
                   <input
                     type="checkbox"
@@ -866,10 +867,11 @@ export default function Profile() {
                     </span>
                   </span>
                 </label>
-              </section>
-            ) : null}
+                </section>
+              ) : null}
+            </div>
 
-            <DialogFooter className="sm:items-center">
+            <DialogFooter className="shrink-0 sm:items-center">
               <Button
                 type="button"
                 variant="outline"
