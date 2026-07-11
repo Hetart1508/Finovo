@@ -148,8 +148,8 @@ export function useStatementImport() {
     try {
       const unlockedPdf = await renderPasswordProtectedPdf(passwordProtectedFile, password);
       const unlockedFile = passwordProtectedFile;
-      setPasswordProtectedFile(null);
       await previewFile(unlockedFile, unlockedPdf.pages, unlockedPdf.extractedText);
+      setPasswordProtectedFile(null);
       return true;
     } catch (error: unknown) {
       if (error instanceof IncorrectStatementPasswordError) {

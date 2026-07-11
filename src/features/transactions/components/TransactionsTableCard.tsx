@@ -69,15 +69,15 @@ export function TransactionsTableCard({
         <div className="min-w-0 max-w-full">
           <Table
             className={cn(
-              'table-fixed [&_th]:px-2 [&_td]:px-2',
-              showCreatedBy ? 'min-w-[860px]' : 'min-w-[760px]'
+              'table-fixed [&_th]:px-1 [&_td]:px-1',
+              showCreatedBy ? 'min-w-[820px]' : 'min-w-[720px]'
             )}
             containerClassName="touch-auto overflow-x-auto overflow-y-visible overscroll-x-contain [-webkit-overflow-scrolling:touch]"
           >
           <colgroup>
-            <col className="w-[40px]" />
-            <col className="w-[38px]" />
-            <col className="w-[76px]" />
+            <col className="w-[36px]" />
+            <col className="w-[36px]" />
+            <col className="w-[68px]" />
             <col className="w-[26%]" />
             <col className="w-[76px]" />
             <col className="w-[68px]" />

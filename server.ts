@@ -930,6 +930,7 @@ const generateGemini = async (
     maxOutputTokens?: number;
     onModel?: (model: string) => void;
     totalTimeoutMs?: number;
+    validateResponse?: (text: string) => void;
   } = {}
 ) => {
   if (!GEMINI_API_KEY) {
@@ -1002,6 +1003,18 @@ const generateGemini = async (
 
       if (!text) {
         lastError = `Gemini returned an empty response using ${model}`;
+        break;
+      }
+
+      try {
+        options.validateResponse?.(text);
+      } catch (error: any) {
+        lastError = `Gemini returned an invalid response using ${model}: ${error?.message || String(error)}`;
+        if (attempt === 1 && Date.now() < deadline) {
+          logger.warn("Gemini returned an invalid response, retrying model", { model, error: lastError });
+          continue;
+        }
+        logger.warn("Gemini returned an invalid response, trying fallback model", { model, error: lastError });
         break;
       }
 
@@ -1614,7 +1627,14 @@ const importStatementWithGemini = async (
 
   const result = await generateGemini(
     [...statementParts, { text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 8192, totalTimeoutMs: 60_000 }
+    {
+      responseMimeType: "application/json",
+      maxOutputTokens: 8192,
+      totalTimeoutMs: 120_000,
+      validateResponse: (text) => {
+        normalizeGeminiStatementTransactions(text);
+      },
+    }
   );
 
   return normalizeGeminiStatementTransactions(result);
@@ -4925,10 +4945,10 @@ const getGeminiImportHint = (message: string) => {
   }
 
   if (/JSON|parse|transactions/i.test(message)) {
-    return "Gemini could not return clean transaction JSON. Try a clearer, non-password-protected statement.";
+    return "The PDF was unlocked, but Gemini could not extract clean transaction data. Retry the import or try a clearer statement.";
   }
 
-  return "Make sure the file is a readable, non-password-protected PDF/JPG/PNG and Gemini billing/quota is available.";
+  return "Make sure the file is a readable PDF/JPG/PNG and Gemini billing/quota is available.";
 };
 
 app.post("/api/upload", authenticateToken, upload.single('file'), async (req: any, res) => {
