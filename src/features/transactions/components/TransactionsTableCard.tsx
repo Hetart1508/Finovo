@@ -64,32 +64,10 @@ export function TransactionsTableCard({
   showCreatedBy = false,
 }: TransactionsTableCardProps) {
   return (
-    <Card className="overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)]">
-      <CardContent className="p-0">
-        <div className="md:hidden">
-          {loading ? (
-            <StateMessage>Loading transactions...</StateMessage>
-          ) : totalTransactions === 0 ? (
-            <StateMessage>No transactions found.</StateMessage>
-          ) : (
-            <div className="divide-y divide-[#E5E7EB]">
-              {transactions.map((transaction, index) => (
-                <MobileTransactionCard
-                  key={transaction.id}
-                  transaction={transaction}
-                  serialNumber={pageStartIndex + index + 1}
-                  onViewBill={onViewBill}
-                  onEditTransaction={onEditTransaction}
-                  onDeleteTransaction={onDeleteTransaction}
-                  showCreatedBy={showCreatedBy}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="hidden md:block">
-          <Table className="table-fixed">
+    <Card className="min-w-0 overflow-hidden border border-[#E5E7EB] shadow-[0_18px_45px_rgba(31,41,55,0.08)]">
+      <CardContent className="min-w-0 p-0">
+        <div className="min-w-0 max-w-full [&_[data-slot=table-container]]:touch-pan-x [&_[data-slot=table-container]]:overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <Table className="min-w-[1050px] table-fixed">
           <colgroup>
             <col className="w-[52px]" />
             <col className="w-[60px]" />
@@ -148,109 +126,6 @@ export function TransactionsTableCard({
         />
       </CardContent>
     </Card>
-  );
-}
-
-function MobileTransactionCard({
-  transaction,
-  serialNumber,
-  onViewBill,
-  onEditTransaction,
-  onDeleteTransaction,
-  showCreatedBy,
-}: {
-  transaction: Transaction;
-  serialNumber: number;
-  onViewBill: (transaction: Transaction) => void;
-  onEditTransaction: (transaction: Transaction) => void;
-  onDeleteTransaction: (id: number) => void;
-  showCreatedBy: boolean;
-}) {
-  return (
-    <article className="min-w-0 space-y-3 bg-white p-3 sm:p-4">
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className={cn(
-            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-            transaction.type === 'income' ? 'bg-[#EAFBF0] text-[#34C759]' : 'bg-[#FFF1F1] text-[#FF6B6B]'
-          )}>
-            {transaction.type === 'income'
-              ? <RiArrowRightUpLine className="text-base" aria-hidden="true" />
-              : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
-          </div>
-          <div className="min-w-0">
-            <p className="break-words font-semibold leading-5 text-[#1F2937]">
-              {transaction.merchant_name || transaction.description || '-'}
-            </p>
-            {transaction.merchant_name && transaction.description && transaction.description !== transaction.merchant_name ? (
-              <p className="mt-1 break-words text-xs leading-5 text-[#6B7280]">{transaction.description}</p>
-            ) : null}
-            <p className="mt-1 text-xs text-[#6B7280]">
-              #{serialNumber} · {format(parseISO(transaction.date), 'dd MMM yyyy')}
-            </p>
-          </div>
-        </div>
-        <p className={cn(
-          'shrink-0 whitespace-nowrap text-sm font-bold',
-          transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#FF6B6B]'
-        )}>
-          {formatSignedRupees(transaction.amount, transaction.type === 'income')}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-        <div className="min-w-0 rounded-md bg-[#F8FAFC] px-3 py-2">
-          <p className="text-[#6B7280]">Category</p>
-          <p className="mt-0.5 break-words font-medium text-[#1F2937]">{transaction.category || '-'}</p>
-        </div>
-        <div className="min-w-0 rounded-md bg-[#F8FAFC] px-3 py-2">
-          <p className="text-[#6B7280]">Payment mode</p>
-          <p className="mt-0.5 break-words font-medium text-[#1F2937]">{transaction.payment_mode || '-'}</p>
-        </div>
-      </div>
-
-      {transaction.payee_vpa ? (
-        <p className="[overflow-wrap:anywhere] text-xs text-[#6B7280]">{transaction.payee_vpa}</p>
-      ) : null}
-      {showCreatedBy ? (
-        <p className="break-words text-xs text-[#6B7280]">
-          Added by {transaction.created_by_name || transaction.created_by_email || 'Member'}
-        </p>
-      ) : null}
-
-      <div className="flex items-center justify-end gap-1 border-t border-[#EEF0F4] pt-2">
-        {transaction.bill_url ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-[#6B7280] hover:text-[#4F9CF9]"
-            onClick={() => onViewBill(transaction)}
-            aria-label="View invoice bill"
-            title="View invoice bill"
-          >
-            <RiEyeLine className="text-base" aria-hidden="true" />
-          </Button>
-        ) : null}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-[#6B7280] hover:text-[#4F9CF9]"
-          onClick={() => onEditTransaction(transaction)}
-          aria-label="Edit transaction"
-        >
-          <RiPencilLine className="text-base" aria-hidden="true" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-[#6B7280] hover:text-[#FF6B6B]"
-          onClick={() => onDeleteTransaction(transaction.id)}
-          aria-label="Delete transaction"
-        >
-          <RiDeleteBin6Line className="text-base" aria-hidden="true" />
-        </Button>
-      </div>
-    </article>
   );
 }
 
