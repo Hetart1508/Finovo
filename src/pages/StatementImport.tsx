@@ -7,6 +7,7 @@ import { MerchantAliasesCard } from '@/src/features/statement-import/components/
 import { StatementImportNotice } from '@/src/features/statement-import/components/StatementImportNotice';
 import { StatementPreviewCard } from '@/src/features/statement-import/components/StatementPreviewCard';
 import { StatementSummaryCards } from '@/src/features/statement-import/components/StatementSummaryCards';
+import { StatementPasswordDialog } from '@/src/features/statement-import/components/StatementPasswordDialog';
 import { useMerchantAliasMutations } from '@/src/features/statement-import/hooks/useMerchantAliasMutations';
 import { useStatementImport } from '@/src/features/statement-import/hooks/useStatementImport';
 
@@ -21,8 +22,12 @@ export default function StatementImport() {
     previewLoading,
     approveLoading,
     approvedCount,
+    passwordProtectedFile,
+    passwordError,
     totals,
     handleStatementFile,
+    handleStatementPassword,
+    cancelStatementPassword,
     handleRemovePreviewRow,
     handleToggleTransactionType,
     handleMerchantNameChange,
@@ -75,6 +80,14 @@ export default function StatementImport() {
       />
 
       <StatementImportNotice />
+
+      <StatementPasswordDialog
+        file={passwordProtectedFile}
+        error={passwordError}
+        loading={previewLoading}
+        onSubmit={handleStatementPassword}
+        onCancel={cancelStatementPassword}
+      />
     </div>
   );
 }

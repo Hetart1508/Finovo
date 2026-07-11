@@ -1,12 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
-import { statementImportApi } from '@/src/api/statementImportApi';
+import { statementImportApi, type StatementImportPreviewPayload } from '@/src/api/statementImportApi';
 import { invalidateMerchantAliases, invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { StatementTransaction } from '../statementImport.types';
-import { isFutureTransactionDate, readFileAsBase64 } from '../statementImport.utils';
+import {
+  assertPdfIsNotPasswordProtected,
+  IncorrectStatementPasswordError,
+  isFutureTransactionDate,
+  readFileAsBase64,
+  renderPasswordProtectedPdf,
+  StatementPasswordRequiredError,
+  type RenderedStatementPage,
+} from '../statementImport.utils';
 
 export function useStatementImport() {
   const queryClient = useQueryClient();
@@ -20,9 +28,11 @@ export function useStatementImport() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [approveLoading, setApproveLoading] = useState(false);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [passwordProtectedFile, setPasswordProtectedFile] = useState<File | null>(null);
+  const [passwordError, setPasswordError] = useState('');
 
   const previewStatement = useMutation({
-    mutationFn: (payload: { base64Data: string; mimeType: string }) => statementImportApi.preview(payload),
+    mutationFn: (payload: StatementImportPreviewPayload) => statementImportApi.preview(payload),
   });
   const approveStatement = useMutation({
     mutationFn: (payload: { transactions: StatementTransaction[]; statementHash: string; wallet_id?: number | null }) => statementImportApi.approve(payload),
@@ -41,31 +51,14 @@ export function useStatementImport() {
     { income: 0, expense: 0 }
   ), [transactions]);
 
-  const handleStatementFile = async (selectedFile: File | null) => {
-    if (!selectedFile) return;
-
-    const supported = selectedFile.type === 'application/pdf' || selectedFile.type.startsWith('image/');
-    if (!supported) {
-      toast.error('Upload a PDF, JPG, or PNG statement.');
-      return;
-    }
-
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      toast.error('Statement file must be 10MB or smaller.');
-      return;
-    }
-
-    setStatementFile(selectedFile);
-    setTransactions([]);
-    setModel('');
-    setStatementHash('');
-    setAlreadyImported(false);
-    setApprovedCount(0);
-    setPreviewLoading(true);
-
+  const previewFile = async (selectedFile: File, renderedPages?: RenderedStatementPage[]) => {
     try {
       const base64Data = await readFileAsBase64(selectedFile);
-      const { data } = await previewStatement.mutateAsync({ base64Data, mimeType: selectedFile.type });
+      const { data } = await previewStatement.mutateAsync({
+        base64Data,
+        mimeType: selectedFile.type,
+        renderedPages,
+      });
       const importedTransactions: StatementTransaction[] = data.transactions || [];
       const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
       const futureTransactionCount = importedTransactions.length - validTransactions.length;
@@ -87,14 +80,86 @@ export function useStatementImport() {
         toast.warn(`${futureTransactionCount} future-dated statement row${futureTransactionCount === 1 ? '' : 's'} skipped.`);
       }
     } catch (error: unknown) {
-      console.error(error);
-      const detail = (error as any).response?.data?.detail;
-      const message = getApiMessage(error, 'Failed to import statement.');
-      toast.error(detail ? `${message}: ${detail}` : message);
+      throw error;
+    }
+  };
+
+  const resetPreview = (selectedFile: File) => {
+    setStatementFile(selectedFile);
+    setTransactions([]);
+    setModel('');
+    setStatementHash('');
+    setAlreadyImported(false);
+    setApprovedCount(0);
+    setPasswordProtectedFile(null);
+    setPasswordError('');
+  };
+
+  const showImportError = (error: unknown) => {
+    console.error(error);
+    const detail = (error as any).response?.data?.detail;
+    const hint = (error as any).response?.data?.hint;
+    const message = getApiMessage(error, 'Failed to import statement.');
+    toast.error([message, detail, hint].filter(Boolean).join(': '));
+  };
+
+  const handleStatementFile = async (selectedFile: File | null) => {
+    if (!selectedFile) return;
+
+    const supported = selectedFile.type === 'application/pdf' || selectedFile.type.startsWith('image/');
+    if (!supported) {
+      toast.error('Upload a PDF, JPG, or PNG statement.');
+      return;
+    }
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast.error('Statement file must be 10MB or smaller.');
+      return;
+    }
+
+    resetPreview(selectedFile);
+    setPreviewLoading(true);
+
+    try {
+      await assertPdfIsNotPasswordProtected(selectedFile);
+      await previewFile(selectedFile);
+    } catch (error: unknown) {
+      if (error instanceof StatementPasswordRequiredError) {
+        setPasswordProtectedFile(selectedFile);
+      } else {
+        showImportError(error);
+      }
     } finally {
       setPreviewLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleStatementPassword = async (password: string) => {
+    if (!passwordProtectedFile) return false;
+
+    setPasswordError('');
+    setPreviewLoading(true);
+    try {
+      const renderedPages = await renderPasswordProtectedPdf(passwordProtectedFile, password);
+      await previewFile(passwordProtectedFile, renderedPages);
+      setPasswordProtectedFile(null);
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof IncorrectStatementPasswordError) {
+        setPasswordError(error.message);
+      } else {
+        showImportError(error);
+      }
+      return false;
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const cancelStatementPassword = () => {
+    setPasswordProtectedFile(null);
+    setPasswordError('');
   };
 
   const handleRemovePreviewRow = (indexToRemove: number) => {
@@ -157,8 +222,12 @@ export function useStatementImport() {
     previewLoading,
     approveLoading,
     approvedCount,
+    passwordProtectedFile,
+    passwordError,
     totals,
     handleStatementFile,
+    handleStatementPassword,
+    cancelStatementPassword,
     handleRemovePreviewRow,
     handleToggleTransactionType,
     handleMerchantNameChange,

@@ -1509,7 +1509,29 @@ const ensureAdvisorSession = async (userId: number, sessionId: string, firstMess
   `, [userId, sessionId, title]);
 };
 
-const importStatementWithGemini = async (base64Data: string, mimeType: string) => {
+type RenderedStatementPage = {
+  base64Data: string;
+  mimeType: "image/jpeg";
+};
+
+const getRenderedStatementPages = (value: unknown): RenderedStatementPage[] | null => {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length === 0 || value.length > 25) return null;
+
+  const pages = value.map((page) => ({
+    base64Data: typeof page?.base64Data === "string" ? page.base64Data : "",
+    mimeType: page?.mimeType,
+  }));
+  if (pages.some((page) => !page.base64Data || page.mimeType !== "image/jpeg")) return null;
+  if (pages.reduce((total, page) => total + page.base64Data.length, 0) > 18 * 1024 * 1024) return null;
+  return pages as RenderedStatementPage[];
+};
+
+const importStatementWithGemini = async (
+  base64Data: string,
+  mimeType: string,
+  renderedPages?: RenderedStatementPage[] | null
+) => {
   const today = new Date().toISOString().split("T")[0];
   const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
 Return ONLY valid JSON with this exact shape:
@@ -1542,16 +1564,22 @@ Rules:
 - Copy the payee UPI ID/VPA exactly into vpa when present in the narration. Otherwise return null.
 - Return up to 150 rows in exact statement order.`;
 
-  const result = await generateGemini(
-    [
-      {
+  const statementParts = renderedPages?.length
+    ? renderedPages.map((page) => ({
+        inline_data: {
+          mime_type: page.mimeType,
+          data: page.base64Data,
+        },
+      }))
+    : [{
         inline_data: {
           mime_type: mimeType,
           data: base64Data,
         },
-      },
-      { text: prompt },
-    ],
+      }];
+
+  const result = await generateGemini(
+    [...statementParts, { text: prompt }],
     { responseMimeType: "application/json", maxOutputTokens: 8192 }
   );
 
@@ -4717,7 +4745,7 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
 });
 
 app.post("/api/statement-import/preview", authenticateToken, async (req: any, res) => {
-  const { base64Data, mimeType } = req.body || {};
+  const { base64Data, mimeType, renderedPages: renderedPagesValue } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
     return res.status(400).json({ error: "base64Data and mimeType are required" });
@@ -4725,6 +4753,14 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
 
   if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
     return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, or PNG statement." });
+  }
+
+  const renderedPages = getRenderedStatementPages(renderedPagesValue);
+  if (renderedPagesValue !== undefined && (!renderedPages || mimeType !== "application/pdf")) {
+    return res.status(400).json({ error: "Unlocked PDF pages are invalid or too large." });
+  }
+  if (renderedPages && base64Data.length + renderedPages.reduce((total, page) => total + page.base64Data.length, 0) > 21 * 1024 * 1024) {
+    return res.status(400).json({ error: "The encrypted PDF and its unlocked pages are too large to process." });
   }
 
   try {
@@ -4741,7 +4777,7 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
       });
     }
 
-    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
+    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType, renderedPages);
     const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,
