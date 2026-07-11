@@ -14,6 +14,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import {
   AI_PROVIDER,
+  AI_TEXT_PROVIDER_PRIORITY,
   allowedOrigins,
   BREVO_API_KEY,
   BREVO_FROM_EMAIL,
@@ -25,8 +26,22 @@ import {
   GEMINI_FALLBACK_MODELS,
   GEMINI_MODEL,
   GOOGLE_CLIENT_ID,
+  GROQ_API_BASE_URL,
+  GROQ_API_KEY,
+  GROQ_FALLBACK_MODELS,
+  GROQ_MODEL,
+  HUGGINGFACE_API_BASE_URL,
+  HUGGINGFACE_API_KEY,
+  HUGGINGFACE_FALLBACK_MODELS,
+  HUGGINGFACE_MODEL,
   IS_PRODUCTION,
   JWT_SECRET,
+  OPENROUTER_API_BASE_URL,
+  OPENROUTER_API_KEY,
+  OPENROUTER_APP_NAME,
+  OPENROUTER_FALLBACK_MODELS,
+  OPENROUTER_MODEL,
+  OPENROUTER_SITE_URL,
   SESSION_EXPIRES_IN,
 } from "./server/config/env";
 import { logger } from "./server/config/logger";
@@ -130,12 +145,28 @@ const getEmailConfigStatus = () => {
 
 const getAiConfigStatus = () => ({
   provider: AI_PROVIDER,
+  textProviderPriority: AI_TEXT_PROVIDER_PRIORITY,
   geminiConfigured: Boolean(GEMINI_API_KEY),
   geminiKeyLength: GEMINI_API_KEY.length,
   geminiKeyLooksLikeGoogleApiKey: /^(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_-]+)$/.test(GEMINI_API_KEY),
   geminiModel: GEMINI_MODEL,
   geminiFallbackModels: GEMINI_FALLBACK_MODELS,
   geminiModelCount: Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])).length,
+  groqConfigured: Boolean(GROQ_API_KEY),
+  groqKeyLength: GROQ_API_KEY.length,
+  groqKeyLooksValid: /^gsk_[0-9A-Za-z_-]+$/.test(GROQ_API_KEY),
+  groqModel: GROQ_MODEL,
+  groqFallbackModels: GROQ_FALLBACK_MODELS,
+  openRouterConfigured: Boolean(OPENROUTER_API_KEY),
+  openRouterKeyLength: OPENROUTER_API_KEY.length,
+  openRouterKeyLooksValid: /^sk-or-[0-9A-Za-z_.-]+$/.test(OPENROUTER_API_KEY),
+  openRouterModel: OPENROUTER_MODEL,
+  openRouterFallbackModels: OPENROUTER_FALLBACK_MODELS,
+  huggingFaceConfigured: Boolean(HUGGINGFACE_API_KEY),
+  huggingFaceKeyLength: HUGGINGFACE_API_KEY.length,
+  huggingFaceKeyLooksValid: /^hf_[0-9A-Za-z_-]+$/.test(HUGGINGFACE_API_KEY),
+  huggingFaceModel: HUGGINGFACE_MODEL,
+  huggingFaceFallbackModels: HUGGINGFACE_FALLBACK_MODELS,
 });
 
 type GeminiCategory = typeof GEMINI_CATEGORIES[number];
@@ -894,12 +925,12 @@ const normalizeGeminiStatementTransactions = (text: string) => {
 
 const generateGemini = async (
   parts: any[],
-  options: { responseMimeType?: "application/json" | "text/plain"; maxOutputTokens?: number } = {}
+  options: {
+    responseMimeType?: "application/json" | "text/plain";
+    maxOutputTokens?: number;
+    onModel?: (model: string) => void;
+  } = {}
 ) => {
-  if (AI_PROVIDER !== "gemini") {
-    throw new Error("Gemini provider is disabled");
-  }
-
   if (!GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
@@ -945,10 +976,188 @@ const generateGemini = async (
       continue;
     }
 
+    options.onModel?.(model);
     return text;
   }
 
   throw new Error(lastError || "Gemini returned no usable response");
+};
+
+type TextAiProvider = "gemini" | "groq" | "openrouter" | "huggingface";
+type TextAiResult = {
+  text: string;
+  provider: TextAiProvider;
+  model: string;
+};
+type TextAiOptions = {
+  responseMimeType?: "application/json" | "text/plain";
+  maxOutputTokens?: number;
+  validateResponse?: (text: string) => void;
+};
+
+const DEFAULT_TEXT_PROVIDER_PRIORITY: TextAiProvider[] = ["groq", "gemini", "openrouter", "huggingface"];
+const RETRYABLE_AI_STATUS_CODES = new Set([400, 404, 408, 409, 429, 500, 502, 503, 504]);
+
+const normalizeTextProvider = (provider: string): TextAiProvider | null => {
+  const normalized = provider.toLowerCase().replace(/[-_\s]/g, "");
+  if (normalized === "gemini" || normalized === "google") return "gemini";
+  if (normalized === "groq") return "groq";
+  if (normalized === "openrouter") return "openrouter";
+  if (normalized === "huggingface" || normalized === "hf") return "huggingface";
+  return null;
+};
+
+const getTextProviderPriority = () => {
+  const ordered = [...AI_TEXT_PROVIDER_PRIORITY, ...DEFAULT_TEXT_PROVIDER_PRIORITY]
+    .map(normalizeTextProvider)
+    .filter((provider): provider is TextAiProvider => Boolean(provider));
+
+  return Array.from(new Set(ordered));
+};
+
+const generateOpenAiCompatibleText = async (
+  provider: Exclude<TextAiProvider, "gemini">,
+  apiBaseUrl: string,
+  apiKey: string,
+  modelCandidates: string[],
+  prompt: string,
+  options: TextAiOptions = {},
+  extraHeaders: Record<string, string> = {}
+): Promise<TextAiResult> => {
+  if (!apiKey) {
+    throw new Error(`${provider} API key is not configured`);
+  }
+
+  let lastError = "";
+  for (const model of Array.from(new Set(modelCandidates.filter(Boolean)))) {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              options.responseMimeType === "application/json"
+                ? "Return only valid JSON. Do not include markdown, code fences, comments, or extra text."
+                : "You are Finovo's finance assistant. Be clear, practical, and concise.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: options.maxOutputTokens || 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      lastError = `${provider} error using ${model}: ${response.status} ${await response.text()}`;
+      if (RETRYABLE_AI_STATUS_CODES.has(response.status)) {
+        logger.warn("Text AI model unavailable, trying fallback model", { provider, model, status: response.status });
+        continue;
+      }
+      throw new Error(lastError);
+    }
+
+    const data: any = await response.json();
+    const text = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "";
+    const trimmed = String(text).trim();
+    if (!trimmed) {
+      lastError = `${provider} returned an empty response using ${model}`;
+      continue;
+    }
+
+    return { text: trimmed, provider, model };
+  }
+
+  throw new Error(lastError || `${provider} returned no usable response`);
+};
+
+const generateAiText = async (
+  prompt: string,
+  options: TextAiOptions = {}
+): Promise<TextAiResult> => {
+  const configuredProviders = {
+    gemini: Boolean(GEMINI_API_KEY),
+    groq: Boolean(GROQ_API_KEY),
+    openrouter: Boolean(OPENROUTER_API_KEY),
+    huggingface: Boolean(HUGGINGFACE_API_KEY),
+  };
+  const providerPriority = getTextProviderPriority().filter((provider) => configuredProviders[provider]);
+  let lastError = "";
+
+  for (const provider of providerPriority) {
+    try {
+      if (provider === "gemini") {
+        let model = GEMINI_MODEL;
+        const text = await generateGemini([{ text: prompt }], {
+          ...options,
+          onModel: (usedModel) => {
+            model = usedModel;
+          },
+        });
+        options.validateResponse?.(text);
+        return { text, provider, model };
+      }
+
+      if (provider === "groq") {
+        const result = await generateOpenAiCompatibleText(
+          "groq",
+          GROQ_API_BASE_URL,
+          GROQ_API_KEY,
+          [GROQ_MODEL, ...GROQ_FALLBACK_MODELS],
+          prompt,
+          options
+        );
+        options.validateResponse?.(result.text);
+        return result;
+      }
+
+      if (provider === "openrouter") {
+        const result = await generateOpenAiCompatibleText(
+          "openrouter",
+          OPENROUTER_API_BASE_URL,
+          OPENROUTER_API_KEY,
+          [OPENROUTER_MODEL, ...OPENROUTER_FALLBACK_MODELS],
+          prompt,
+          options,
+          {
+            ...(OPENROUTER_SITE_URL ? { "HTTP-Referer": OPENROUTER_SITE_URL } : {}),
+            "X-Title": OPENROUTER_APP_NAME,
+          }
+        );
+        options.validateResponse?.(result.text);
+        return result;
+      }
+
+      const result = await generateOpenAiCompatibleText(
+        "huggingface",
+        HUGGINGFACE_API_BASE_URL,
+        HUGGINGFACE_API_KEY,
+        [HUGGINGFACE_MODEL, ...HUGGINGFACE_FALLBACK_MODELS],
+        prompt,
+        options
+      );
+      options.validateResponse?.(result.text);
+      return result;
+    } catch (error: any) {
+      lastError = error?.message || String(error);
+      logger.warn("Text AI provider failed, trying next provider", { provider, error: lastError });
+    }
+  }
+
+  const configuredNames = Object.entries(configuredProviders)
+    .filter(([, configured]) => configured)
+    .map(([provider]) => provider);
+  throw new Error(
+    configuredNames.length
+      ? `All configured text AI providers failed. Last error: ${lastError}`
+      : "No configured text AI provider. Set at least one of GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, or HUGGINGFACE_API_KEY."
+  );
 };
 
 const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
@@ -981,11 +1190,7 @@ Rules:
   return normalizeGeminiBillData(result);
 };
 
-const extractTransactionFromTextWithGemini = async (description: string) => {
-  if (!GEMINI_API_KEY || AI_PROVIDER !== "gemini") {
-    throw new Error("AI transaction extraction is not configured");
-  }
-
+const extractTransactionFromTextWithAi = async (description: string) => {
   const today = getTodayDateString();
   const prompt = `Extract one personal-finance transaction from this user description for an Indian expense tracker.
 Return ONLY valid JSON with this exact shape:
@@ -1007,15 +1212,22 @@ Rules:
 User description:
 ${description}`;
 
-  const result = await generateGemini(
-    [{ text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 600 }
-  );
+  const result = await generateAiText(prompt, {
+    responseMimeType: "application/json",
+    maxOutputTokens: 600,
+    validateResponse: (text) => {
+      normalizeGeminiTextTransaction(text);
+    },
+  });
 
-  return normalizeGeminiTextTransaction(result);
+  return {
+    transaction: normalizeGeminiTextTransaction(result.text),
+    provider: result.provider,
+    model: result.model,
+  };
 };
 
-const getFinancialInsightsWithGemini = async (transactions: any[], recurringEvents: any[] = []) => {
+const getFinancialInsightsWithAi = async (transactions: any[], recurringEvents: any[] = []) => {
   const prompt = `You are an expert Indian personal-finance analyst. Analyze these expense tracker transactions and planned recurring payments to create a practical report for the user.
 
 Return ONLY valid JSON with this exact shape:
@@ -1047,11 +1259,18 @@ ${JSON.stringify(transactions.slice(0, 60), null, 2)}
 Planned recurring payments for the next 365 days:
 ${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
 
-  const result = await generateGemini(
-    [{ text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 3000 }
-  );
-  return normalizeGeminiInsights(result);
+  const result = await generateAiText(prompt, {
+    responseMimeType: "application/json",
+    maxOutputTokens: 3000,
+    validateResponse: (text) => {
+      normalizeGeminiInsights(text);
+    },
+  });
+  return {
+    insights: normalizeGeminiInsights(result.text),
+    provider: result.provider,
+    model: result.model,
+  };
 };
 
 const getAdvisorFallbackReply = (message: string, investments: any[], summary: any, history: any[]) => {
@@ -1172,7 +1391,7 @@ const getAdvisorPortfolioContext = async (userId: number) => {
 };
 
 const getWealthAdvisorReply = async (message: string, investments: any[], summary: any, history: any[], profileContext: any) => {
-  if (!GEMINI_API_KEY || AI_PROVIDER !== "gemini") {
+  if (![GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean)) {
     return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
   }
 
@@ -1212,8 +1431,8 @@ ${JSON.stringify(history.slice(-8))}
 User message:
 ${message}`;
 
-  const reply = await generateGemini([{ text: prompt }], { responseMimeType: "text/plain", maxOutputTokens: 1800 });
-  return { reply, provider: "gemini", model: GEMINI_MODEL };
+  const result = await generateAiText(prompt, { responseMimeType: "text/plain", maxOutputTokens: 1800 });
+  return { reply: result.text, provider: result.provider, model: result.model };
 };
 
 const ADVISOR_TITLE_MAX_LENGTH = 25;
@@ -3492,8 +3711,8 @@ app.post("/api/transactions/extract", authenticateToken, async (req: any, res) =
   }
 
   try {
-    const transaction = await extractTransactionFromTextWithGemini(description);
-    res.json({ transaction });
+    const data = await extractTransactionFromTextWithAi(description);
+    res.json(data);
   } catch (error: any) {
     logger.error("AI transaction extraction failed", { error: error?.message });
     res.status(502).json({ error: "Could not extract transaction details. Try manual add." });
@@ -4394,7 +4613,7 @@ app.delete("/api/ai-advisor/messages", authenticateToken, async (req: any, res) 
   }
 });
 
-// --- AI Routes (Gemini primary, client keeps Ollama fallback) ---
+// --- AI Routes (Gemini multimodal, configurable text provider fallback chain) ---
 app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
   const { base64Data, mimeType } = req.body || {};
 
@@ -4433,12 +4652,12 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
   }
 
   try {
-    const insights = await getFinancialInsightsWithGemini(transactions, recurringEvents);
-    res.json({ ...insights, provider: "gemini", model: GEMINI_MODEL });
+    const data = await getFinancialInsightsWithAi(transactions, recurringEvents);
+    res.json({ ...data.insights, provider: data.provider, model: data.model });
   } catch (error: any) {
-    logger.error("Gemini insights error", { error });
+    logger.error("AI insights error", { error });
     res.status(502).json({
-      error: "Gemini insights generation failed",
+      error: "AI insights generation failed",
       detail: IS_PRODUCTION ? undefined : error.message,
       hint: getGeminiImportHint(error.message || String(error)),
     });

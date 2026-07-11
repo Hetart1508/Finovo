@@ -11,7 +11,11 @@ A sophisticated AI-powered expense tracker designed for the Indian market.
 
 ## Environment Variables
 The following variables are required:
-- `GEMINI_API_KEY`: Your Google Gemini API Key.
+- `GEMINI_API_KEY`: Your Google Gemini API key. Gemini is required for PDF/image bill and statement extraction.
+- `AI_TEXT_PROVIDER_PRIORITY`: Comma-separated text AI fallback order. Recommended: `groq,gemini,openrouter,huggingface`.
+- `GROQ_API_KEY`: Groq API key for the primary free-tier text AI provider.
+- `OPENROUTER_API_KEY`: OpenRouter API key for text AI backup.
+- `HUGGINGFACE_API_KEY`: Hugging Face API key for text AI backup.
 - `JWT_SECRET`: Secret key for signing JWT tokens.
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: MySQL connection settings.
 - `EMAIL_USER`, `EMAIL_PASS`: SMTP credentials for OTP email.
@@ -79,6 +83,10 @@ CORS_ORIGIN=https://your-frontend.vercel.app
 JWT_SECRET=
 GOOGLE_CLIENT_ID=
 GEMINI_API_KEY=
+AI_TEXT_PROVIDER_PRIORITY=groq,gemini,openrouter,huggingface
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+HUGGINGFACE_API_KEY=
 EMAIL_USER=
 EMAIL_PASS=
 ```
