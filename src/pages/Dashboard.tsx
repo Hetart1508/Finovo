@@ -30,7 +30,7 @@ export default function Dashboard() {
   }, [recurringResult.error, transactionsResult.error]);
 
   return (
-    <div className="kt-enter space-y-8">
+    <div className="kt-enter mx-auto w-full max-w-7xl space-y-5 sm:space-y-6 lg:space-y-8">
       <DashboardHero
         activeRange={analysis.activeRange}
         selectedPreset={analysis.selectedPreset}

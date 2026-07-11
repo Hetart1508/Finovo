@@ -23,14 +23,14 @@ export default function CalendarView() {
   }, [transactionsResult.error]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="mx-auto max-w-6xl space-y-5 sm:space-y-8">
       <CalendarHeader
         threshold={calendar.threshold}
         onThresholdChange={calendar.setThreshold}
         onSaveThreshold={calendar.handleUpdateThreshold}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-3">
         <CalendarMonthCard
           selectedDate={calendar.date}
           visibleMonth={calendar.visibleMonth}

@@ -262,7 +262,7 @@ export default function Layout({ children }: LayoutProps) {
               onValueChange={(value) => setSelectedWalletId(Number(value))}
             >
               <SelectTrigger
-                className="h-9 w-[min(58vw,18rem)] border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] sm:w-72 lg:w-80"
+                className="h-9 w-32 border-[#E5E7EB] bg-white px-2.5 text-sm font-semibold text-[#1F2937] sm:w-72 lg:w-80"
                 title={selectedWallet ? getWalletLabel(selectedWallet) : 'Select wallet'}
               >
                 <span className="min-w-0 flex-1 truncate text-left">
@@ -278,8 +278,10 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        <div className="app-scroll flex-1 p-3 sm:p-4 lg:p-8">
-          {children}
+        <div className="app-scroll flex-1 p-3 sm:p-4 lg:p-6 xl:p-8">
+          <div className="mx-auto w-full max-w-[100rem]">
+            {children}
+          </div>
         </div>
       </main>
     </div>

@@ -7,14 +7,14 @@ export default function SmartUpload() {
   const upload = useSmartUpload();
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="mx-auto max-w-4xl space-y-5 sm:space-y-8">
       <PageHeader
         title="Smart Bill Upload"
         description="Upload a receipt or invoice image, and Gemini will extract the details for you."
         align="center"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-5 sm:gap-8 md:grid-cols-2">
         <SmartUploadDropzoneCard
           preview={upload.preview}
           dropzone={upload.dropzone}

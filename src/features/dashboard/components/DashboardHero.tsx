@@ -31,11 +31,11 @@ export function DashboardHero({
   onCustomEndChange,
 }: DashboardHeroProps) {
   return (
-    <div className="surface-panel metronic-surface rounded-lg p-6">
+    <div className="surface-panel metronic-surface rounded-lg p-4 sm:p-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Financial overview</p>
-          <h1 className="mt-2 text-3xl font-black text-[#1F2937]">{rangeLabels[activeRange]} money movement</h1>
+          <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">{rangeLabels[activeRange]} money movement</h1>
           <p className="mt-2 text-sm text-[#6B7280]">{rangeDescription}</p>
           {hasInvalidCustomRange ? (
             <p className="mt-2 text-sm font-semibold text-[#FF6B6B]">Start date must be before or equal to end date.</p>
@@ -75,7 +75,7 @@ export function DashboardHero({
               />
             </div>
           </div>
-          <div className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-right">
+          <div className="rounded-lg border border-[#E5E7EB] bg-white px-4 py-3 text-left md:text-right">
             <p className="text-xs font-semibold uppercase text-[#6B7280]">Transactions</p>
             <p className="text-2xl font-black text-[#1F2937]">{transactionCount}</p>
           </div>

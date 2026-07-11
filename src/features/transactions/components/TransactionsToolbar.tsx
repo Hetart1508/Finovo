@@ -86,7 +86,7 @@ export function TransactionsToolbar({
         />
       </div>
 
-      <div className="grid w-full grid-cols-2 items-center gap-3 md:flex md:w-auto">
+      <div className="grid w-full grid-cols-1 items-center gap-3 sm:grid-cols-2 md:flex md:w-auto">
         <Select value={filter} onValueChange={onFilterChange}>
           <SelectTrigger className="w-full md:w-[150px]">
             <RiFilter3Line className="mr-2 text-base" aria-hidden="true" />

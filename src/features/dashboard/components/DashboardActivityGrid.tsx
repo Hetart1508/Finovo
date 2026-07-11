@@ -16,17 +16,17 @@ type DashboardActivityGridProps = {
 
 export function DashboardActivityGrid({ transactions, recurring }: DashboardActivityGridProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-3">
       <Card className="surface-panel rounded-lg lg:col-span-2">
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle className="text-lg font-semibold">Recent Transactions</CardTitle>
           <Button variant="ghost" size="sm" className="text-[#4F9CF9]" render={<Link to="/transactions" />}>View All</Button>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {transactions.map((transaction) => (
-              <div key={transaction.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-[#FAFBFC] transition-colors">
-                <div className="flex items-center gap-4">
+              <div key={transaction.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl p-2 transition-colors hover:bg-[#FAFBFC] sm:p-3">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                   <div className={cn(
                     'w-10 h-10 rounded-full flex items-center justify-center',
                     transaction.type === 'income' ? 'icon-income' : 'icon-expense'
@@ -35,13 +35,13 @@ export function DashboardActivityGrid({ transactions, recurring }: DashboardActi
                       ? <RiArrowRightUpLine className="text-lg" aria-hidden="true" />
                       : <RiArrowLeftDownLine className="text-lg" aria-hidden="true" />}
                   </div>
-                  <div>
-                    <p className="font-medium">{transaction.description || transaction.category}</p>
-                    <p className="text-xs text-[#6B7280]">{format(parseISO(transaction.date), 'dd MMM yyyy')} • {transaction.payment_mode}</p>
+                  <div className="min-w-0">
+                    <p className="break-words font-medium">{transaction.description || transaction.category}</p>
+                    <p className="break-words text-xs leading-5 text-[#6B7280]">{format(parseISO(transaction.date), 'dd MMM yyyy')} • {transaction.payment_mode}</p>
                   </div>
                 </div>
                 <p className={cn(
-                  'font-bold',
+                  'whitespace-nowrap text-sm font-bold sm:text-base',
                   transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#FF6B6B]'
                 )}>
                   {formatSignedRupees(transaction.amount, transaction.type === 'income')}

@@ -388,12 +388,12 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
-      <div className="surface-panel metronic-surface rounded-lg p-6">
+    <div className="mx-auto w-full max-w-[100rem] space-y-5 pb-8 sm:space-y-6">
+      <div className="surface-panel metronic-surface rounded-lg p-4 sm:p-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Profile</p>
-            <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Personal finance context</h1>
+            <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">Personal finance context</h1>
             <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
               Keep your personal and financial details current so Finovo can personalize future planning and AI features with your permission.
             </p>

@@ -23,7 +23,7 @@ export function RecurringForm({ editingEvent, dueDate, onDueDateChange, onSubmit
         <Input id="recurring-name" name="name" placeholder="Rent, SIP, WiFi subscription, car service" defaultValue={editingEvent?.name || ''} required />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="recurring-amount">Amount (₹)</Label>
           <Input id="recurring-amount" name="amount" type="number" step="0.01" min="0.01" defaultValue={editingEvent?.amount || ''} required />
@@ -34,7 +34,7 @@ export function RecurringForm({ editingEvent, dueDate, onDueDateChange, onSubmit
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Category</Label>
           <Select name="category" defaultValue={editingEvent?.category || 'Subscription'}>
@@ -65,7 +65,7 @@ export function RecurringForm({ editingEvent, dueDate, onDueDateChange, onSubmit
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Repeats</Label>
           <Select name="frequency" defaultValue={editingEvent?.frequency || 'monthly'}>
@@ -87,7 +87,7 @@ export function RecurringForm({ editingEvent, dueDate, onDueDateChange, onSubmit
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Payment</Label>
           <Select name="payment_mode" defaultValue={editingEvent?.payment_mode || (editingEvent?.autopay_enabled ? 'auto' : 'manual')}>

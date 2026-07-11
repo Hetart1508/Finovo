@@ -48,11 +48,11 @@ export default function Recurring() {
   }, [eventsResult.error, upcomingResult.error]);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[100rem] space-y-5 sm:space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Recurring planner</p>
-          <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Subscriptions and future payments</h1>
+          <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">Subscriptions and future payments</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
             Track monthly subscriptions, EMIs, rent, and fees so upcoming payments are visible before they arrive.
           </p>
@@ -60,7 +60,7 @@ export default function Recurring() {
 
         <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
           <DialogTrigger>
-            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={openCreateDialog}>
+            <Button className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] md:w-auto" onClick={openCreateDialog}>
               <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
               Add Recurring
             </Button>

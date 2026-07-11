@@ -49,7 +49,7 @@ export default function Transactions() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6">
       <TransactionsToolbar
         search={search}
         filter={filter}

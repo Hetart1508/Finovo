@@ -52,11 +52,11 @@ export default function Investments() {
   }, [summaryResult.error]);
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="mx-auto w-full max-w-[100rem] space-y-5 pb-8 sm:space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Investment planner</p>
-          <h1 className="mt-2 text-3xl font-black text-[#1F2937]">Mutual Funds & Investments</h1>
+          <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">Mutual Funds & Investments</h1>
           <p className="mt-2 max-w-2xl text-sm text-[#6B7280]">
             Track SIP commitments, lumpsum capital, current portfolio value, and expected growth.
           </p>
@@ -67,7 +67,7 @@ export default function Investments() {
           if (!open) investmentForm.closeDialog();
         }}>
           <DialogTrigger>
-            <Button className="bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={investmentForm.openCreateDialog}>
+            <Button className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5] md:w-auto" onClick={investmentForm.openCreateDialog}>
               <RiAddCircleLine className="mr-2 text-base" aria-hidden="true" />
               Add Investment
             </Button>

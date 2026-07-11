@@ -20,7 +20,7 @@ export function SmartUploadDropzoneCard({ preview, dropzone, onClearPreview }: S
           <div
             {...getRootProps()}
             className={cn(
-              'h-[400px] flex flex-col items-center justify-center cursor-pointer transition-colors p-8 text-center',
+              'min-h-64 sm:min-h-[400px] flex flex-col items-center justify-center cursor-pointer transition-colors p-5 sm:p-8 text-center',
               isDragActive ? 'bg-[#EEF6FF] bg-[#EEF6FF]' : 'hover:bg-[#FAFBFC]'
             )}
           >

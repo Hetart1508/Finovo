@@ -31,7 +31,7 @@ type DashboardChartsProps = {
 
 export default function DashboardCharts({ dailyData, categoryData, colors }: DashboardChartsProps) {
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-2">
       <Card className="surface-panel rounded-lg">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Spending Trend</CardTitle>

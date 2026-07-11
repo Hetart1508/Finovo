@@ -32,7 +32,7 @@ export default function Insights() {
   }, [transactionsResult.error]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-12">
+    <div className="mx-auto max-w-5xl space-y-5 pb-8 sm:space-y-8 sm:pb-12">
       <InsightsHeader
         insights={insights}
         insightsLoading={insightsLoading}
@@ -55,7 +55,7 @@ export default function Insights() {
         onCustomEndChange={range.setCustomEndDate}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-3">
         <AIAnalysisCard
           insights={insights}
           insightsLoading={insightsLoading}

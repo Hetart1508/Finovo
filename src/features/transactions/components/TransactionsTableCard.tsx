@@ -167,8 +167,8 @@ function MobileTransactionCard({
   showCreatedBy: boolean;
 }) {
   return (
-    <article className="min-w-0 space-y-3 bg-white p-4">
-      <div className="flex min-w-0 items-start justify-between gap-3">
+    <article className="min-w-0 space-y-3 bg-white p-3 sm:p-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="flex min-w-0 items-start gap-3">
           <div className={cn(
             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
@@ -179,9 +179,12 @@ function MobileTransactionCard({
               : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
           </div>
           <div className="min-w-0">
-            <p className="[overflow-wrap:anywhere] font-semibold leading-5 text-[#1F2937]">
+            <p className="break-words font-semibold leading-5 text-[#1F2937]">
               {transaction.merchant_name || transaction.description || '-'}
             </p>
+            {transaction.merchant_name && transaction.description && transaction.description !== transaction.merchant_name ? (
+              <p className="mt-1 break-words text-xs leading-5 text-[#6B7280]">{transaction.description}</p>
+            ) : null}
             <p className="mt-1 text-xs text-[#6B7280]">
               #{serialNumber} · {format(parseISO(transaction.date), 'dd MMM yyyy')}
             </p>
@@ -195,14 +198,14 @@ function MobileTransactionCard({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
         <div className="min-w-0 rounded-md bg-[#F8FAFC] px-3 py-2">
           <p className="text-[#6B7280]">Category</p>
-          <p className="mt-0.5 truncate font-medium text-[#1F2937]">{transaction.category}</p>
+          <p className="mt-0.5 break-words font-medium text-[#1F2937]">{transaction.category || '-'}</p>
         </div>
         <div className="min-w-0 rounded-md bg-[#F8FAFC] px-3 py-2">
           <p className="text-[#6B7280]">Payment mode</p>
-          <p className="mt-0.5 truncate font-medium text-[#1F2937]">{transaction.payment_mode}</p>
+          <p className="mt-0.5 break-words font-medium text-[#1F2937]">{transaction.payment_mode || '-'}</p>
         </div>
       </div>
 
@@ -210,12 +213,12 @@ function MobileTransactionCard({
         <p className="[overflow-wrap:anywhere] text-xs text-[#6B7280]">{transaction.payee_vpa}</p>
       ) : null}
       {showCreatedBy ? (
-        <p className="truncate text-xs text-[#6B7280]">
+        <p className="break-words text-xs text-[#6B7280]">
           Added by {transaction.created_by_name || transaction.created_by_email || 'Member'}
         </p>
       ) : null}
 
-      <div className="flex justify-end gap-1 border-t border-[#EEF0F4] pt-2">
+      <div className="flex items-center justify-end gap-1 border-t border-[#EEF0F4] pt-2">
         {transaction.bill_url ? (
           <Button
             variant="ghost"

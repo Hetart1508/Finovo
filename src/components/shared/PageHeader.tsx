@@ -15,15 +15,15 @@ export function PageHeader({ title, description, actions, align = 'left', classN
   return (
     <div
       className={cn(
-        centered ? 'space-y-2 text-center' : 'flex flex-col justify-between gap-4 md:flex-row md:items-end',
+        centered ? 'mx-auto max-w-3xl space-y-2 text-center' : 'flex flex-col justify-between gap-4 sm:flex-row sm:items-end',
         className
       )}
     >
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-        {description ? <p className="text-[#6B7280]">{description}</p> : null}
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+        {description ? <p className="mt-1 text-sm leading-6 text-[#6B7280] sm:text-base">{description}</p> : null}
       </div>
-      {actions ? <div className={cn(centered && 'flex justify-center')}>{actions}</div> : null}
+      {actions ? <div className={cn('flex [&>*]:w-full sm:[&>*]:w-auto', centered ? 'justify-center' : 'sm:shrink-0')}>{actions}</div> : null}
     </div>
   );
 }
