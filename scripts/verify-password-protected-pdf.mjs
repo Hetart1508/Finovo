@@ -1,13 +1,16 @@
 import PDFDocument from 'pdfkit';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { randomBytes } from 'node:crypto';
 
-const PASSWORD = 'Finovo-Test-123';
+const PASSWORD = randomBytes(24).toString('base64url');
+const OWNER_PASSWORD = randomBytes(24).toString('base64url');
+const INCORRECT_PASSWORD = randomBytes(24).toString('base64url');
 
 const createEncryptedStatement = () => new Promise((resolve, reject) => {
   const chunks = [];
   const document = new PDFDocument({
     userPassword: PASSWORD,
-    ownerPassword: 'Finovo-Owner-456',
+    ownerPassword: OWNER_PASSWORD,
     permissions: { copying: false, modifying: false, printing: 'lowResolution' },
   });
   document.on('data', (chunk) => chunks.push(chunk));
@@ -42,7 +45,7 @@ await expectPasswordFailure(
 );
 await expectPasswordFailure(
   bytes,
-  'wrong-password',
+  INCORRECT_PASSWORD,
   pdfjs.PasswordResponses.INCORRECT_PASSWORD,
   'Incorrect password'
 );
