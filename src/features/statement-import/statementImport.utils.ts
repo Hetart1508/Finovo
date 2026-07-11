@@ -10,6 +10,11 @@ export type RenderedStatementPage = {
   mimeType: 'image/jpeg';
 };
 
+export type UnlockedStatementPdf = {
+  pages: RenderedStatementPage[];
+  extractedText: string;
+};
+
 export class StatementPasswordRequiredError extends Error {
   constructor() {
     super('This PDF is password protected.');
@@ -27,13 +32,31 @@ export class IncorrectStatementPasswordError extends Error {
 const isPdfPasswordError = (error: unknown, code: number) =>
   typeof error === 'object' && error !== null && 'code' in error && Number((error as { code?: unknown }).code) === code;
 
-export const assertPdfIsNotPasswordProtected = async (file: File) => {
-  if (file.type !== 'application/pdf') return;
+const extractDocumentText = async (document: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']>) => {
+  const pageTexts: string[] = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const text = content.items
+      .map((item) => ('str' in item ? item.str : ''))
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (text) pageTexts.push(`--- Page ${pageNumber} ---\n${text}`);
+    page.cleanup();
+  }
+  return pageTexts.join('\n').slice(0, 500_000);
+};
+
+export const inspectStatementPdf = async (file: File) => {
+  if (file.type !== 'application/pdf') return '';
 
   let task: ReturnType<typeof pdfjs.getDocument> | null = null;
   try {
     task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
-    await task.promise;
+    const document = await task.promise;
+    return await extractDocumentText(document);
   } catch (error) {
     if (isPdfPasswordError(error, pdfjs.PasswordResponses.NEED_PASSWORD)) {
       throw new StatementPasswordRequiredError();
@@ -50,7 +73,7 @@ const canvasToJpegBase64 = (canvas: HTMLCanvasElement, quality: number) =>
 export const renderPasswordProtectedPdf = async (
   file: File,
   password: string
-): Promise<RenderedStatementPage[]> => {
+): Promise<UnlockedStatementPdf> => {
   let document: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']>;
   let task: ReturnType<typeof pdfjs.getDocument> | null = null;
 
@@ -106,7 +129,10 @@ export const renderPasswordProtectedPdf = async (
       pages.push({ base64Data, mimeType: 'image/jpeg' });
     }
 
-    return pages;
+    return {
+      pages,
+      extractedText: await extractDocumentText(document),
+    };
   } finally {
     await task?.destroy();
   }

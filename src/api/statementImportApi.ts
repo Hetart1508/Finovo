@@ -4,6 +4,7 @@ export type StatementImportPreviewPayload = {
   base64Data: string;
   mimeType: string;
   renderedPages?: Array<{ base64Data: string; mimeType: 'image/jpeg' }>;
+  extractedText?: string;
 };
 
 export type StatementImportApprovePayload<TTransaction> = {

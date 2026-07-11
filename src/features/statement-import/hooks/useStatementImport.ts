@@ -7,8 +7,8 @@ import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useWallets } from '@/src/features/wallets/WalletProvider';
 import type { StatementTransaction } from '../statementImport.types';
 import {
-  assertPdfIsNotPasswordProtected,
   IncorrectStatementPasswordError,
+  inspectStatementPdf,
   isFutureTransactionDate,
   readFileAsBase64,
   renderPasswordProtectedPdf,
@@ -51,13 +51,18 @@ export function useStatementImport() {
     { income: 0, expense: 0 }
   ), [transactions]);
 
-  const previewFile = async (selectedFile: File, renderedPages?: RenderedStatementPage[]) => {
+  const previewFile = async (
+    selectedFile: File,
+    renderedPages?: RenderedStatementPage[],
+    extractedText?: string
+  ) => {
     try {
       const base64Data = await readFileAsBase64(selectedFile);
       const { data } = await previewStatement.mutateAsync({
         base64Data,
         mimeType: selectedFile.type,
         renderedPages,
+        extractedText,
       });
       const importedTransactions: StatementTransaction[] = data.transactions || [];
       const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
@@ -121,8 +126,8 @@ export function useStatementImport() {
     setPreviewLoading(true);
 
     try {
-      await assertPdfIsNotPasswordProtected(selectedFile);
-      await previewFile(selectedFile);
+      const extractedText = await inspectStatementPdf(selectedFile);
+      await previewFile(selectedFile, undefined, extractedText);
     } catch (error: unknown) {
       if (error instanceof StatementPasswordRequiredError) {
         setPasswordProtectedFile(selectedFile);
@@ -141,9 +146,10 @@ export function useStatementImport() {
     setPasswordError('');
     setPreviewLoading(true);
     try {
-      const renderedPages = await renderPasswordProtectedPdf(passwordProtectedFile, password);
-      await previewFile(passwordProtectedFile, renderedPages);
+      const unlockedPdf = await renderPasswordProtectedPdf(passwordProtectedFile, password);
+      const unlockedFile = passwordProtectedFile;
       setPasswordProtectedFile(null);
+      await previewFile(unlockedFile, unlockedPdf.pages, unlockedPdf.extractedText);
       return true;
     } catch (error: unknown) {
       if (error instanceof IncorrectStatementPasswordError) {

@@ -929,6 +929,7 @@ const generateGemini = async (
     responseMimeType?: "application/json" | "text/plain";
     maxOutputTokens?: number;
     onModel?: (model: string) => void;
+    totalTimeoutMs?: number;
   } = {}
 ) => {
   if (!GEMINI_API_KEY) {
@@ -937,47 +938,76 @@ const generateGemini = async (
 
   const modelCandidates = Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS]));
   let lastError = "";
+  const deadline = Date.now() + (options.totalTimeoutMs || 120_000);
 
   for (const model of modelCandidates) {
-    const response = await fetch(
-      `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: options.maxOutputTokens || 1024,
-            thinkingConfig: { thinkingBudget: 0 },
-            ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
-          },
-        }),
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new Error("Gemini request timed out before a model became available");
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(45_000, remainingMs));
+      let response: globalThis.Response;
+      try {
+        response = await fetch(
+          `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              contents: [{ role: "user", parts }],
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: options.maxOutputTokens || 1024,
+                thinkingConfig: { thinkingBudget: 0 },
+                ...(options.responseMimeType ? { responseMimeType: options.responseMimeType } : {}),
+              },
+            }),
+          }
+        );
+      } catch (error: any) {
+        lastError = error?.name === "AbortError"
+          ? `Gemini request timed out using ${model}`
+          : `Gemini request failed using ${model}: ${error?.message || String(error)}`;
+        if (attempt === 1 && Date.now() < deadline) {
+          logger.warn("Gemini request failed, retrying model", { model, error: lastError });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+        break;
+      } finally {
+        clearTimeout(timer);
       }
-    );
 
-    if (!response.ok) {
-      lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
-      if ([400, 404, 429, 503].includes(response.status)) {
-        logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
-        continue;
+      if (!response.ok) {
+        lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
+        if ([429, 503].includes(response.status) && attempt === 1 && Date.now() < deadline) {
+          logger.warn("Gemini model temporarily unavailable, retrying", { model, status: response.status });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+        if ([400, 404, 429, 503].includes(response.status)) {
+          logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
+          break;
+        }
+        throw new Error(lastError);
       }
-      throw new Error(lastError);
+
+      const data: any = await response.json();
+      const text = data.candidates?.[0]?.content?.parts
+        ?.map((part: any) => part.text || "")
+        .join("\n")
+        .trim();
+
+      if (!text) {
+        lastError = `Gemini returned an empty response using ${model}`;
+        break;
+      }
+
+      options.onModel?.(model);
+      return text;
     }
-
-    const data: any = await response.json();
-    const text = data.candidates?.[0]?.content?.parts
-      ?.map((part: any) => part.text || "")
-      .join("\n")
-      .trim();
-
-    if (!text) {
-      lastError = `Gemini returned an empty response using ${model}`;
-      continue;
-    }
-
-    options.onModel?.(model);
-    return text;
   }
 
   throw new Error(lastError || "Gemini returned no usable response");
@@ -1527,13 +1557,9 @@ const getRenderedStatementPages = (value: unknown): RenderedStatementPage[] | nu
   return pages as RenderedStatementPage[];
 };
 
-const importStatementWithGemini = async (
-  base64Data: string,
-  mimeType: string,
-  renderedPages?: RenderedStatementPage[] | null
-) => {
+const getStatementImportPrompt = () => {
   const today = new Date().toISOString().split("T")[0];
-  const prompt = `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
+  return `Extract incoming and outgoing money transactions from this Indian bank, credit card, UPI, PhonePe, GPay, Paytm, or wallet statement.
 Return ONLY valid JSON with this exact shape:
 {"transactions":[{"record_kind":"transaction|balance|summary","date":"YYYY-MM-DD or null","description":"string","debit_amount":"number or null","credit_amount":"number or null","balance":"number or null","amount":"number or null","type":"income|expense|null","category":"string","payment_mode":"Bank Statement|UPI|Card|Net Banking|Cash|Wallet","vpa":"payee@provider or null"}]}
 
@@ -1563,6 +1589,14 @@ Rules:
 - Keep descriptions short but traceable to the statement narration.
 - Copy the payee UPI ID/VPA exactly into vpa when present in the narration. Otherwise return null.
 - Return up to 150 rows in exact statement order.`;
+};
+
+const importStatementWithGemini = async (
+  base64Data: string,
+  mimeType: string,
+  renderedPages?: RenderedStatementPage[] | null
+) => {
+  const prompt = getStatementImportPrompt();
 
   const statementParts = renderedPages?.length
     ? renderedPages.map((page) => ({
@@ -1580,10 +1614,31 @@ Rules:
 
   const result = await generateGemini(
     [...statementParts, { text: prompt }],
-    { responseMimeType: "application/json", maxOutputTokens: 8192 }
+    { responseMimeType: "application/json", maxOutputTokens: 8192, totalTimeoutMs: 60_000 }
   );
 
   return normalizeGeminiStatementTransactions(result);
+};
+
+const importStatementFromText = async (statementText: string) => {
+  const prompt = `${getStatementImportPrompt()}
+
+The PDF text was extracted locally and is enclosed below. Use only this statement text.
+<statement_text>
+${statementText}
+</statement_text>`;
+  const result = await generateAiText(prompt, {
+    responseMimeType: "application/json",
+    maxOutputTokens: 8192,
+    validateResponse: (text) => {
+      normalizeGeminiStatementTransactions(text);
+    },
+  });
+  return {
+    transactions: normalizeGeminiStatementTransactions(result.text),
+    provider: result.provider,
+    model: result.model,
+  };
 };
 
 const createAuthResponse = (user: any, res?: Response) => {
@@ -4745,7 +4800,7 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
 });
 
 app.post("/api/statement-import/preview", authenticateToken, async (req: any, res) => {
-  const { base64Data, mimeType, renderedPages: renderedPagesValue } = req.body || {};
+  const { base64Data, mimeType, renderedPages: renderedPagesValue, extractedText: extractedTextValue } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
     return res.status(400).json({ error: "base64Data and mimeType are required" });
@@ -4762,6 +4817,10 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
   if (renderedPages && base64Data.length + renderedPages.reduce((total, page) => total + page.base64Data.length, 0) > 21 * 1024 * 1024) {
     return res.status(400).json({ error: "The encrypted PDF and its unlocked pages are too large to process." });
   }
+  const extractedText = typeof extractedTextValue === "string" ? extractedTextValue.trim() : "";
+  if (extractedText.length > 500_000) {
+    return res.status(400).json({ error: "Extracted statement text is too large to process." });
+  }
 
   try {
     const statementHash = hashBase64File(base64Data);
@@ -4777,14 +4836,25 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
       });
     }
 
-    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType, renderedPages);
+    let textResult: Awaited<ReturnType<typeof importStatementFromText>> | null = null;
+    if (extractedText.length >= 80) {
+      try {
+        textResult = await importStatementFromText(extractedText);
+      } catch (textError: any) {
+        logger.warn("Statement text extraction failed, trying visual import", {
+          error: textError?.message || String(textError),
+        });
+      }
+    }
+    const extractedTransactions = textResult?.transactions
+      ?? await importStatementWithGemini(base64Data, mimeType, renderedPages);
     const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,
       statementHash,
       alreadyImported,
-      provider: "gemini",
-      model: GEMINI_MODEL,
+      provider: textResult?.provider || "gemini",
+      model: textResult?.model || GEMINI_MODEL,
     });
   } catch (error: any) {
     logger.error("Gemini statement preview error", { error });
@@ -4844,6 +4914,10 @@ const getGeminiImportHint = (message: string) => {
 
   if (/quota|rate|429/i.test(message)) {
     return "Gemini quota or rate limit was reached. Try again later or check AI Studio quota.";
+  }
+
+  if (/503|unavailable|timed out/i.test(message)) {
+    return "Gemini is temporarily unavailable. The PDF was unlocked successfully; please retry the import in a moment.";
   }
 
   if (/model|404|not found/i.test(message)) {
