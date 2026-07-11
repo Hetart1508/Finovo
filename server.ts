@@ -4729,7 +4729,7 @@ async function startServer() {
   }
 
   const PORT = Number(process.env.PORT || 3000);
-  const server = app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, () => {
     logger.info(`Server running on http://localhost:${PORT}`);
   });
   server.on("error", (error: NodeJS.ErrnoException) => {
