@@ -30,10 +30,12 @@ import {
   GROQ_API_KEY,
   GROQ_FALLBACK_MODELS,
   GROQ_MODEL,
+  GROQ_VISION_MODEL,
   HUGGINGFACE_API_BASE_URL,
   HUGGINGFACE_API_KEY,
   HUGGINGFACE_FALLBACK_MODELS,
   HUGGINGFACE_MODEL,
+  HUGGINGFACE_VISION_MODEL,
   IS_PRODUCTION,
   JWT_SECRET,
   OPENROUTER_API_BASE_URL,
@@ -41,6 +43,7 @@ import {
   OPENROUTER_APP_NAME,
   OPENROUTER_FALLBACK_MODELS,
   OPENROUTER_MODEL,
+  OPENROUTER_VISION_MODEL,
   OPENROUTER_SITE_URL,
   SESSION_EXPIRES_IN,
 } from "./server/config/env";
@@ -162,16 +165,19 @@ const getAiConfigStatus = () => ({
   groqKeyLooksValid: /^gsk_[0-9A-Za-z_-]+$/.test(GROQ_API_KEY),
   groqModel: GROQ_MODEL,
   groqFallbackModels: GROQ_FALLBACK_MODELS,
+  groqVisionModel: GROQ_VISION_MODEL,
   openRouterConfigured: Boolean(OPENROUTER_API_KEY),
   openRouterKeyLength: OPENROUTER_API_KEY.length,
   openRouterKeyLooksValid: /^sk-or-[0-9A-Za-z_.-]+$/.test(OPENROUTER_API_KEY),
   openRouterModel: OPENROUTER_MODEL,
   openRouterFallbackModels: OPENROUTER_FALLBACK_MODELS,
+  openRouterVisionModel: OPENROUTER_VISION_MODEL,
   huggingFaceConfigured: Boolean(HUGGINGFACE_API_KEY),
   huggingFaceKeyLength: HUGGINGFACE_API_KEY.length,
   huggingFaceKeyLooksValid: /^hf_[0-9A-Za-z_-]+$/.test(HUGGINGFACE_API_KEY),
   huggingFaceModel: HUGGINGFACE_MODEL,
   huggingFaceFallbackModels: HUGGINGFACE_FALLBACK_MODELS,
+  huggingFaceVisionModel: HUGGINGFACE_VISION_MODEL,
 });
 
 type GeminiCategory = typeof GEMINI_CATEGORIES[number];
@@ -941,6 +947,8 @@ const generateGemini = async (
     maxOutputTokens?: number;
     onModel?: (model: string) => void;
     totalTimeoutMs?: number;
+    perAttemptTimeoutMs?: number;
+    maxAttemptsPerModel?: number;
     validateResponse?: (text: string) => void;
   } = {}
 ) => {
@@ -951,14 +959,18 @@ const generateGemini = async (
   const modelCandidates = Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS]));
   let lastError = "";
   const deadline = Date.now() + (options.totalTimeoutMs || 120_000);
+  const maxAttemptsPerModel = options.maxAttemptsPerModel || 2;
 
   for (const model of modelCandidates) {
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt += 1) {
       const remainingMs = deadline - Date.now();
       if (remainingMs <= 0) throw new Error("Gemini request timed out before a model became available");
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), Math.min(45_000, remainingMs));
+      const timer = setTimeout(
+        () => controller.abort(),
+        Math.min(options.perAttemptTimeoutMs || 45_000, remainingMs)
+      );
       let response: globalThis.Response;
       try {
         response = await fetch(
@@ -982,7 +994,7 @@ const generateGemini = async (
         lastError = error?.name === "AbortError"
           ? `Gemini request timed out using ${model}`
           : `Gemini request failed using ${model}: ${error?.message || String(error)}`;
-        if (attempt === 1 && Date.now() < deadline) {
+        if (attempt < maxAttemptsPerModel && Date.now() < deadline) {
           logger.warn("Gemini request failed, retrying model", { model, error: lastError });
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
@@ -993,8 +1005,17 @@ const generateGemini = async (
       }
 
       if (!response.ok) {
-        lastError = `Gemini error using ${model}: ${response.status} ${await response.text()}`;
-        if ([429, 503].includes(response.status) && attempt === 1 && Date.now() < deadline) {
+        const responseText = await response.text();
+        lastError = `Gemini error using ${model}: ${response.status} ${responseText}`;
+        const dailyQuotaExhausted = response.status === 429 && (
+          /GenerateRequestsPerDay|requests per day|free_tier_requests|current quota/i.test(responseText)
+          || /RESOURCE_EXHAUSTED/i.test(responseText) && /quotaValue/i.test(responseText)
+        );
+        if (dailyQuotaExhausted) {
+          logger.warn("Gemini daily quota exhausted, skipping retries for model", { model, status: response.status });
+          break;
+        }
+        if ([429, 503].includes(response.status) && attempt < maxAttemptsPerModel && Date.now() < deadline) {
           logger.warn("Gemini model temporarily unavailable, retrying", { model, status: response.status });
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
@@ -1021,7 +1042,7 @@ const generateGemini = async (
         options.validateResponse?.(text);
       } catch (error: any) {
         lastError = `Gemini returned an invalid response using ${model}: ${error?.message || String(error)}`;
-        if (attempt === 1 && Date.now() < deadline) {
+        if (attempt < maxAttemptsPerModel && Date.now() < deadline) {
           logger.warn("Gemini returned an invalid response, retrying model", { model, error: lastError });
           continue;
         }
@@ -1049,7 +1070,7 @@ type TextAiOptions = {
   validateResponse?: (text: string) => void;
 };
 
-const DEFAULT_TEXT_PROVIDER_PRIORITY: TextAiProvider[] = ["groq", "gemini", "openrouter", "huggingface"];
+const DEFAULT_TEXT_PROVIDER_PRIORITY: TextAiProvider[] = ["gemini", "groq", "openrouter", "huggingface"];
 const RETRYABLE_AI_STATUS_CODES = new Set([400, 404, 408, 409, 429, 500, 502, 503, 504]);
 
 const normalizeTextProvider = (provider: string): TextAiProvider | null => {
@@ -1062,7 +1083,9 @@ const normalizeTextProvider = (provider: string): TextAiProvider | null => {
 };
 
 const getTextProviderPriority = () => {
-  const ordered = [...AI_TEXT_PROVIDER_PRIORITY, ...DEFAULT_TEXT_PROVIDER_PRIORITY]
+  // Keep one project-wide hierarchy for every AI feature. Environment entries
+  // may add aliases later, but cannot move a backup ahead of the primary.
+  const ordered = [...DEFAULT_TEXT_PROVIDER_PRIORITY, ...AI_TEXT_PROVIDER_PRIORITY]
     .map(normalizeTextProvider)
     .filter((provider): provider is TextAiProvider => Boolean(provider));
 
@@ -1214,7 +1237,130 @@ const generateAiText = async (
   );
 };
 
-const extractBillDataWithGemini = async (base64Data: string, mimeType: string) => {
+type VisionInput = { base64Data: string; mimeType: string };
+type VisionAiResult = TextAiResult & { texts: string[] };
+
+const generateOpenAiCompatibleVision = async (
+  provider: Exclude<TextAiProvider, "gemini">,
+  apiBaseUrl: string,
+  apiKey: string,
+  model: string,
+  prompt: string,
+  images: VisionInput[],
+  options: TextAiOptions,
+  extraHeaders: Record<string, string> = {}
+) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: `Return only valid JSON without markdown or code fences.\n\n${prompt}` },
+            ...images.map((image) => ({
+              type: "image_url",
+              image_url: { url: `data:${image.mimeType};base64,${image.base64Data}` },
+            })),
+          ],
+        }],
+        temperature: 0.2,
+        max_tokens: options.maxOutputTokens || 1024,
+        ...(provider === "groq" && options.responseMimeType === "application/json"
+          ? { response_format: { type: "json_object" } }
+          : {}),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`${provider} vision error using ${model}: ${response.status} ${await response.text()}`);
+    }
+    const data: any = await response.json();
+    const text = String(data.choices?.[0]?.message?.content || "").trim();
+    if (!text) throw new Error(`${provider} vision returned an empty response using ${model}`);
+    options.validateResponse?.(text);
+    return text;
+  } catch (error: any) {
+    if (error?.name === "AbortError") throw new Error(`${provider} vision request timed out using ${model}`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const generateAiVision = async (
+  images: VisionInput[],
+  prompt: string,
+  options: TextAiOptions = {}
+): Promise<VisionAiResult> => {
+  const providers = getTextProviderPriority();
+  let lastError = "";
+
+  for (const provider of providers) {
+    try {
+      if (provider === "gemini" && GEMINI_API_KEY) {
+        let model = GEMINI_MODEL;
+        const text = await generateGemini([
+          ...images.map((image) => ({ inline_data: { mime_type: image.mimeType, data: image.base64Data } })),
+          { text: prompt },
+        ], {
+          ...options,
+          totalTimeoutMs: 60_000,
+          perAttemptTimeoutMs: 30_000,
+          maxAttemptsPerModel: 1,
+          onModel: (usedModel) => { model = usedModel; },
+        });
+        return { texts: [text], text, provider, model };
+      }
+
+      const configuration = provider === "groq"
+        ? { key: GROQ_API_KEY, baseUrl: GROQ_API_BASE_URL, model: GROQ_VISION_MODEL, headers: {} }
+        : provider === "openrouter"
+          ? {
+              key: OPENROUTER_API_KEY,
+              baseUrl: OPENROUTER_API_BASE_URL,
+              model: OPENROUTER_VISION_MODEL,
+              headers: {
+                ...(OPENROUTER_SITE_URL ? { "HTTP-Referer": OPENROUTER_SITE_URL } : {}),
+                "X-Title": OPENROUTER_APP_NAME,
+              },
+            }
+          : { key: HUGGINGFACE_API_KEY, baseUrl: HUGGINGFACE_API_BASE_URL, model: HUGGINGFACE_VISION_MODEL, headers: {} };
+
+      if (!configuration.key) continue;
+      const chunks = Array.from({ length: Math.ceil(images.length / 3) }, (_, index) => images.slice(index * 3, index * 3 + 3));
+      const texts: string[] = [];
+      for (const [index, chunk] of chunks.entries()) {
+        texts.push(await generateOpenAiCompatibleVision(
+          provider as Exclude<TextAiProvider, "gemini">,
+          configuration.baseUrl,
+          configuration.key,
+          configuration.model,
+          `${prompt}\n\nThese are statement image batch ${index + 1} of ${chunks.length}. Extract only rows visible in this batch.`,
+          chunk,
+          options,
+          configuration.headers
+        ));
+      }
+      return { texts, text: texts.join("\n"), provider, model: configuration.model };
+    } catch (error: any) {
+      lastError = error?.message || String(error);
+      logger.warn("Vision AI provider failed, trying next provider", { provider, error: lastError });
+    }
+  }
+
+  throw new Error(lastError || "No configured vision AI provider returned a usable response");
+};
+
+const extractBillDataWithAi = async (base64Data: string, mimeType: string) => {
   const today = getTodayDateString();
   const prompt = `Extract expense transaction data from this Indian receipt or invoice file.
 Return ONLY valid JSON with this exact shape:
@@ -1228,20 +1374,13 @@ Rules:
 - In rawText, include the exact bill date line if it is visible.
 - Category must be exactly one of: Food, Transport, Shopping, Utilities, Entertainment, Health, Other.`;
 
-  const result = await generateGemini(
-    [
-      { text: prompt },
-      {
-        inline_data: {
-          mime_type: mimeType,
-          data: base64Data,
-        },
-      },
-    ],
-    { responseMimeType: "application/json", maxOutputTokens: 1024 }
+  const result = await generateAiVision(
+    [{ base64Data, mimeType }],
+    prompt,
+    { responseMimeType: "application/json", maxOutputTokens: 1024, validateResponse: normalizeGeminiBillData }
   );
 
-  return normalizeGeminiBillData(result);
+  return { ...normalizeGeminiBillData(result.text), provider: result.provider, model: result.model };
 };
 
 const extractTransactionFromTextWithAi = async (description: string) => {
@@ -1615,40 +1754,34 @@ Rules:
 - Return up to 150 rows in exact statement order.`;
 };
 
-const importStatementWithGemini = async (
+const importStatementWithAi = async (
   base64Data: string,
   mimeType: string,
   renderedPages?: RenderedStatementPage[] | null
 ) => {
   const prompt = getStatementImportPrompt();
 
-  const statementParts = renderedPages?.length
-    ? renderedPages.map((page) => ({
-        inline_data: {
-          mime_type: page.mimeType,
-          data: page.base64Data,
-        },
-      }))
-    : [{
-        inline_data: {
-          mime_type: mimeType,
-          data: base64Data,
-        },
-      }];
+  const statementImages: VisionInput[] = renderedPages?.length
+    ? renderedPages.map((page) => ({ base64Data: page.base64Data, mimeType: page.mimeType }))
+    : [{ base64Data, mimeType }];
 
-  const result = await generateGemini(
-    [...statementParts, { text: prompt }],
+  const result = await generateAiVision(
+    statementImages,
+    prompt,
     {
       responseMimeType: "application/json",
       maxOutputTokens: 8192,
-      totalTimeoutMs: 120_000,
       validateResponse: (text) => {
         normalizeGeminiStatementTransactions(text);
       },
     }
   );
 
-  return normalizeGeminiStatementTransactions(result);
+  return {
+    transactions: result.texts.flatMap((text) => normalizeGeminiStatementTransactions(text)).slice(0, 150),
+    provider: result.provider,
+    model: result.model,
+  };
 };
 
 const importStatementFromText = async (statementText: string) => {
@@ -4870,17 +5003,17 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
   }
 
   try {
-    const data = await extractBillDataWithGemini(base64Data, mimeType);
-    res.json({ ...data, provider: "gemini", model: GEMINI_MODEL });
+    const data = await extractBillDataWithAi(base64Data, mimeType);
+    res.json(data);
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
     if (/future/i.test(message)) {
       return res.status(400).json({ error: message });
     }
 
-    logger.error("Gemini bill extraction error", { error });
+    logger.error("AI bill extraction error", { error });
     res.status(502).json({
-      error: "Gemini bill extraction failed",
+      error: "AI bill extraction failed",
       detail: IS_PRODUCTION ? undefined : message,
       hint: getGeminiImportHint(message),
     });
@@ -4936,8 +5069,8 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       });
     }
 
-    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
-    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
+    const aiResult = await importStatementWithAi(base64Data, mimeType);
+    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, aiResult.transactions);
     res.json({
       transactions,
       statementHash,
@@ -4945,14 +5078,14 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       savedCount: 0,
       skippedCount: 0,
       pendingApproval: true,
-      provider: "gemini",
-      model: GEMINI_MODEL,
+      provider: aiResult.provider,
+      model: aiResult.model,
     });
   } catch (error: any) {
-    logger.error("Gemini statement import error", { error });
+    logger.error("AI statement import error", { error });
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
-      error: "Gemini statement import failed",
+      error: "AI statement import failed",
       detail: IS_PRODUCTION ? undefined : message,
       hint: getGeminiImportHint(message),
       model: GEMINI_MODEL,
@@ -5014,22 +5147,37 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
         });
       }
     }
-    const extractedTransactions = textResult?.transactions?.length
-      ? textResult.transactions
-      : await importStatementWithGemini(base64Data, mimeType, renderedPages);
+    let extractedTransactions: GeminiStatementTransaction[];
+    let visionResult: Awaited<ReturnType<typeof importStatementWithAi>> | null = null;
+    if (textResult?.transactions?.length) {
+      extractedTransactions = textResult.transactions;
+    } else {
+      try {
+        visionResult = await importStatementWithAi(base64Data, mimeType, renderedPages);
+        extractedTransactions = visionResult.transactions;
+      } catch (visualError: any) {
+        const visualMessage = visualError?.message || String(visualError);
+        const canUseUnlockedTextFallback = Boolean(renderedPages?.length) && extractedText.length >= 80;
+        if (!canUseUnlockedTextFallback) throw visualError;
+
+        logger.warn("Gemini visual quota unavailable, trying unlocked statement text providers");
+        textResult = await importStatementFromText(extractedText);
+        extractedTransactions = textResult.transactions;
+      }
+    }
     const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,
       statementHash,
       alreadyImported,
-      provider: textResult?.provider || "gemini",
-      model: textResult?.model || GEMINI_MODEL,
+      provider: textResult?.provider || visionResult?.provider || "gemini",
+      model: textResult?.model || visionResult?.model || GEMINI_MODEL,
     });
   } catch (error: any) {
-    logger.error("Gemini statement preview error", { error });
+    logger.error("AI statement preview error", { error });
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
-      error: "Gemini statement import failed",
+      error: "AI statement import failed",
       detail: IS_PRODUCTION ? undefined : message,
       hint: getGeminiImportHint(message),
       model: GEMINI_MODEL,
@@ -5079,6 +5227,10 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 const getGeminiImportHint = (message: string) => {
   if (/API key|permission|403|401/i.test(message)) {
     return "Check GEMINI_API_KEY in your local .env or Render environment variables, then restart/redeploy the service.";
+  }
+
+  if (/GenerateRequestsPerDay|requests per day|free_tier_requests/i.test(message)) {
+    return "The Gemini free-tier daily request quota is exhausted. Wait for Google to reset the quota, enable billing, or use an API key from a project with available quota.";
   }
 
   if (/quota|rate|429/i.test(message)) {
@@ -5152,8 +5304,8 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
       });
     }
 
-    const extractedTransactions = await importStatementWithGemini(base64Data, mimeType);
-    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
+    const aiResult = await importStatementWithAi(base64Data, mimeType);
+    const transactions = await enrichStatementTransactionsWithAliases(req.user.id, aiResult.transactions);
 
     res.json({
       transactions,
@@ -5162,15 +5314,15 @@ app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file
       savedCount: 0,
       skippedCount: 0,
       pendingApproval: true,
-      provider: "gemini",
-      model: GEMINI_MODEL,
+      provider: aiResult.provider,
+      model: aiResult.model,
       fileStored: false,
     });
   } catch (error: any) {
-    logger.error("Gemini statement file import error", { error });
+    logger.error("AI statement file import error", { error });
     const message = error instanceof Error ? error.message : String(error);
     res.status(502).json({
-      error: "Gemini statement import failed",
+      error: "AI statement import failed",
       detail: IS_PRODUCTION ? undefined : message,
       hint: getGeminiImportHint(message),
       model: GEMINI_MODEL,

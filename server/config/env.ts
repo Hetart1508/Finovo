@@ -71,7 +71,7 @@ export const GEMINI_FALLBACK_MODELS = readEnv("GEMINI_FALLBACK_MODELS", "gemini-
   .map((model) => model.trim())
   .filter(Boolean);
 export const AI_PROVIDER = readEnv("AI_PROVIDER", "gemini").toLowerCase();
-const defaultTextProviderPriority = "groq,gemini,openrouter,huggingface";
+const defaultTextProviderPriority = "gemini,groq,openrouter,huggingface";
 const configuredTextProviderPriority = readEnv("AI_TEXT_PROVIDER_PRIORITY") || readEnv("AI_PROVIDER_PRIORITY");
 const legacyPrimaryProvider = readEnv("AI_PROVIDER");
 export const AI_TEXT_PROVIDER_PRIORITY = (
@@ -84,12 +84,13 @@ export const AI_TEXT_PROVIDER_PRIORITY = (
 export const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 export const GROQ_API_KEY = readEnv("GROQ_API_KEY");
-export const GROQ_MODEL = readEnv("GROQ_MODEL", "llama-3.1-8b-instant");
-export const GROQ_FALLBACK_MODELS = readEnv("GROQ_FALLBACK_MODELS", "llama-3.3-70b-versatile,qwen/qwen3-32b")
+export const GROQ_MODEL = readEnv("GROQ_MODEL", "qwen/qwen3.6-27b");
+export const GROQ_FALLBACK_MODELS = readEnv("GROQ_FALLBACK_MODELS", "openai/gpt-oss-120b,openai/gpt-oss-20b")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);
 export const GROQ_API_BASE_URL = readEnv("GROQ_API_BASE_URL", "https://api.groq.com/openai/v1");
+export const GROQ_VISION_MODEL = readEnv("GROQ_VISION_MODEL", "qwen/qwen3.6-27b");
 
 export const OPENROUTER_API_KEY = readEnv("OPENROUTER_API_KEY");
 export const OPENROUTER_MODEL = readEnv("OPENROUTER_MODEL", "deepseek/deepseek-chat-v3-0324:free");
@@ -103,6 +104,7 @@ export const OPENROUTER_FALLBACK_MODELS = readEnv(
 export const OPENROUTER_API_BASE_URL = readEnv("OPENROUTER_API_BASE_URL", "https://openrouter.ai/api/v1");
 export const OPENROUTER_SITE_URL = readEnv("OPENROUTER_SITE_URL") || readEnv("FRONTEND_URL");
 export const OPENROUTER_APP_NAME = readEnv("OPENROUTER_APP_NAME", "Finovo");
+export const OPENROUTER_VISION_MODEL = readEnv("OPENROUTER_VISION_MODEL", "openrouter/free");
 
 export const HUGGINGFACE_API_KEY = readEnv("HUGGINGFACE_API_KEY") || readEnv("HF_TOKEN");
 export const HUGGINGFACE_MODEL = readEnv("HUGGINGFACE_MODEL", "meta-llama/Llama-3.1-8B-Instruct");
@@ -114,3 +116,4 @@ export const HUGGINGFACE_FALLBACK_MODELS = readEnv(
   .map((model) => model.trim())
   .filter(Boolean);
 export const HUGGINGFACE_API_BASE_URL = readEnv("HUGGINGFACE_API_BASE_URL", "https://router.huggingface.co/v1");
+export const HUGGINGFACE_VISION_MODEL = readEnv("HUGGINGFACE_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct");
