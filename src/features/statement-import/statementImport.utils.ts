@@ -32,11 +32,21 @@ export class IncorrectStatementPasswordError extends Error {
 const isPdfPasswordError = (error: unknown, code: number) =>
   typeof error === 'object' && error !== null && 'code' in error && Number((error as { code?: unknown }).code) === code;
 
+const withPdfTimeout = <T>(promise: Promise<T>, timeoutMs: number, message: string) => {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
+};
+
 const extractDocumentText = async (document: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']>) => {
   const pageTexts: string[] = [];
   for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
-    const content = await page.getTextContent();
+    const page = await withPdfTimeout(document.getPage(pageNumber), 15_000, `Page ${pageNumber} took too long to open.`);
+    const content = await withPdfTimeout(page.getTextContent(), 15_000, `Page ${pageNumber} text took too long to read.`);
     const text = content.items
       .map((item) => ('str' in item ? item.str : ''))
       .filter(Boolean)
@@ -55,7 +65,7 @@ export const inspectStatementPdf = async (file: File) => {
   let task: ReturnType<typeof pdfjs.getDocument> | null = null;
   try {
     task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
-    const document = await task.promise;
+    const document = await withPdfTimeout(task.promise, 20_000, 'The PDF took too long to open.');
     return await extractDocumentText(document);
   } catch (error) {
     if (isPdfPasswordError(error, pdfjs.PasswordResponses.NEED_PASSWORD)) {
@@ -72,7 +82,8 @@ const canvasToJpegBase64 = (canvas: HTMLCanvasElement, quality: number) =>
 
 export const renderPasswordProtectedPdf = async (
   file: File,
-  password: string
+  password: string,
+  onProgress?: (message: string) => void
 ): Promise<UnlockedStatementPdf> => {
   let document: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']>;
   let task: ReturnType<typeof pdfjs.getDocument> | null = null;
@@ -82,7 +93,11 @@ export const renderPasswordProtectedPdf = async (
       data: new Uint8Array(await file.arrayBuffer()),
       password,
     });
-    document = await task.promise;
+    document = await withPdfTimeout(
+      task.promise,
+      20_000,
+      'The PDF took too long to unlock. Check the password or try a smaller statement.'
+    );
   } catch (error) {
     if (
       isPdfPasswordError(error, pdfjs.PasswordResponses.NEED_PASSWORD) ||
@@ -105,7 +120,12 @@ export const renderPasswordProtectedPdf = async (
     const maximumEncodedSize = Math.max(2 * 1024 * 1024, (21 * 1024 * 1024) - originalEncodedSize);
 
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      const page = await document.getPage(pageNumber);
+      onProgress?.(`Preparing page ${pageNumber} of ${document.numPages}...`);
+      const page = await withPdfTimeout(
+        document.getPage(pageNumber),
+        15_000,
+        `Page ${pageNumber} took too long to open.`
+      );
       const viewport = page.getViewport({ scale: 1.35 });
       const canvas = window.document.createElement('canvas');
       const context = canvas.getContext('2d', { alpha: false });
@@ -115,7 +135,17 @@ export const renderPasswordProtectedPdf = async (
       canvas.height = Math.ceil(viewport.height);
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
+      const renderTask = page.render({ canvas, canvasContext: context, viewport });
+      try {
+        await withPdfTimeout(
+          renderTask.promise,
+          20_000,
+          `Page ${pageNumber} took too long to render.`
+        );
+      } catch (error) {
+        renderTask.cancel();
+        throw error;
+      }
 
       const base64Data = canvasToJpegBase64(canvas, 0.82);
       encodedSize += base64Data.length;
@@ -129,6 +159,7 @@ export const renderPasswordProtectedPdf = async (
       pages.push({ base64Data, mimeType: 'image/jpeg' });
     }
 
+    onProgress?.('Reading unlocked statement text...');
     return {
       pages,
       extractedText: await extractDocumentText(document),

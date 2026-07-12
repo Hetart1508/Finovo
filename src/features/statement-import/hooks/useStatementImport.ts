@@ -30,6 +30,8 @@ export function useStatementImport() {
   const [approvedCount, setApprovedCount] = useState(0);
   const [passwordProtectedFile, setPasswordProtectedFile] = useState<File | null>(null);
   const [passwordError, setPasswordError] = useState('');
+  const [passwordUnlockLoading, setPasswordUnlockLoading] = useState(false);
+  const [passwordProgress, setPasswordProgress] = useState('Unlocking PDF...');
 
   const previewStatement = useMutation({
     mutationFn: (payload: StatementImportPreviewPayload) => statementImportApi.preview(payload),
@@ -98,6 +100,7 @@ export function useStatementImport() {
     setApprovedCount(0);
     setPasswordProtectedFile(null);
     setPasswordError('');
+    setPasswordProgress('Unlocking PDF...');
   };
 
   const showImportError = (error: unknown) => {
@@ -144,12 +147,16 @@ export function useStatementImport() {
     if (!passwordProtectedFile) return false;
 
     setPasswordError('');
+    setPasswordUnlockLoading(true);
+    setPasswordProgress('Unlocking PDF...');
     setPreviewLoading(true);
     try {
-      const unlockedPdf = await renderPasswordProtectedPdf(passwordProtectedFile, password);
+      const unlockedPdf = await renderPasswordProtectedPdf(passwordProtectedFile, password, setPasswordProgress);
       const unlockedFile = passwordProtectedFile;
-      await previewFile(unlockedFile, unlockedPdf.pages, unlockedPdf.extractedText);
       setPasswordProtectedFile(null);
+      setPasswordUnlockLoading(false);
+      toast.info('PDF unlocked. Extracting transactions...');
+      await previewFile(unlockedFile, unlockedPdf.pages, unlockedPdf.extractedText);
       return true;
     } catch (error: unknown) {
       if (error instanceof IncorrectStatementPasswordError) {
@@ -159,6 +166,7 @@ export function useStatementImport() {
       }
       return false;
     } finally {
+      setPasswordUnlockLoading(false);
       setPreviewLoading(false);
     }
   };
@@ -230,6 +238,8 @@ export function useStatementImport() {
     approvedCount,
     passwordProtectedFile,
     passwordError,
+    passwordUnlockLoading,
+    passwordProgress,
     totals,
     handleStatementFile,
     handleStatementPassword,

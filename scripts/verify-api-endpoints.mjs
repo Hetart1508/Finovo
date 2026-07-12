@@ -1,5 +1,14 @@
 import { readFileSync } from 'node:fs';
 
+const serverSource = readFileSync(new URL('../server.ts', import.meta.url), 'utf8');
+const transactionInsert = serverSource.match(/INSERT INTO transactions \(([\s\S]*?)\)\s*VALUES \(([^)]*)\)/);
+if (!transactionInsert) throw new Error('Could not find the transaction INSERT statement');
+const transactionColumnCount = transactionInsert[1].split(',').map((value) => value.trim()).filter(Boolean).length;
+const transactionValueCount = (transactionInsert[2].match(/\?/g) || []).length;
+if (transactionColumnCount !== transactionValueCount) {
+  throw new Error(`Transaction INSERT has ${transactionColumnCount} columns but ${transactionValueCount} values`);
+}
+
 const endpoints = [
   { module: 'auth', method: 'post', path: '/api/auth/register' },
   { module: 'auth', method: 'post', path: '/api/auth/register/verify-otp' },

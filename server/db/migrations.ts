@@ -38,6 +38,17 @@ const ensureIndex = async (tableName: string, indexName: string, columns: string
   }
 };
 
+const ensureUniqueIndex = async (tableName: string, indexName: string, columns: string) => {
+  const existing = await queryOne(
+    `SELECT 1 FROM information_schema.statistics
+     WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ? LIMIT 1`,
+    [tableName, indexName]
+  );
+  if (!existing) {
+    await db.query(`CREATE UNIQUE INDEX ${indexName} ON ${tableName}(${columns})`);
+  }
+};
+
 export const runMigrations = async () => {
   logger.info("Running MySQL schema check...");
 
@@ -327,6 +338,12 @@ export const runMigrations = async () => {
   await ensureColumn("transactions", "merchant_name", "VARCHAR(255) NULL");
   await ensureColumn("transactions", "wallet_id", "INT NULL");
   await ensureColumn("transactions", "created_by_user_id", "INT NULL");
+  await ensureColumn("transactions", "source_type", "VARCHAR(30) NOT NULL DEFAULT 'manual'");
+  await ensureColumn("transactions", "source_document_hash", "CHAR(64) NULL");
+  await ensureColumn("transactions", "source_reference", "VARCHAR(255) NULL");
+  await ensureColumn("transactions", "idempotency_key", "CHAR(64) NULL");
+  await ensureColumn("transactions", "dedupe_fingerprint", "CHAR(64) NULL");
+  await ensureColumn("transactions", "dedupe_key", "CHAR(64) NULL");
   await ensureColumn("recurring_events", "frequency", "VARCHAR(50) NOT NULL DEFAULT 'monthly'");
   await ensureColumn("recurring_events", "interval_count", "INT NOT NULL DEFAULT 1");
   await ensureColumn("recurring_events", "start_date", "DATE NULL");
@@ -344,6 +361,11 @@ export const runMigrations = async () => {
   await ensureIndex("transactions", "idx_transactions_category", "category");
   await ensureIndex("transactions", "idx_transactions_import_fingerprint", "user_id, import_fingerprint");
   await ensureIndex("transactions", "idx_transactions_user_payee_vpa", "user_id, payee_vpa");
+  await ensureIndex("transactions", "idx_transactions_wallet_fingerprint", "wallet_id, dedupe_fingerprint");
+  await ensureUniqueIndex("transactions", "uq_transactions_wallet_idempotency", "wallet_id, idempotency_key");
+  await ensureUniqueIndex("transactions", "uq_transactions_wallet_reference", "wallet_id, source_reference");
+  await ensureUniqueIndex("transactions", "uq_transactions_wallet_source_document", "wallet_id, source_type, source_document_hash");
+  await ensureUniqueIndex("transactions", "uq_transactions_wallet_dedupe_key", "wallet_id, dedupe_key");
   await ensureIndex("merchant_aliases", "idx_merchant_aliases_user", "user_id");
   await ensureIndex("recurring_events", "idx_recurring_user", "user_id");
   await ensureIndex("mutual_fund_sip_investments", "idx_investments_user", "user_id");

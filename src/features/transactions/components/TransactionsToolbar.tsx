@@ -62,7 +62,9 @@ export function TransactionsToolbar({
     const transaction = await onExtractTransaction(aiDescription);
     if (!transaction) return;
 
-    setExtractedTransaction(transaction);
+    // Keep the user's original sentence as the stable transaction identity. AI
+    // descriptions may be paraphrased differently across otherwise identical runs.
+    setExtractedTransaction({ ...transaction, description: aiDescription.trim() });
     if (transaction.date) onTransactionDateChange(transaction.date);
     setFormVersion((version) => version + 1);
   };

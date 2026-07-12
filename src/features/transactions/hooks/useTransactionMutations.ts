@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useRef, type FormEvent } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { transactionsApi } from '@/src/api/transactionsApi';
@@ -26,6 +26,7 @@ export function useTransactionMutations({
   onUpdated,
 }: UseTransactionMutationsArgs) {
   const queryClient = useQueryClient();
+  const extractedFromSingleLine = useRef(false);
   const refreshTransactions = () => invalidateTransactions(queryClient);
 
   const deleteTransaction = useMutation({
@@ -70,17 +71,35 @@ export function useTransactionMutations({
       return false;
     }
 
-    try {
-      const response = await addTransaction.mutateAsync({
+    const payload = {
         ...data,
         amount: parseFloat(data.amount as string),
         date: transactionDate,
         wallet_id: selectedWalletId,
-      });
+        idempotency_key: crypto.randomUUID(),
+        source_type: extractedFromSingleLine.current ? 'single_line' : 'manual',
+      };
+
+    try {
+      const response = await addTransaction.mutateAsync(payload);
       toast.success(getApiSuccessMessage(response.data, 'Transaction added successfully'));
+      extractedFromSingleLine.current = false;
       onAdded();
       return true;
     } catch (error: unknown) {
+      const duplicate = (error as any)?.response?.data;
+      if (duplicate?.requiresConfirmation && window.confirm('A matching transaction already exists. Add this as a separate transaction anyway?')) {
+        try {
+          const response = await addTransaction.mutateAsync({ ...payload, allowPossibleDuplicate: true });
+          toast.success(getApiSuccessMessage(response.data, 'Transaction added successfully'));
+          extractedFromSingleLine.current = false;
+          onAdded();
+          return true;
+        } catch (retryError: unknown) {
+          toast.error(getApiMessage(retryError, 'Failed to add transaction.'));
+          return false;
+        }
+      }
       toast.error(getApiMessage(error, 'Failed to add transaction.'));
       return false;
     }
@@ -89,6 +108,7 @@ export function useTransactionMutations({
   const handleExtract = async (description: string): Promise<ExtractedTransaction | null> => {
     try {
       const response = await extractTransaction.mutateAsync(description);
+      extractedFromSingleLine.current = true;
       toast.success('Transaction details extracted. Review before saving.');
       return response.transaction;
     } catch (error: unknown) {

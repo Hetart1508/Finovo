@@ -15,6 +15,7 @@ type StatementPasswordDialogProps = {
   file: File | null;
   error: string;
   loading: boolean;
+  loadingLabel: string;
   onSubmit: (password: string) => Promise<boolean>;
   onCancel: () => void;
 };
@@ -23,6 +24,7 @@ export function StatementPasswordDialog({
   file,
   error,
   loading,
+  loadingLabel,
   onSubmit,
   onCancel,
 }: StatementPasswordDialogProps) {
@@ -70,7 +72,7 @@ export function StatementPasswordDialog({
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
             <Button type="submit" disabled={!password || loading}>
-              {loading ? 'Unlocking...' : 'Unlock and import'}
+              {loading ? loadingLabel : 'Unlock and import'}
             </Button>
           </div>
         </form>

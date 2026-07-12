@@ -50,6 +50,11 @@ import { runMigrations } from "./server/db/migrations";
 import { authenticateToken } from "./server/middleware/auth";
 import { requestLogger } from "./server/middleware/requestLogger";
 import { getLocalUploadResponse, upload, validateUploadedFileSignature } from "./server/middleware/upload";
+import {
+  areTransactionIdentitiesSimilar,
+  createTransactionFingerprint,
+  normalizeTransactionIdentity,
+} from "./server/services/transactionDedup";
 
 const app = express();
 if (IS_PRODUCTION) {
@@ -200,6 +205,12 @@ type NormalizedTransaction = {
   import_fingerprint: string | null;
   payee_vpa: string | null;
   merchant_name: string | null;
+  source_type: "manual" | "statement" | "invoice" | "single_line";
+  source_document_hash: string | null;
+  source_reference: string | null;
+  idempotency_key: string | null;
+  dedupe_fingerprint: string | null;
+  dedupe_key: string | null;
 };
 
 const isNonEmptyString = (value: unknown): value is string =>
@@ -1913,10 +1924,91 @@ const normalizeTransactionBody = (body: any) => {
     import_fingerprint: isNonEmptyString(import_fingerprint) ? import_fingerprint.trim() : null,
     payee_vpa: normalizeVpa(payee_vpa),
     merchant_name: normalizeCompanyName(merchant_name),
+    source_type: (["manual", "statement", "invoice", "single_line"] as const).includes(body.source_type)
+      ? body.source_type
+      : "manual",
+    source_document_hash: /^[a-f0-9]{64}$/i.test(String(body.source_document_hash || ""))
+      ? String(body.source_document_hash).toLowerCase()
+      : null,
+    source_reference: isNonEmptyString(body.source_reference) ? body.source_reference.trim().slice(0, 255).toLowerCase() : null,
+    idempotency_key: isNonEmptyString(body.idempotency_key) ? sha256(body.idempotency_key.trim().slice(0, 255)) : null,
+    dedupe_fingerprint: null,
+    dedupe_key: null,
   };
 
   return { transaction };
 };
+
+const extractTransactionReference = (...values: unknown[]) => {
+  const text = values.filter(isNonEmptyString).join(" ");
+  const match = text.match(/\b(?:utr|upi ref(?:erence)?|ref(?:erence)? no|transaction id)\b[\s:#-]*([a-z0-9-]{6,64})/i);
+  return match?.[1]?.toLowerCase() || null;
+};
+
+const getTransactionIdentity = (transaction: Pick<NormalizedTransaction, "payee_vpa" | "merchant_name" | "description">) =>
+  transaction.payee_vpa || normalizeTransactionIdentity(transaction.merchant_name) || normalizeTransactionIdentity(transaction.description);
+
+const getTransactionDedupeFingerprint = (walletId: number, transaction: NormalizedTransaction) => createTransactionFingerprint({
+  walletId,
+  date: transaction.date,
+  type: transaction.type,
+  amount: transaction.amount,
+  identity: getTransactionIdentity(transaction),
+});
+
+const getDuplicateTransaction = async (walletId: number, transaction: NormalizedTransaction) => {
+  if (transaction.idempotency_key) {
+    const exact = await queryOne("SELECT * FROM transactions WHERE wallet_id = ? AND idempotency_key = ? LIMIT 1", [walletId, transaction.idempotency_key]);
+    if (exact) return { transaction: exact, confidence: "exact" };
+  }
+  if (transaction.source_reference) {
+    const exact = await queryOne(
+      "SELECT * FROM transactions WHERE wallet_id = ? AND source_reference = ? LIMIT 1",
+      [walletId, transaction.source_reference]
+    );
+    if (exact) return { transaction: exact, confidence: "exact" };
+  }
+  if (transaction.source_document_hash && transaction.source_type === "invoice") {
+    const exact = await queryOne(
+      "SELECT * FROM transactions WHERE wallet_id = ? AND source_type = 'invoice' AND source_document_hash = ? LIMIT 1",
+      [walletId, transaction.source_document_hash]
+    );
+    if (exact) return { transaction: exact, confidence: "exact" };
+  }
+  if (transaction.dedupe_fingerprint) {
+    const probable = await queryOne(
+      "SELECT * FROM transactions WHERE wallet_id = ? AND dedupe_fingerprint = ? LIMIT 1",
+      [walletId, transaction.dedupe_fingerprint]
+    );
+    if (probable) return { transaction: probable, confidence: "probable" };
+  }
+
+  // Also protects against duplicates of rows created before fingerprints were introduced.
+  const legacyCandidates: any[] = await queryAll(
+    "SELECT * FROM transactions WHERE wallet_id = ? AND date = ? AND type = ? AND amount = ? LIMIT 25",
+    [walletId, transaction.date, transaction.type, transaction.amount]
+  );
+  const merchantIdentity = getTransactionIdentity(transaction);
+  const legacy = legacyCandidates.find((candidate) => {
+    const candidateIdentity = candidate.payee_vpa
+      || normalizeTransactionIdentity(candidate.merchant_name)
+      || normalizeTransactionIdentity(candidate.description);
+    return merchantIdentity && areTransactionIdentitiesSimilar(merchantIdentity, candidateIdentity);
+  });
+  return legacy ? { transaction: legacy, confidence: "probable" } : null;
+};
+
+const duplicateTransactionResult = (duplicate: { transaction: any; confidence: string }) => ({
+  status: 409,
+  body: {
+    error: duplicate.confidence === "exact" ? "This transaction was already submitted" : "A matching transaction already exists",
+    duplicate: true,
+    confidence: duplicate.confidence,
+    requiresConfirmation: duplicate.confidence !== "exact",
+    existingTransactionId: duplicate.transaction.id,
+    existingTransaction: duplicate.transaction,
+  },
+});
 
 const createTransaction = async (userId: number, body: any, walletId?: number) => {
   const normalized = normalizeTransactionBody(body);
@@ -1926,7 +2018,24 @@ const createTransaction = async (userId: number, body: any, walletId?: number) =
   }
 
   const resolvedWalletId = walletId ?? await ensurePersonalWallet(userId);
-  return insertTransaction(userId, normalized.transaction, resolvedWalletId);
+  normalized.transaction.source_reference ||= extractTransactionReference(normalized.transaction.description);
+  normalized.transaction.dedupe_fingerprint = getTransactionDedupeFingerprint(resolvedWalletId, normalized.transaction);
+  const duplicate = await getDuplicateTransaction(resolvedWalletId, normalized.transaction);
+  if (duplicate && (duplicate.confidence === "exact" || body.allowPossibleDuplicate !== true)) {
+    return duplicateTransactionResult(duplicate);
+  }
+  normalized.transaction.dedupe_key = body.allowPossibleDuplicate === true
+    ? sha256(`${normalized.transaction.dedupe_fingerprint}:${crypto.randomUUID()}`)
+    : normalized.transaction.dedupe_fingerprint;
+  try {
+    return await insertTransaction(userId, normalized.transaction, resolvedWalletId);
+  } catch (error: any) {
+    if (error?.code === "ER_DUP_ENTRY") {
+      const racedDuplicate = await getDuplicateTransaction(resolvedWalletId, normalized.transaction);
+      if (racedDuplicate) return duplicateTransactionResult(racedDuplicate);
+    }
+    throw error;
+  }
 };
 
 const insertTransaction = async (userId: number, transaction: NormalizedTransaction, walletId: number) => {
@@ -1946,8 +2055,14 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
       import_fingerprint,
       payee_vpa,
       merchant_name
+      , source_type
+      , source_document_hash
+      , source_reference
+      , idempotency_key
+      , dedupe_fingerprint
+      , dedupe_key
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     userId,
     walletId,
@@ -1963,6 +2078,12 @@ const insertTransaction = async (userId: number, transaction: NormalizedTransact
     transaction.import_fingerprint,
     transaction.payee_vpa,
     transaction.merchant_name,
+    transaction.source_type,
+    transaction.source_document_hash,
+    transaction.source_reference,
+    transaction.idempotency_key,
+    transaction.dedupe_fingerprint,
+    transaction.dedupe_key,
   ]);
 
   return {
@@ -2173,6 +2294,8 @@ const saveStatementTransactions = async (
       source_statement_hash: sourceStatementHash,
       payee_vpa: payeeVpa,
       merchant_name: merchantName,
+      source_type: "statement",
+      source_reference: extractTransactionReference(transaction.original_description, transaction.description),
     });
 
     if ("status" in normalized) {
@@ -2191,10 +2314,19 @@ const saveStatementTransactions = async (
       );
     }
 
-    const key = getStatementTransactionKey(normalized.transaction);
+    normalized.transaction.dedupe_fingerprint = getTransactionDedupeFingerprint(walletId, normalized.transaction);
+    // Row identity prevents re-inserting the same statement row, while the canonical
+    // fingerprint still detects that row when it appears in another statement file.
+    normalized.transaction.dedupe_key = normalized.transaction.import_fingerprint || normalized.transaction.dedupe_fingerprint;
+
+    const key = normalized.transaction.import_fingerprint || getStatementTransactionKey(normalized.transaction);
+    const duplicateMatch = seenStatementRows.has(key) ? null : await getDuplicateTransaction(walletId, normalized.transaction);
+    const sameStatementDifferentRow = duplicateMatch?.transaction?.source_statement_hash === sourceStatementHash
+      && duplicateMatch.transaction.import_fingerprint !== normalized.transaction.import_fingerprint;
     const existing = seenStatementRows.has(key)
       ? { id: null }
-      : await findDuplicateStatementTransaction(walletId, normalized.transaction);
+      : (!sameStatementDifferentRow ? duplicateMatch?.transaction : null)
+        || await findDuplicateStatementTransaction(walletId, normalized.transaction);
 
     if (existing) {
       skipped.push({
@@ -2204,7 +2336,16 @@ const saveStatementTransactions = async (
       continue;
     }
 
-    const result = await insertTransaction(userId, normalized.transaction, walletId);
+    let result;
+    try {
+      result = await insertTransaction(userId, normalized.transaction, walletId);
+    } catch (error: any) {
+      if (error?.code === "ER_DUP_ENTRY") {
+        skipped.push({ transaction, error: "Duplicate statement transaction already exists" });
+        continue;
+      }
+      throw error;
+    }
     seenStatementRows.add(key);
     savedTransactions.push(result.body);
   }
@@ -4857,17 +4998,25 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
     }
 
     let textResult: Awaited<ReturnType<typeof importStatementFromText>> | null = null;
-    if (extractedText.length >= 80) {
+    // Locally rendered pages mean the original PDF was password protected. Its
+    // flattened text often loses debit/credit column positions, so preserve the
+    // statement layout by sending the unlocked page images directly to Gemini.
+    if (!renderedPages?.length && extractedText.length >= 80) {
       try {
         textResult = await importStatementFromText(extractedText);
+        if (textResult.transactions.length === 0) {
+          logger.warn("Statement text extraction returned no transactions, trying visual import");
+          textResult = null;
+        }
       } catch (textError: any) {
         logger.warn("Statement text extraction failed, trying visual import", {
           error: textError?.message || String(textError),
         });
       }
     }
-    const extractedTransactions = textResult?.transactions
-      ?? await importStatementWithGemini(base64Data, mimeType, renderedPages);
+    const extractedTransactions = textResult?.transactions?.length
+      ? textResult.transactions
+      : await importStatementWithGemini(base64Data, mimeType, renderedPages);
     const transactions = await enrichStatementTransactionsWithAliases(req.user.id, extractedTransactions);
     res.json({
       transactions,

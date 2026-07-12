@@ -24,6 +24,8 @@ export default function StatementImport() {
     approvedCount,
     passwordProtectedFile,
     passwordError,
+    passwordUnlockLoading,
+    passwordProgress,
     totals,
     handleStatementFile,
     handleStatementPassword,
@@ -84,7 +86,8 @@ export default function StatementImport() {
       <StatementPasswordDialog
         file={passwordProtectedFile}
         error={passwordError}
-        loading={previewLoading}
+        loading={passwordUnlockLoading}
+        loadingLabel={passwordProgress}
         onSubmit={handleStatementPassword}
         onCancel={cancelStatementPassword}
       />

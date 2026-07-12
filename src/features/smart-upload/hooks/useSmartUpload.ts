@@ -92,6 +92,11 @@ export function useSmartUpload() {
 
     setLoading(true);
     try {
+      const sourceDocumentHash = file
+        ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())))
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join('')
+        : null;
       let billUrl: string | null = null;
       if (file) {
         const uploadForm = new FormData();
@@ -100,14 +105,27 @@ export function useSmartUpload() {
         billUrl = uploadedBill.url;
       }
 
-      const response = await createTransaction.mutateAsync({
+      const payload = {
         ...extractedData.data,
         type: 'expense',
         payment_mode: 'UPI',
         description: `AI Extracted (${extractedData.confidence}): ${extractedData.data.merchant}`,
         bill_url: billUrl,
         wallet_id: selectedWalletId,
-      });
+        source_type: 'invoice',
+        source_document_hash: sourceDocumentHash,
+        idempotency_key: crypto.randomUUID(),
+      };
+      let response;
+      try {
+        response = await createTransaction.mutateAsync(payload);
+      } catch (error: unknown) {
+        const duplicate = (error as any)?.response?.data;
+        if (!duplicate?.requiresConfirmation || !window.confirm('A matching transaction already exists. Save this invoice as a separate transaction anyway?')) {
+          throw error;
+        }
+        response = await createTransaction.mutateAsync({ ...payload, allowPossibleDuplicate: true });
+      }
       toast.success(getApiSuccessMessage(response.data, 'Transaction saved successfully'));
       setFile(null);
       setPreview(null);
