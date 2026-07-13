@@ -149,10 +149,10 @@ export function CalendarMonthCard({
                     className={cn(
                       'group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
                       !hasBalanceColor && (isWeekend ? 'text-[#4F9CF9]' : 'text-[#1F2937]'),
-                      isToday && !isSelected && !hasBalanceColor && 'ring-2 ring-inset ring-[#4F9CF9]',
-                      isOverLimit && !isSelected && dailySummary.net < 0 && 'ring-2 ring-[#FF6B6B]',
-                      isSelected && '!border-[#4F9CF9] !bg-[#4F9CF9] !text-white shadow-md shadow-[#4F9CF9]/20',
-                      !hasBalanceColor && 'hover:border-[#4F9CF9] hover:bg-[#EEF6FF] hover:text-[#357CCB]',
+                      isToday && !isSelected && !hasBalanceColor && 'ring-1 ring-inset ring-[#4F9CF9]',
+                      isOverLimit && !isSelected && dailySummary.net < 0 && 'ring-1 ring-[#FF6B6B]',
+                      isSelected && '!border-transparent !bg-[#4F9CF9] !text-white shadow-md shadow-[#4F9CF9]/20',
+                      !hasBalanceColor && 'hover:border-[#4F9CF9]/35 hover:bg-[#EEF6FF] hover:text-[#357CCB]',
                       hasBalanceColor && 'hover:brightness-95'
                     )}
                     aria-pressed={isSelected}
