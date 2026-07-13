@@ -29,7 +29,6 @@ import {
   RiRobot2Line,
   RiUserSettingsLine,
   RiGroupLine,
-  RiAddCircleLine,
   RiBarChartBoxLine,
 } from 'react-icons/ri';
 
@@ -324,6 +323,7 @@ export default function Layout({ children }: LayoutProps) {
         selectedWalletName={selectedWallet?.name ?? 'Wallet'}
       />
 
+      {/* Temporarily hidden global Add Transaction and Wealth Advisor actions.
       <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-center gap-3 sm:right-6 lg:right-8">
         <button
           type="button"
@@ -344,6 +344,7 @@ export default function Layout({ children }: LayoutProps) {
           <RiRobot2Line className="text-xl" aria-hidden="true" />
         </Link>
       </div>
+      */}
     </div>
   );
 }
