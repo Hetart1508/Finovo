@@ -1239,6 +1239,7 @@ const generateAiText = async (
 
 type VisionInput = { base64Data: string; mimeType: string };
 type VisionAiResult = TextAiResult & { texts: string[] };
+const GROQ_VISION_MAX_OUTPUT_TOKENS = 4096;
 
 const generateOpenAiCompatibleVision = async (
   provider: Exclude<TextAiProvider, "gemini">,
@@ -1274,7 +1275,9 @@ const generateOpenAiCompatibleVision = async (
           ],
         }],
         temperature: 0.2,
-        max_tokens: options.maxOutputTokens || 1024,
+        max_tokens: provider === "groq"
+          ? Math.min(options.maxOutputTokens || 1024, GROQ_VISION_MAX_OUTPUT_TOKENS)
+          : options.maxOutputTokens || 1024,
         ...(provider === "groq" && options.responseMimeType === "application/json"
           ? { response_format: { type: "json_object" } }
           : {}),
@@ -1336,7 +1339,14 @@ const generateAiVision = async (
           : { key: HUGGINGFACE_API_KEY, baseUrl: HUGGINGFACE_API_BASE_URL, model: HUGGINGFACE_VISION_MODEL, headers: {} };
 
       if (!configuration.key) continue;
-      const chunks = Array.from({ length: Math.ceil(images.length / 3) }, (_, index) => images.slice(index * 3, index * 3 + 3));
+      if (images.some((image) => image.mimeType === "application/pdf")) {
+        throw new Error(`${provider} vision cannot read raw PDF statements. Use extracted PDF text, unlocked rendered pages, or configure Gemini vision for PDF input.`);
+      }
+      const imagesPerChunk = provider === "groq" ? 1 : 2;
+      const chunks = Array.from(
+        { length: Math.ceil(images.length / imagesPerChunk) },
+        (_, index) => images.slice(index * imagesPerChunk, index * imagesPerChunk + imagesPerChunk)
+      );
       const texts: string[] = [];
       for (const [index, chunk] of chunks.entries()) {
         texts.push(await generateOpenAiCompatibleVision(
@@ -5232,6 +5242,32 @@ app.post("/api/statement-import/preview-stream", authenticateToken, async (req: 
           limitReached: extractedCount >= 250,
         });
       }
+    } else if (renderedPages?.length) {
+      writeEvent("start", { statementHash, alreadyImported, totalBatches: renderedPages.length });
+
+      for (const [index, page] of renderedPages.entries()) {
+        if (extractedCount >= 250) break;
+        const result = await importStatementWithAi(base64Data, mimeType, [page]);
+        provider = result.provider;
+        model = result.model;
+        const remaining = Math.max(0, 250 - extractedCount);
+        const enrichedTransactions = await enrichStatementTransactionsWithAliases(
+          req.user.id,
+          result.transactions.slice(0, remaining)
+        );
+        extractedCount += enrichedTransactions.length;
+        writeEvent("batch", {
+          transactions: enrichedTransactions,
+          statementHash,
+          alreadyImported,
+          provider,
+          model,
+          batchIndex: index + 1,
+          totalBatches: renderedPages.length,
+          extractedCount,
+          limitReached: extractedCount >= 250,
+        });
+      }
     } else {
       writeEvent("start", { statementHash, alreadyImported, totalBatches: 1 });
       const result = await importStatementWithAi(base64Data, mimeType, renderedPages);
@@ -5261,8 +5297,8 @@ app.post("/api/statement-import/preview-stream", authenticateToken, async (req: 
       limitReached: extractedCount >= 250,
     });
   } catch (error: any) {
-    logger.error("AI statement streaming preview error", { error });
     const message = error instanceof Error ? error.message : String(error);
+    logger.error("AI statement streaming preview error", { message, stack: error?.stack });
     writeEvent("error", {
       error: "AI statement import failed",
       detail: IS_PRODUCTION ? undefined : message,
@@ -5355,8 +5391,8 @@ app.post("/api/statement-import/preview", authenticateToken, async (req: any, re
       model: textResult?.model || visionResult?.model || GEMINI_MODEL,
     });
   } catch (error: any) {
-    logger.error("AI statement preview error", { error });
     const message = error instanceof Error ? error.message : String(error);
+    logger.error("AI statement preview error", { message, stack: error?.stack });
     res.status(502).json({
       error: "AI statement import failed",
       detail: IS_PRODUCTION ? undefined : message,
@@ -5406,6 +5442,22 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
 });
 
 const getGeminiImportHint = (message: string) => {
+  if (/cannot read raw PDF statements/i.test(message)) {
+    return "This PDF did not expose enough selectable text, and only Gemini can read raw PDF pages in the current provider setup. Wait for Gemini quota, enable Gemini billing, or upload a statement/export with selectable text.";
+  }
+
+  if (/Request too large|tokens per minute|TPM|413/i.test(message)) {
+    return "The fallback vision provider rejected the statement because the request was too large. Try a shorter PDF, a clearer exported PDF with selectable text, or a provider plan/model with a higher token limit.";
+  }
+
+  if (/Missing Authentication header|openrouter.*401|OPENROUTER_API_KEY/i.test(message)) {
+    return "OpenRouter fallback is enabled but its API key is missing or invalid. Set OPENROUTER_API_KEY or remove openrouter from AI_TEXT_PROVIDER_PRIORITY.";
+  }
+
+  if (/model_not_supported|not supported by any provider|huggingface/i.test(message)) {
+    return "The configured Hugging Face vision model is not available for this account/provider. Choose a supported vision model or remove huggingface from AI_TEXT_PROVIDER_PRIORITY.";
+  }
+
   if (/API key|permission|403|401/i.test(message)) {
     return "Check GEMINI_API_KEY in your local .env or Render environment variables, then restart/redeploy the service.";
   }
