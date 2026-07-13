@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/src/components/ui/button';
 import {
   Dialog,
@@ -24,6 +24,8 @@ type TransactionsToolbarProps = {
   onExtractTransaction: (description: string) => Promise<TransactionFormInitialValues | null>;
   extractingTransaction: boolean;
   selectedWalletName: string;
+  addDialogRequestKey?: number;
+  onAddDialogRequestHandled?: () => void;
 };
 
 export function TransactionsToolbar({
@@ -38,6 +40,8 @@ export function TransactionsToolbar({
   onExtractTransaction,
   extractingTransaction,
   selectedWalletName,
+  addDialogRequestKey,
+  onAddDialogRequestHandled,
 }: TransactionsToolbarProps) {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMode, setAddMode] = useState<'ai' | 'manual'>('ai');
@@ -57,6 +61,12 @@ export function TransactionsToolbar({
     setAddDialogOpen(open);
     if (!open) resetAddDialog();
   };
+
+  useEffect(() => {
+    if (!addDialogRequestKey) return;
+    setAddDialogOpen(true);
+    onAddDialogRequestHandled?.();
+  }, [addDialogRequestKey, onAddDialogRequestHandled]);
 
   const handleExtract = async () => {
     const transaction = await onExtractTransaction(aiDescription);

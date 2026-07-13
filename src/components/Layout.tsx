@@ -288,7 +288,7 @@ export default function Layout({ children }: LayoutProps) {
 
       <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-center gap-3 sm:right-6 lg:right-8">
         <Link
-          to="/transactions"
+          to="/transactions?add=1"
           className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#34C759]/25 bg-[#34C759]/25 text-white/85 shadow-[0_12px_28px_rgba(52,199,89,0.14)] backdrop-blur-[2px] transition hover:border-transparent hover:bg-[#2EB851] hover:text-white hover:shadow-[0_16px_35px_rgba(52,199,89,0.32)] focus-visible:border-transparent focus-visible:bg-[#2EB851] focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#34C759]/40"
           aria-label="Go to transactions"
           title="Add transaction"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Dialog, 
   DialogContent, 
@@ -22,6 +23,8 @@ import type { Transaction } from '@/src/features/transactions/transactions.types
 
 export default function Transactions() {
   const { selectedWallet, selectedWalletId } = useWallets();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [addDialogRequestKey, setAddDialogRequestKey] = useState(0);
   const transactionsResult = useQuery(transactionsQuery(selectedWalletId));
   const transactions = (transactionsResult.data ?? []) as Transaction[];
   const loading = transactionsResult.isPending;
@@ -48,6 +51,16 @@ export default function Transactions() {
     onUpdated: () => setEditingTransaction(null),
   });
 
+  useEffect(() => {
+    if (searchParams.get('add') !== '1') return;
+    setAddDialogRequestKey((key) => key + 1);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('add');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 sm:space-y-6">
       <TransactionsToolbar
@@ -62,6 +75,7 @@ export default function Transactions() {
         onExtractTransaction={transactionMutations.handleExtract}
         extractingTransaction={transactionMutations.extractingTransaction}
         selectedWalletName={selectedWallet?.name ?? 'Wallet'}
+        addDialogRequestKey={addDialogRequestKey}
       />
 
       <TransactionsTableCard
