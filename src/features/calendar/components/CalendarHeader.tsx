@@ -1,8 +1,9 @@
-import { Button } from '@/src/components/ui/button';
+import { Button, buttonVariants } from '@/src/components/ui/button';
 import { PageHeader } from '@/src/components/shared/PageHeader';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { RiSettings3Line } from 'react-icons/ri';
 
 type CalendarHeaderProps = {
@@ -18,11 +19,15 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
       description="Track your daily spending patterns and stay within limits."
       actions={(
         <Popover>
-          <PopoverTrigger>
-            <Button variant="outline" className="gap-2 border-[#4F9CF9]/25 text-[#357CCB] hover:bg-[#EEF6FF] hover:text-[#357CCB]">
-              <RiSettings3Line className="text-base text-[#4F9CF9]" aria-hidden="true" />
-              Threshold: ₹{threshold}
-            </Button>
+          <PopoverTrigger
+            type="button"
+            className={cn(
+              buttonVariants({ variant: 'outline' }),
+              '!w-fit gap-2 border-[#4F9CF9]/25 text-[#357CCB] hover:bg-[#EEF6FF] hover:text-[#357CCB]'
+            )}
+          >
+            <RiSettings3Line className="text-base text-[#4F9CF9]" aria-hidden="true" />
+            Threshold: ₹{threshold}
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4">
             <div className="space-y-4">

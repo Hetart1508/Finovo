@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
@@ -51,6 +51,30 @@ export function CalendarMonthCard({
   onYearChange,
 }: CalendarMonthCardProps) {
   const [activeTooltipDate, setActiveTooltipDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeTooltipDate) return undefined;
+
+    const closeTooltipOutsideActiveDay = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element) {
+        const dayButton = target.closest<HTMLElement>('[data-calendar-date]');
+        if (dayButton?.dataset.calendarDate === activeTooltipDate) return;
+      }
+      setActiveTooltipDate(null);
+    };
+
+    const closeTooltipWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveTooltipDate(null);
+    };
+
+    document.addEventListener('pointerdown', closeTooltipOutsideActiveDay, true);
+    document.addEventListener('keydown', closeTooltipWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeTooltipOutsideActiveDay, true);
+      document.removeEventListener('keydown', closeTooltipWithEscape);
+    };
+  }, [activeTooltipDate]);
 
   return (
     <Card className="overflow-visible border-none shadow-sm lg:col-span-2">
@@ -149,6 +173,7 @@ export function CalendarMonthCard({
                   <button
                     key={day.toISOString()}
                     type="button"
+                    data-calendar-date={dateKey}
                     onClick={() => {
                       onSelectDate(day);
                       setActiveTooltipDate(dateKey);
