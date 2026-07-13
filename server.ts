@@ -1818,6 +1818,30 @@ const splitStatementTextForImport = (statementText: string) => {
   return chunks;
 };
 
+const importStatementTextChunk = async (statementText: string, index: number, totalChunks: number) => {
+  const prompt = `${getStatementImportPrompt()}
+
+The PDF text was extracted locally and is enclosed below. Use only this statement text batch.
+Batch ${index + 1} of ${totalChunks}. Extract only rows visible in this batch.
+<statement_text>
+${statementText}
+</statement_text>`;
+
+  const result = await generateAiText(prompt, {
+    responseMimeType: "application/json",
+    maxOutputTokens: 10000,
+    validateResponse: (text) => {
+      normalizeGeminiStatementTransactions(text);
+    },
+  });
+
+  return {
+    transactions: normalizeGeminiStatementTransactions(result.text),
+    provider: result.provider,
+    model: result.model,
+  };
+};
+
 const importStatementFromText = async (statementText: string) => {
   const chunks = splitStatementTextForImport(statementText);
   const transactions: GeminiStatementTransaction[] = [];
@@ -1825,25 +1849,10 @@ const importStatementFromText = async (statementText: string) => {
   let model = "";
 
   for (const [index, chunk] of chunks.entries()) {
-    const prompt = `${getStatementImportPrompt()}
-
-The PDF text was extracted locally and is enclosed below. Use only this statement text batch.
-Batch ${index + 1} of ${chunks.length}. Extract only rows visible in this batch.
-<statement_text>
-${chunk}
-</statement_text>`;
-
-    const result = await generateAiText(prompt, {
-      responseMimeType: "application/json",
-      maxOutputTokens: 10000,
-      validateResponse: (text) => {
-        normalizeGeminiStatementTransactions(text);
-      },
-    });
-
+    const result = await importStatementTextChunk(chunk, index, chunks.length);
     provider = provider || result.provider;
     model = model || result.model;
-    transactions.push(...normalizeGeminiStatementTransactions(result.text));
+    transactions.push(...result.transactions);
     if (transactions.length >= 250) break;
   }
 
@@ -5139,6 +5148,129 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
       hint: getGeminiImportHint(message),
       model: GEMINI_MODEL,
     });
+  }
+});
+
+app.post("/api/statement-import/preview-stream", authenticateToken, async (req: any, res) => {
+  const { base64Data, mimeType, renderedPages: renderedPagesValue, extractedText: extractedTextValue } = req.body || {};
+
+  if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
+    return res.status(400).json({ error: "base64Data and mimeType are required" });
+  }
+
+  if (mimeType !== "application/pdf" && !mimeType.startsWith("image/")) {
+    return res.status(400).json({ error: "Unsupported file type. Please upload a PDF, JPG, or PNG statement." });
+  }
+
+  const renderedPages = getRenderedStatementPages(renderedPagesValue);
+  if (renderedPagesValue !== undefined && (!renderedPages || mimeType !== "application/pdf")) {
+    return res.status(400).json({ error: "Unlocked PDF pages are invalid or too large." });
+  }
+  if (renderedPages && base64Data.length + renderedPages.reduce((total, page) => total + page.base64Data.length, 0) > 21 * 1024 * 1024) {
+    return res.status(400).json({ error: "The encrypted PDF and its unlocked pages are too large to process." });
+  }
+  const extractedText = typeof extractedTextValue === "string" ? extractedTextValue.trim() : "";
+  if (extractedText.length > 500_000) {
+    return res.status(400).json({ error: "Extracted statement text is too large to process." });
+  }
+
+  const writeEvent = (event: string, data: unknown) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  try {
+    const statementHash = hashBase64File(base64Data);
+    const alreadyImported = Boolean(await findStatementImport(req.user.id, statementHash));
+    if (alreadyImported) {
+      writeEvent("complete", {
+        transactions: [],
+        statementHash,
+        alreadyImported,
+        provider: "gemini",
+        model: GEMINI_MODEL,
+        message: "This statement file was already imported.",
+      });
+      return res.end();
+    }
+
+    let provider = "gemini";
+    let model = GEMINI_MODEL;
+    let extractedCount = 0;
+
+    if (!renderedPages?.length && extractedText.length >= 80) {
+      const chunks = splitStatementTextForImport(extractedText);
+      writeEvent("start", { statementHash, alreadyImported, totalBatches: chunks.length });
+
+      for (const [index, chunk] of chunks.entries()) {
+        if (extractedCount >= 250) break;
+        const result = await importStatementTextChunk(chunk, index, chunks.length);
+        provider = result.provider;
+        model = result.model;
+        const remaining = Math.max(0, 250 - extractedCount);
+        const enrichedTransactions = await enrichStatementTransactionsWithAliases(
+          req.user.id,
+          result.transactions.slice(0, remaining)
+        );
+        extractedCount += enrichedTransactions.length;
+        writeEvent("batch", {
+          transactions: enrichedTransactions,
+          statementHash,
+          alreadyImported,
+          provider,
+          model,
+          batchIndex: index + 1,
+          totalBatches: chunks.length,
+          extractedCount,
+          limitReached: extractedCount >= 250,
+        });
+      }
+    } else {
+      writeEvent("start", { statementHash, alreadyImported, totalBatches: 1 });
+      const result = await importStatementWithAi(base64Data, mimeType, renderedPages);
+      provider = result.provider;
+      model = result.model;
+      const enrichedTransactions = await enrichStatementTransactionsWithAliases(req.user.id, result.transactions);
+      extractedCount = enrichedTransactions.length;
+      writeEvent("batch", {
+        transactions: enrichedTransactions,
+        statementHash,
+        alreadyImported,
+        provider,
+        model,
+        batchIndex: 1,
+        totalBatches: 1,
+        extractedCount,
+        limitReached: extractedCount >= 250,
+      });
+    }
+
+    writeEvent("complete", {
+      statementHash,
+      alreadyImported,
+      provider,
+      model,
+      extractedCount,
+      limitReached: extractedCount >= 250,
+    });
+  } catch (error: any) {
+    logger.error("AI statement streaming preview error", { error });
+    const message = error instanceof Error ? error.message : String(error);
+    writeEvent("error", {
+      error: "AI statement import failed",
+      detail: IS_PRODUCTION ? undefined : message,
+      hint: getGeminiImportHint(message),
+      model: GEMINI_MODEL,
+    });
+  } finally {
+    res.end();
   }
 });
 
