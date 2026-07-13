@@ -50,10 +50,10 @@ export function CalendarMonthCard({
   onYearChange,
 }: CalendarMonthCardProps) {
   return (
-    <Card className="lg:col-span-2 border-none shadow-sm overflow-visible">
+    <Card className="overflow-visible border-none shadow-sm lg:col-span-2">
       <CardContent className="p-0">
         <div className="overflow-visible rounded-lg border border-[#E5E7EB] bg-white">
-          <div className="flex items-center justify-between rounded-t-lg bg-[#FF6B6B] px-4 py-3 text-white sm:px-6">
+          <div className="flex items-center justify-between rounded-t-lg bg-[#4F9CF9] px-4 py-3 text-white sm:px-6">
             <Button
               type="button"
               variant="ghost"
@@ -116,7 +116,7 @@ export function CalendarMonthCard({
                   key={day}
                   className={cn(
                     'flex h-8 items-center justify-center text-[10px] font-bold uppercase tracking-wide sm:text-xs',
-                    index === 0 || index === 6 ? 'text-[#FF6B6B]' : 'text-[#6B7280]'
+                    index === 0 || index === 6 ? 'text-[#4F9CF9]' : 'text-[#6B7280]'
                   )}
                 >
                   {day.slice(0, 3)}
@@ -148,11 +148,11 @@ export function CalendarMonthCard({
                     style={balanceColorStyle}
                     className={cn(
                       'group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
-                      !hasBalanceColor && (isWeekend ? 'text-[#FF6B6B]' : 'text-[#1F2937]'),
-                      isToday && !isSelected && !hasBalanceColor && 'border-[#E5E7EB]',
+                      !hasBalanceColor && (isWeekend ? 'text-[#4F9CF9]' : 'text-[#1F2937]'),
+                      isToday && !isSelected && !hasBalanceColor && 'border-[#4F9CF9] bg-[#EEF6FF]',
                       isOverLimit && !isSelected && dailySummary.net < 0 && 'ring-2 ring-[#FF6B6B]',
-                      isSelected && 'bg-[#FF6B6B] text-white shadow-md shadow-[#FF6B6B]/20',
-                      !hasBalanceColor && 'hover:border-[#FF6B6B] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]',
+                      isSelected && 'bg-[#4F9CF9] text-white shadow-md shadow-[#4F9CF9]/20',
+                      !hasBalanceColor && 'hover:border-[#4F9CF9] hover:bg-[#EEF6FF] hover:text-[#357CCB]',
                       hasBalanceColor && 'hover:brightness-95'
                     )}
                     aria-label={`${format(day, 'dd MMMM yyyy')}: income ₹${dailySummary.income}, expense ₹${dailySummary.expense}, balance ₹${dailySummary.net}`}

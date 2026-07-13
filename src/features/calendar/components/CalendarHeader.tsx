@@ -19,8 +19,8 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
       actions={(
         <Popover>
           <PopoverTrigger>
-            <Button variant="outline" className="gap-2">
-              <RiSettings3Line className="text-base" aria-hidden="true" />
+            <Button variant="outline" className="gap-2 border-[#4F9CF9]/25 text-[#357CCB] hover:bg-[#EEF6FF] hover:text-[#357CCB]">
+              <RiSettings3Line className="text-base text-[#4F9CF9]" aria-hidden="true" />
               Threshold: ₹{threshold}
             </Button>
           </PopoverTrigger>
@@ -35,7 +35,7 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
                   onChange={(event) => onThresholdChange(parseInt(event.target.value))}
                 />
               </div>
-              <Button className="w-full" onClick={onSaveThreshold}>Save Threshold</Button>
+              <Button className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={onSaveThreshold}>Save Threshold</Button>
             </div>
           </PopoverContent>
         </Popover>

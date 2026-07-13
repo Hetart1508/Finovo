@@ -13,17 +13,16 @@ export const getBalanceColorStyle = (
 
   const intensity = Math.min(Math.abs(netBalance) / maxAbsBalance, 1);
   const easedIntensity = Math.pow(intensity, 0.8);
-  const hue = netBalance > 0 ? 151 : 350;
-  const saturation = netBalance > 0 ? 66 : 76;
-  const lightness = 96 - easedIntensity * 48;
-  const borderLightness = Math.max(lightness - 15, 34);
-  const textColor = easedIntensity > 0.55 ? '#ffffff' : netBalance > 0 ? '#064e3b' : '#7f1d1d';
+  const isPositive = netBalance > 0;
+  const backgroundOpacity = 0.1 + easedIntensity * 0.24;
+  const borderOpacity = 0.22 + easedIntensity * 0.34;
+  const rgb = isPositive ? '52, 199, 89' : '255, 107, 107';
 
   return {
-    backgroundColor: `hsl(${hue} ${saturation}% ${lightness}%)`,
-    borderColor: `hsl(${hue} ${saturation}% ${borderLightness}%)`,
-    boxShadow: easedIntensity > 0.6 ? `0 8px 18px hsl(${hue} ${saturation}% ${borderLightness}% / 0.22)` : undefined,
-    color: textColor,
+    backgroundColor: `rgba(${rgb}, ${backgroundOpacity})`,
+    borderColor: `rgba(${rgb}, ${borderOpacity})`,
+    boxShadow: easedIntensity > 0.6 ? `0 8px 18px rgba(${rgb}, 0.12)` : undefined,
+    color: isPositive ? '#218A44' : '#D94B4B',
   };
 };
 
