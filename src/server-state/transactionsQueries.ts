@@ -4,7 +4,7 @@ import { queryKeys } from './queryKeys';
 
 export const transactionsQuery = (walletId: number | null) => queryOptions({
   queryKey: queryKeys.transactionsForWallet(walletId),
-  queryFn: () => transactionsApi.list({ wallet_id: walletId ?? undefined }),
+  queryFn: () => transactionsApi.list({ wallet_id: walletId ?? undefined, limit: 10_000, offset: 0 }),
   enabled: Boolean(walletId),
 });
 
