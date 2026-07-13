@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
-import { RiAlertLine, RiBarChartBoxLine, RiCoinsLine, RiDatabase2Line, RiErrorWarningLine, RiPulseLine, RiRobot2Line } from 'react-icons/ri';
+import { RiAlertLine, RiBarChartBoxLine, RiCoinsLine, RiDatabase2Line, RiErrorWarningLine, RiPulseLine, RiRefreshLine, RiRobot2Line } from 'react-icons/ri';
 import { aiUsageApi, type AiUsageDashboard } from '@/src/api/aiUsageApi';
 import { PageHeader } from '@/src/components/shared/PageHeader';
 import { StatCard } from '@/src/components/shared/StatCard';
@@ -9,6 +9,7 @@ import { Button } from '@/src/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
+import { formatLocalDateTime } from '@/src/utils/formatters';
 
 const featureLabels: Record<string, string> = {
   ai_insights: 'AI Insights',
@@ -24,12 +25,14 @@ const formatCost = (value: unknown) => `$${Number(value || 0).toFixed(6)}`;
 export default function AIUsageDashboardPage() {
   const [dashboard, setDashboard] = useState<AiUsageDashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ monthly_credit_limit: 10000, warning_percent: 80, limit_behavior: 'fallback' as 'block' | 'fallback' });
 
-  const load = async () => {
+  const load = async (isRefresh = false) => {
     try {
+      if (isRefresh) setRefreshing(true);
       setError('');
       const { data } = await aiUsageApi.getDashboard();
       setDashboard(data);
@@ -42,10 +45,15 @@ export default function AIUsageDashboardPage() {
       setError(requestError?.response?.status === 403 ? 'This dashboard is restricted to the authorized account.' : 'Could not load AI usage statistics.');
     } finally {
       setLoading(false);
+      if (isRefresh) setRefreshing(false);
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    const refreshTimer = window.setInterval(() => { void load(true); }, 15_000);
+    return () => window.clearInterval(refreshTimer);
+  }, []);
 
   const featureRows = useMemo(() => Object.entries(featureLabels).map(([feature, label]) => {
     const value = dashboard?.features.find((item) => item.feature === feature);
@@ -90,6 +98,12 @@ export default function AIUsageDashboardPage() {
             <span>Server-side token, cost, fallback, and quota monitoring for {dashboard.month}.</span>
             {dashboard.keys.map((key) => <span key={key.identifier} className="rounded-full bg-[#EEF6FF] px-2 py-1 text-xs font-bold text-[#357CCB]">{key.identifier}</span>)}
           </span>
+        )}
+        actions={(
+          <Button variant="outline" disabled={refreshing} onClick={() => void load(true)}>
+            <RiRefreshLine className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />
+            {refreshing ? 'Refreshing…' : 'Refresh usage'}
+          </Button>
         )}
       />
 
@@ -157,12 +171,12 @@ export default function AIUsageDashboardPage() {
         </Card>
 
         <Card className="min-w-0">
-          <CardHeader><CardTitle>Recent provider requests</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Latest 5 provider requests</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {dashboard.recent.length ? dashboard.recent.map((item, index) => (
               <div key={`${item.created_at}-${index}`} className="grid min-w-0 grid-cols-2 gap-3 rounded-lg border border-[#E5E7EB] p-3 text-sm md:grid-cols-[1.2fr_1.5fr_1fr_.7fr_.7fr] md:items-center">
                 <div className="min-w-0"><p className="truncate font-bold">{item.provider}</p><p className="truncate text-xs text-[#6B7280]">{item.key_identifier || 'No key identifier'}</p></div>
-                <div className="min-w-0"><p className="truncate font-semibold">{item.model}</p><p className="text-xs text-[#6B7280]">{new Date(item.created_at).toLocaleString()}</p></div>
+                <div className="min-w-0"><p className="truncate font-semibold">{item.model}</p><p className="text-xs text-[#6B7280]">{formatLocalDateTime(item.created_at)}</p></div>
                 <UsageValue label="Tokens" value={`${formatNumber(item.input_tokens)} / ${formatNumber(item.output_tokens)}`} />
                 <UsageValue label="Cost" value={formatCost(item.estimated_cost_usd)} />
                 <div><span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${item.status === 'success' ? 'bg-[#EAFBF0] text-[#218A44]' : 'bg-[#FFF1F1] text-[#D94B4B]'}`}>{item.status}</span></div>

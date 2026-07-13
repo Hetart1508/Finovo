@@ -34,6 +34,7 @@ type UsageRecord = {
   keyIdentifier?: string | null;
   inputTokens?: number;
   outputTokens?: number;
+  estimatedCostUsd?: number;
   inputText?: string;
   outputText?: string;
   success: boolean;
@@ -135,10 +136,28 @@ export const shouldSkipGeminiForMonthlyLimit = () => Boolean(requestContext.getS
 export const estimateTokens = (text = "") => Math.max(0, Math.ceil(text.length / 4));
 
 const getRatesPerMillion = (provider: string, model: string) => {
-  if (provider !== "gemini") return { input: 0, output: 0 };
-  if (/flash-lite/i.test(model)) return { input: 0.10, output: 0.40 };
-  if (/flash/i.test(model)) return { input: 0.30, output: 2.50 };
-  return { input: 1.25, output: 10.00 };
+  const normalizedProvider = provider.toLowerCase();
+  const normalizedModel = model.toLowerCase();
+
+  if (normalizedProvider === "gemini") {
+    if (/flash-lite/i.test(model)) return { input: 0.10, output: 0.40 };
+    if (/flash/i.test(model)) return { input: 0.30, output: 2.50 };
+    return { input: 1.25, output: 10.00 };
+  }
+
+  if (normalizedProvider === "groq") {
+    if (normalizedModel.includes("qwen3.6-27b")) return { input: 0.60, output: 3.00 };
+    if (normalizedModel.includes("gpt-oss-120b")) return { input: 0.15, output: 0.60 };
+    if (normalizedModel.includes("gpt-oss-20b")) return { input: 0.075, output: 0.30 };
+    if (normalizedModel.includes("qwen3-32b")) return { input: 0.29, output: 0.59 };
+    if (normalizedModel.includes("llama-3.3-70b")) return { input: 0.59, output: 0.79 };
+    if (normalizedModel.includes("llama-3.1-8b")) return { input: 0.05, output: 0.08 };
+  }
+
+  // OpenRouter reports its exact request cost and Hugging Face may route a
+  // model through different upstream providers. recordAiUsage prefers that
+  // reported value; unknown models remain zero instead of inventing a price.
+  return { input: 0, output: 0 };
 };
 
 export const recordAiUsage = async (record: UsageRecord) => {
@@ -148,7 +167,10 @@ export const recordAiUsage = async (record: UsageRecord) => {
   const inputTokens = Math.max(0, Math.round(record.inputTokens ?? (record.success ? estimateTokens(record.inputText) : 0)));
   const outputTokens = Math.max(0, Math.round(record.outputTokens ?? (record.success ? estimateTokens(record.outputText) : 0)));
   const rates = getRatesPerMillion(record.provider, record.model);
-  const estimatedCostUsd = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
+  const reportedCost = Number(record.estimatedCostUsd);
+  const estimatedCostUsd = record.estimatedCostUsd !== undefined && Number.isFinite(reportedCost) && reportedCost >= 0
+    ? reportedCost
+    : (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
   const creditsUsed = estimatedCostUsd / AI_CREDIT_USD;
 
   try {
@@ -216,7 +238,7 @@ export const getAiUsageDashboard = async () => {
     queryAll<any>(
       `SELECT provider, model, key_identifier, status, error_type, input_tokens, output_tokens,
               estimated_cost_usd, created_at
-       FROM ai_usage_events ORDER BY id DESC LIMIT 25`
+       FROM ai_usage_events ORDER BY id DESC LIMIT 5`
     ),
     getSettings(),
   ]);

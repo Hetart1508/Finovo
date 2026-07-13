@@ -15,7 +15,8 @@ import remarkGfm from 'remark-gfm';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import type { AdvisorChatResponse, AdvisorMessage } from '@/src/api/aiAdvisorApi';
-import { formatIndianTime, parseApiDateTime } from '@/src/utils/formatters';
+import { formatLocalTime, parseApiDateTime } from '@/src/utils/formatters';
+import { stripAdvisorReasoning } from '../aiAdvisor.utils';
 import {
   RiArrowDownLine,
   RiCheckLine,
@@ -45,7 +46,10 @@ type AdvisorChatPanelProps = {
 const convertMessage = (message: AdvisorMessage): ThreadMessageLike => ({
   id: `${message.session_id}-${message.id}`,
   role: message.role,
-  content: [{ type: 'text', text: message.content }],
+  content: [{
+    type: 'text',
+    text: message.role === 'assistant' ? stripAdvisorReasoning(message.content) : message.content,
+  }],
   createdAt: parseApiDateTime(message.created_at),
   status: message.role === 'assistant' ? { type: 'complete', reason: 'stop' } : undefined,
 });
@@ -56,7 +60,7 @@ function MessageTime() {
 
   return (
     <time className="mt-1 block text-[0.68rem] text-muted-foreground" dateTime={createdAt.toISOString()}>
-      {formatIndianTime(createdAt)}
+      {formatLocalTime(createdAt)}
     </time>
   );
 }
@@ -377,7 +381,10 @@ export function AdvisorChatPanel({
   };
 
   const revealResponse = async (response: AdvisorChatResponse) => {
-    const completeMessage = response.message;
+    const completeMessage = {
+      ...response.message,
+      content: stripAdvisorReasoning(response.message.content),
+    };
     const pieces = completeMessage.content.split(/(\s+)/).filter(Boolean);
     const batchSize = Math.max(1, Math.ceil(pieces.length / 220));
     let visibleContent = '';

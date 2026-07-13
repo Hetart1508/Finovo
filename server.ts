@@ -739,9 +739,22 @@ const sha256 = (value: string | Buffer) =>
 const hashBase64File = (base64Data: string) =>
   sha256(Buffer.from(base64Data, "base64"));
 
+const stripAiReasoning = (text: string) => {
+  let sanitized = text
+    .replace(/&lt;\s*(\/?)\s*(think|analysis|reasoning)\b[^&]*?&gt;/gi, "<$1$2>")
+    .replace(/<(think|analysis|reasoning)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "");
+
+  // Handle malformed provider output with a missing opening or closing tag.
+  sanitized = sanitized
+    .replace(/^[\s\S]*?<\/(?:think|analysis|reasoning)\s*>/i, "")
+    .replace(/<(?:think|analysis|reasoning)\b[^>]*>[\s\S]*$/i, "")
+    .replace(/<\/?(?:think|analysis|reasoning)\b[^>]*>/gi, "");
+
+  return sanitized.trim();
+};
+
 const extractJsonObject = (text: string) => {
-  const withoutReasoning = text
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+  const withoutReasoning = stripAiReasoning(text)
     .replace(/```(?:json)?/gi, "")
     .replace(/```/g, "")
     .trim();
@@ -1107,10 +1120,10 @@ const generateGemini = async (
       }
 
       const data: any = await response.json();
-      const text = data.candidates?.[0]?.content?.parts
+      const text = stripAiReasoning(data.candidates?.[0]?.content?.parts
         ?.map((part: any) => part.text || "")
         .join("\n")
-        .trim();
+        .trim() || "");
 
       if (!text) {
         lastError = `Gemini returned an empty response using ${model}`;
@@ -1231,6 +1244,9 @@ const generateOpenAiCompatibleText = async (
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
+        ...(provider === "groq" && /qwen\/qwen3\.6-27b/i.test(model)
+          ? { reasoning_effort: "none", reasoning_format: "hidden" }
+          : {}),
         max_tokens: provider === "groq"
           ? Math.min(options.maxOutputTokens || 1024, GROQ_TEXT_MAX_OUTPUT_TOKENS)
           : options.maxOutputTokens || 1024,
@@ -1252,7 +1268,7 @@ const generateOpenAiCompatibleText = async (
 
     const data: any = await response.json();
     const text = data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "";
-    const trimmed = String(text).trim();
+    const trimmed = stripAiReasoning(String(text));
     if (!trimmed) {
       lastError = `${provider} returned an empty response using ${model}`;
       await recordAiUsage({ provider, model, inputText: prompt, success: false, errorType: "empty_response" });
@@ -1264,6 +1280,7 @@ const generateOpenAiCompatibleText = async (
       model,
       inputTokens: Number(data.usage?.prompt_tokens || 0) || undefined,
       outputTokens: Number(data.usage?.completion_tokens || 0) || undefined,
+      estimatedCostUsd: Number.isFinite(Number(data.usage?.cost)) ? Number(data.usage.cost) : undefined,
       inputText: prompt,
       outputText: trimmed,
       success: true,
@@ -1394,6 +1411,9 @@ const generateOpenAiCompatibleVision = async (
           ],
         }],
         temperature: 0.2,
+        ...(provider === "groq" && /qwen\/qwen3\.6-27b/i.test(model)
+          ? { reasoning_effort: "none", reasoning_format: "hidden" }
+          : {}),
         max_tokens: provider === "groq"
           ? Math.min(options.maxOutputTokens || 1024, GROQ_VISION_MAX_OUTPUT_TOKENS)
           : options.maxOutputTokens || 1024,
@@ -1408,7 +1428,7 @@ const generateOpenAiCompatibleVision = async (
       throw new Error(`${provider} vision error using ${model}: ${response.status} ${responseText.slice(0, 1000)}`);
     }
     const data: any = await response.json();
-    const text = String(data.choices?.[0]?.message?.content || "").trim();
+    const text = stripAiReasoning(String(data.choices?.[0]?.message?.content || ""));
     if (!text) {
       await recordAiUsage({ provider, model, inputText: prompt, success: false, errorType: "empty_response" });
       throw new Error(`${provider} vision returned an empty response using ${model}`);
@@ -1419,6 +1439,7 @@ const generateOpenAiCompatibleVision = async (
       model,
       inputTokens: Number(data.usage?.prompt_tokens || 0) || undefined,
       outputTokens: Number(data.usage?.completion_tokens || 0) || undefined,
+      estimatedCostUsd: Number.isFinite(Number(data.usage?.cost)) ? Number(data.usage.cost) : undefined,
       inputText: prompt,
       outputText: text,
       success: true,
@@ -1889,6 +1910,25 @@ const getAdvisorTransactionContext = async (userId: number) => {
   };
 };
 
+const getAdvisorSmallTalkReply = (message: string) => {
+  const normalized = message
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/^(?:h+i+|h+e+l+o+|h+e+y+|helo|helli|greetings)(?: there)?$/.test(normalized)) {
+    return "Hello! How can I help you with your finances today?";
+  }
+  if (/^(?:thanks|thank you|thankyou|thx)$/.test(normalized)) {
+    return "You're welcome! What else can I help you with?";
+  }
+  if (/^(?:ok|okay|got it|understood|sure)$/.test(normalized)) {
+    return "Got it! What would you like help with next?";
+  }
+  return null;
+};
+
 const getWealthAdvisorReply = async (
   message: string,
   investments: any[],
@@ -1897,6 +1937,9 @@ const getWealthAdvisorReply = async (
   profileContext: any,
   transactionContext: any
 ) => {
+  const smallTalkReply = getAdvisorSmallTalkReply(message);
+  if (smallTalkReply) return { reply: smallTalkReply, provider: "local-fallback" };
+
   if (!(GEMINI_API_KEYS.length || [GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean))) {
     return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
   }
@@ -4264,6 +4307,12 @@ app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
 
 app.get("/api/admin/ai-usage", authenticateToken, requireGeminiAdmin, async (_req: any, res) => {
   try {
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
+    });
     res.json(await getAiUsageDashboard());
   } catch (error) {
     logger.error("AI usage dashboard load failed", { error });
@@ -5339,7 +5388,9 @@ app.get("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => 
       WHERE user_id = ? AND session_id = ?
       ORDER BY created_at ASC, id ASC
     `, [req.user.id, sessionId]);
-    res.json(messages);
+    res.json(messages.map((message: any) => message.role === "assistant"
+      ? { ...message, content: stripAiReasoning(String(message.content || "")) }
+      : message));
   } catch (error) {
     logger.error("Advisor messages load error", { error, userId: req.user.id });
     res.status(500).json({ error: "Failed to load advisor messages" });
@@ -5378,6 +5429,9 @@ app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_a
       ORDER BY created_at ASC, id ASC
       LIMIT 30
     `, [req.user.id, sessionId]);
+    const safeHistory = history.map((item: any) => item.role === "assistant"
+      ? { ...item, content: stripAiReasoning(String(item.content || "")) }
+      : item);
     const [{ investments, summary }, profileContext, transactionContext] = await Promise.all([
       getAdvisorPortfolioContext(req.user.id),
       getAdvisorProfileContext(req.user.id),
@@ -5385,7 +5439,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_a
     ]);
     const advisor = requestedTitle
       ? { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" }
-      : await getWealthAdvisorReply(message, investments, summary, history, profileContext, transactionContext);
+      : await getWealthAdvisorReply(message, investments, summary, safeHistory, profileContext, transactionContext);
 
     const info = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",

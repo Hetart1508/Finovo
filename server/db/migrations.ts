@@ -1,5 +1,6 @@
 import { db, execute, queryOne } from "./client";
 import { logger } from "../config/logger";
+import { AI_CREDIT_USD } from "../config/env";
 
 const tableColumnExists = async (tableName: string, columnName: string) =>
   Boolean(await queryOne(
@@ -362,6 +363,28 @@ export const runMigrations = async () => {
   // Normalize usage categories introduced before the product feature names were finalized.
   await db.query("UPDATE ai_usage_events SET feature = 'statement_import' WHERE feature = 'report_analysis'");
   await db.query("UPDATE ai_usage_events SET feature = 'smart_bill_fetching' WHERE feature = 'investment_report_analysis'");
+
+  // Early usage tracking treated every non-Gemini provider as free. Backfill
+  // successful Groq requests for models whose published token prices are known.
+  await db.query(
+    `UPDATE ai_usage_events
+     SET estimated_cost_usd = CASE
+       WHEN LOWER(model) LIKE '%qwen3.6-27b%' THEN (input_tokens * 0.60 + output_tokens * 3.00) / 1000000
+       WHEN LOWER(model) LIKE '%gpt-oss-120b%' THEN (input_tokens * 0.15 + output_tokens * 0.60) / 1000000
+       WHEN LOWER(model) LIKE '%gpt-oss-20b%' THEN (input_tokens * 0.075 + output_tokens * 0.30) / 1000000
+       WHEN LOWER(model) LIKE '%qwen3-32b%' THEN (input_tokens * 0.29 + output_tokens * 0.59) / 1000000
+       WHEN LOWER(model) LIKE '%llama-3.3-70b%' THEN (input_tokens * 0.59 + output_tokens * 0.79) / 1000000
+       WHEN LOWER(model) LIKE '%llama-3.1-8b%' THEN (input_tokens * 0.05 + output_tokens * 0.08) / 1000000
+       ELSE estimated_cost_usd
+     END
+     WHERE provider = 'groq' AND status = 'success' AND estimated_cost_usd = 0`
+  );
+  await db.query(
+    `UPDATE ai_usage_events
+     SET credits_used = estimated_cost_usd / ?
+     WHERE provider = 'groq' AND status = 'success' AND estimated_cost_usd > 0 AND credits_used = 0`,
+    [AI_CREDIT_USD]
+  );
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (

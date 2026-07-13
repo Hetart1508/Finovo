@@ -1,5 +1,5 @@
 export const APP_LOCALE = 'en-IN';
-export const APP_TIME_ZONE = 'Asia/Kolkata';
+export const APP_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata';
 
 export const currencyFormatter = new Intl.NumberFormat(APP_LOCALE, {
   style: 'currency',
@@ -26,10 +26,22 @@ export const parseApiDateTime = (value: string | Date) => {
   return new Date(normalized);
 };
 
-export const formatIndianTime = (value: string | Date) =>
+export const formatLocalTime = (value: string | Date) =>
   new Intl.DateTimeFormat(APP_LOCALE, {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
     timeZone: APP_TIME_ZONE,
   }).format(parseApiDateTime(value)).toLowerCase();
+
+export const formatLocalDateTime = (value: string | Date) =>
+  new Intl.DateTimeFormat(APP_LOCALE, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: APP_TIME_ZONE,
+    timeZoneName: 'short',
+  }).format(parseApiDateTime(value));
