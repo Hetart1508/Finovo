@@ -937,7 +937,7 @@ const normalizeGeminiStatementTransactions = (text: string) => {
       });
   }
 
-  return normalized.slice(0, 150);
+  return normalized.slice(0, 250);
 };
 
 const generateGemini = async (
@@ -1313,7 +1313,7 @@ const generateAiVision = async (
           { text: prompt },
         ], {
           ...options,
-          totalTimeoutMs: 60_000,
+          totalTimeoutMs: 30_000,
           perAttemptTimeoutMs: 30_000,
           maxAttemptsPerModel: 1,
           onModel: (usedModel) => { model = usedModel; },
@@ -1751,7 +1751,7 @@ Rules:
 - Choose a practical category. Use Salary, Refund, Interest, Transfer, Food, Transport, Shopping, Utilities, Entertainment, Health, Fees, ATM, Other.
 - Keep descriptions short but traceable to the statement narration.
 - Copy the payee UPI ID/VPA exactly into vpa when present in the narration. Otherwise return null.
-- Return up to 150 rows in exact statement order.`;
+- Return up to 250 rows in exact statement order.`;
 };
 
 const importStatementWithAi = async (
@@ -1770,7 +1770,7 @@ const importStatementWithAi = async (
     prompt,
     {
       responseMimeType: "application/json",
-      maxOutputTokens: 8192,
+      maxOutputTokens: 10000,
       validateResponse: (text) => {
         normalizeGeminiStatementTransactions(text);
       },
@@ -1778,7 +1778,7 @@ const importStatementWithAi = async (
   );
 
   return {
-    transactions: result.texts.flatMap((text) => normalizeGeminiStatementTransactions(text)).slice(0, 150),
+    transactions: result.texts.flatMap((text) => normalizeGeminiStatementTransactions(text)).slice(0, 250),
     provider: result.provider,
     model: result.model,
   };
@@ -1793,7 +1793,7 @@ ${statementText}
 </statement_text>`;
   const result = await generateAiText(prompt, {
     responseMimeType: "application/json",
-    maxOutputTokens: 8192,
+    maxOutputTokens: 10000,
     validateResponse: (text) => {
       normalizeGeminiStatementTransactions(text);
     },
@@ -5197,8 +5197,8 @@ app.post("/api/statement-import/approve", authenticateToken, async (req: any, re
     return res.status(400).json({ error: "No transactions to approve" });
   }
 
-  if (transactions.length > 200) {
-    return res.status(400).json({ error: "A maximum of 200 transactions can be approved at once" });
+  if (transactions.length > 300) {
+    return res.status(400).json({ error: "A maximum of 300 transactions can be approved at once" });
   }
 
   const resolved = await resolveWalletIdForUser(req.user.id, req.body?.wallet_id);
