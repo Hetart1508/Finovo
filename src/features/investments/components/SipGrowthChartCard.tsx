@@ -37,9 +37,12 @@ export function SipGrowthChartCard({ growthData }: SipGrowthChartCardProps) {
               <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={false} minTickGap={24} />
               <YAxis fontSize={12} tickLine={false} axisLine={false} width={72} tickFormatter={(value) => `₹${Math.round(Number(value) / 1000)}k`} />
               <Tooltip
+                position={{ x: 88, y: 8 }}
+                isAnimationActive={false}
                 formatter={(value: any, name: string) => [currency.format(Number(value)), name === 'estimatedValue' ? 'Estimated Value' : 'Contributed']}
                 labelFormatter={(label) => `Duration: ${label}`}
                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 12px 30px rgba(31,41,55,0.12)' }}
+                wrapperStyle={{ pointerEvents: 'none' }}
               />
               <Legend formatter={(value) => value === 'estimatedValue' ? 'Estimated Value' : 'Contributed Amount'} />
               <Line type="monotone" dataKey="estimatedValue" stroke="#4F9CF9" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />

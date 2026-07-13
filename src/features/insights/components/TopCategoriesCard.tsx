@@ -32,7 +32,11 @@ export function TopCategoriesCard({ categoryData, loading }: TopCategoriesCardPr
               <CartesianGrid strokeDasharray="3" vertical={false} />
               <XAxis dataKey="name" fontSize={12} />
               <YAxis tickFormatter={(value) => `₹${value}`} fontSize={11} />
-              <Tooltip />
+              <Tooltip
+                position={{ x: 68, y: 8 }}
+                isAnimationActive={false}
+                wrapperStyle={{ pointerEvents: 'none' }}
+              />
               <Bar dataKey="value" fill="#4F9CF9" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

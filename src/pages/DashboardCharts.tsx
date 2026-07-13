@@ -43,8 +43,11 @@ export default function DashboardCharts({ dailyData, categoryData, colors }: Das
               <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
               <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `₹${v}`} />
               <Tooltip
+                position={{ x: 68, y: 8 }}
+                isAnimationActive={false}
                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 formatter={(v: unknown) => [`₹${v}`, 'Amount']}
+                wrapperStyle={{ pointerEvents: 'none' }}
               />
               <Line type="monotone" dataKey="amount" stroke="#4F9CF9" strokeWidth={3} dot={{ r: 4, fill: '#4F9CF9' }} activeDot={{ r: 6 }} />
             </LineChart>
@@ -72,7 +75,11 @@ export default function DashboardCharts({ dailyData, categoryData, colors }: Das
                   <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip
+                position={{ x: 8, y: 8 }}
+                isAnimationActive={false}
+                wrapperStyle={{ pointerEvents: 'none' }}
+              />
             </PieChart>
           </ResponsiveContainer>
           <div className="w-1/2 space-y-2">
