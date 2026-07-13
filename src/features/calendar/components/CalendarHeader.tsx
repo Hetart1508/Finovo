@@ -2,7 +2,7 @@ import { Button, buttonVariants } from '@/src/components/ui/button';
 import { PageHeader } from '@/src/components/shared/PageHeader';
 import { Input } from '@/src/components/ui/input';
 import { Label } from '@/src/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/src/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { RiSettings3Line } from 'react-icons/ri';
 
@@ -17,9 +17,10 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
     <PageHeader
       title="Expense Calendar"
       description="Track your daily spending patterns and stay within limits."
+      className="[&>div:last-child]:justify-center"
       actions={(
-        <Popover>
-          <PopoverTrigger
+        <Dialog>
+          <DialogTrigger
             type="button"
             className={cn(
               buttonVariants({ variant: 'outline' }),
@@ -28,9 +29,12 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
           >
             <RiSettings3Line className="text-base text-[#4F9CF9]" aria-hidden="true" />
             Threshold: ₹{threshold}
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-4">
+          </DialogTrigger>
+          <DialogContent className="w-80 p-4">
             <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle>Threshold Settings</DialogTitle>
+              </DialogHeader>
               <div className="space-y-2">
                 <Label>Daily Spending Limit (₹)</Label>
                 <p className="text-xs text-[#6B7280]">Dates exceeding this will be highlighted in red.</p>
@@ -42,8 +46,8 @@ export function CalendarHeader({ threshold, onThresholdChange, onSaveThreshold }
               </div>
               <Button className="w-full bg-[#4F9CF9] hover:bg-[#3F8BE5]" onClick={onSaveThreshold}>Save Threshold</Button>
             </div>
-          </PopoverContent>
-        </Popover>
+          </DialogContent>
+        </Dialog>
       )}
     />
   );
