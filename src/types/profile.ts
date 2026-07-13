@@ -14,6 +14,13 @@ export type UserProfile = {
   emergency_fund_target: number | null;
   risk_appetite: RiskAppetite | null;
   investment_goal: string | null;
+  savings_goal: string | null;
+  investment_preference: string | null;
+  retirement_goal: string | null;
+  existing_investments: string | null;
+  loan_details: string | null;
+  insurance_details: string | null;
+  additional_information: string | null;
   financial_dependents: number | null;
   preferred_currency: string;
   ai_personalization_enabled: boolean;
@@ -32,6 +39,13 @@ export type UserProfilePayload = {
   emergency_fund_target: number | null;
   risk_appetite: RiskAppetite | null;
   investment_goal: string | null;
+  savings_goal: string | null;
+  investment_preference: string | null;
+  retirement_goal: string | null;
+  existing_investments: string | null;
+  loan_details: string | null;
+  insurance_details: string | null;
+  additional_information: string | null;
   financial_dependents: number | null;
   preferred_currency: string;
   ai_personalization_enabled: boolean;

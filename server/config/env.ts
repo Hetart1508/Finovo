@@ -65,6 +65,12 @@ export const GOOGLE_CLIENT_ID = readEnv("GOOGLE_CLIENT_ID");
 export const GEMINI_API_KEY = extractGoogleApiKey(
   readEnv("GEMINI_API_KEY") || readEnv("GOOGLE_GEMINI_API_KEY") || readEnv("GOOGLE_API_KEY")
 );
+export const GEMINI_API_KEYS = Array.from(new Set([
+  readEnv("GEMINI_API_KEY_1"),
+  readEnv("GEMINI_API_KEY_2"),
+  readEnv("GEMINI_API_KEY_3"),
+  GEMINI_API_KEY,
+].map(extractGoogleApiKey).filter(Boolean)));
 export const GEMINI_MODEL = readEnv("GEMINI_MODEL", "gemini-2.5-flash-lite");
 export const GEMINI_FALLBACK_MODELS = readEnv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
   .split(",")
@@ -82,6 +88,18 @@ export const AI_TEXT_PROVIDER_PRIORITY = (
   .map((provider) => provider.trim().toLowerCase())
   .filter(Boolean);
 export const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+export const GEMINI_ADMIN_EMAILS = (readEnv("GEMINI_ADMIN_EMAILS", "hetarth150804@gmail.com"))
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+export const GEMINI_MONTHLY_CREDIT_LIMIT = Math.max(0, Number(readEnv("GEMINI_MONTHLY_CREDIT_LIMIT", "10000")) || 0);
+export const GEMINI_WARNING_PERCENT = Math.min(100, Math.max(1, Number(readEnv("GEMINI_WARNING_PERCENT", "80")) || 80));
+export const GEMINI_LIMIT_BEHAVIOR = readEnv("GEMINI_LIMIT_BEHAVIOR", "fallback").toLowerCase() === "block"
+  ? "block" as const
+  : "fallback" as const;
+export const AI_CREDIT_USD = Math.max(0.000001, Number(readEnv("AI_CREDIT_USD", "0.001")) || 0.001);
+export const GEMINI_RATE_LIMIT_USER_PER_MINUTE = Math.max(1, Number(readEnv("GEMINI_RATE_LIMIT_USER_PER_MINUTE", "20")) || 20);
+export const GEMINI_RATE_LIMIT_IP_PER_MINUTE = Math.max(1, Number(readEnv("GEMINI_RATE_LIMIT_IP_PER_MINUTE", "40")) || 40);
 
 export const GROQ_API_KEY = readEnv("GROQ_API_KEY");
 export const GROQ_MODEL = readEnv("GROQ_MODEL", "qwen/qwen3.6-27b");

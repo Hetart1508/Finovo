@@ -27,6 +27,7 @@ import {
   RiUserSettingsLine,
   RiGroupLine,
   RiAddCircleLine,
+  RiBarChartBoxLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -91,6 +92,16 @@ export default function Layout({ children }: LayoutProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    authApi.me().then(({ data }) => {
+      if (!active) return;
+      localStorage.setItem(storageKeys.user, JSON.stringify(data.user));
+      setUser(data.user);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   const navItems = [
     { name: 'Dashboard', path: '/', icon: RiDashboard2Line },
     { name: 'Transactions', path: '/transactions', icon: RiHistoryLine },
@@ -101,6 +112,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'Investments', path: '/investments', icon: RiFundsLine },
     { name: 'Wealth Advisor', path: '/wealth-advisor', icon: RiRobot2Line },
     { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
+    ...(user.gemini_admin ? [{ name: 'Gemini Usage', path: '/admin/ai-usage', icon: RiBarChartBoxLine }] : []),
     { name: 'Profile', path: '/profile', icon: RiUserSettingsLine },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];

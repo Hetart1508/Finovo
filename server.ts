@@ -22,7 +22,7 @@ import {
   EMAIL_PASS,
   EMAIL_USER,
   GEMINI_API_BASE_URL,
-  GEMINI_API_KEY,
+  GEMINI_API_KEYS,
   GEMINI_FALLBACK_MODELS,
   GEMINI_MODEL,
   GOOGLE_CLIENT_ID,
@@ -58,6 +58,15 @@ import {
   createTransactionFingerprint,
   normalizeTransactionIdentity,
 } from "./server/services/transactionDedup";
+import {
+  createAiUsageGuard,
+  getAiUsageDashboard,
+  isGeminiAdmin,
+  recordAiUsage,
+  requireGeminiAdmin,
+  shouldSkipGeminiForMonthlyLimit,
+  updateAiUsageSettings,
+} from "./server/services/aiUsage";
 
 const app = express();
 if (IS_PRODUCTION) {
@@ -154,27 +163,20 @@ const getEmailConfigStatus = () => {
 const getAiConfigStatus = () => ({
   provider: AI_PROVIDER,
   textProviderPriority: AI_TEXT_PROVIDER_PRIORITY,
-  geminiConfigured: Boolean(GEMINI_API_KEY),
-  geminiKeyLength: GEMINI_API_KEY.length,
-  geminiKeyLooksLikeGoogleApiKey: /^(AIza[0-9A-Za-z_-]{35}|AQ\.[0-9A-Za-z_-]+)$/.test(GEMINI_API_KEY),
+  geminiConfigured: GEMINI_API_KEYS.length > 0,
+  geminiKeyCount: GEMINI_API_KEYS.length,
   geminiModel: GEMINI_MODEL,
   geminiFallbackModels: GEMINI_FALLBACK_MODELS,
   geminiModelCount: Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])).length,
   groqConfigured: Boolean(GROQ_API_KEY),
-  groqKeyLength: GROQ_API_KEY.length,
-  groqKeyLooksValid: /^gsk_[0-9A-Za-z_-]+$/.test(GROQ_API_KEY),
   groqModel: GROQ_MODEL,
   groqFallbackModels: GROQ_FALLBACK_MODELS,
   groqVisionModel: GROQ_VISION_MODEL,
   openRouterConfigured: Boolean(OPENROUTER_API_KEY),
-  openRouterKeyLength: OPENROUTER_API_KEY.length,
-  openRouterKeyLooksValid: /^sk-or-[0-9A-Za-z_.-]+$/.test(OPENROUTER_API_KEY),
   openRouterModel: OPENROUTER_MODEL,
   openRouterFallbackModels: OPENROUTER_FALLBACK_MODELS,
   openRouterVisionModel: OPENROUTER_VISION_MODEL,
   huggingFaceConfigured: Boolean(HUGGINGFACE_API_KEY),
-  huggingFaceKeyLength: HUGGINGFACE_API_KEY.length,
-  huggingFaceKeyLooksValid: /^hf_[0-9A-Za-z_-]+$/.test(HUGGINGFACE_API_KEY),
   huggingFaceModel: HUGGINGFACE_MODEL,
   huggingFaceFallbackModels: HUGGINGFACE_FALLBACK_MODELS,
   huggingFaceVisionModel: HUGGINGFACE_VISION_MODEL,
@@ -976,6 +978,20 @@ const normalizeGeminiStatementTransactions = (text: string) => {
   return normalized.slice(0, 250);
 };
 
+const geminiKeyState = GEMINI_API_KEYS.map(() => ({ unavailableUntil: 0 }));
+let activeGeminiKeyIndex = 0;
+
+const getGeminiKeyIdentifier = (index: number, key: string) =>
+  `Key ${index + 1} ••••${key.slice(-4).toUpperCase()}`;
+
+const getOrderedGeminiKeyIndexes = () => {
+  const now = Date.now();
+  const indexes = GEMINI_API_KEYS.map((_, index) => index);
+  const ordered = indexes.slice(activeGeminiKeyIndex).concat(indexes.slice(0, activeGeminiKeyIndex));
+  const available = ordered.filter((index) => geminiKeyState[index].unavailableUntil <= now);
+  return available.length ? available : ordered;
+};
+
 const generateGemini = async (
   parts: any[],
   options: {
@@ -988,19 +1004,24 @@ const generateGemini = async (
     validateResponse?: (text: string) => void;
   } = {}
 ) => {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
+  if (!GEMINI_API_KEYS.length) {
+    throw new Error("No Gemini API key is configured");
   }
 
   const modelCandidates = Array.from(new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS]));
   let lastError = "";
   const deadline = Date.now() + (options.totalTimeoutMs || 120_000);
   const maxAttemptsPerModel = options.maxAttemptsPerModel || 2;
+  const inputText = parts.map((part) => typeof part?.text === "string" ? part.text : "").join("\n");
 
-  for (const model of modelCandidates) {
-    for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt += 1) {
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) throw new Error("Gemini request timed out before a model became available");
+  for (const keyIndex of getOrderedGeminiKeyIndexes()) {
+    const apiKey = GEMINI_API_KEYS[keyIndex];
+    const keyIdentifier = getGeminiKeyIdentifier(keyIndex, apiKey);
+    let rotateKey = false;
+    for (const model of modelCandidates) {
+      for (let attempt = 1; attempt <= maxAttemptsPerModel; attempt += 1) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) throw new Error("Gemini request timed out before a model became available");
 
       const controller = new AbortController();
       const timer = setTimeout(
@@ -1010,7 +1031,7 @@ const generateGemini = async (
       let response: globalThis.Response;
       try {
         response = await fetch(
-          `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+          `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1030,11 +1051,14 @@ const generateGemini = async (
         lastError = error?.name === "AbortError"
           ? `Gemini request timed out using ${model}`
           : `Gemini request failed using ${model}: ${error?.message || String(error)}`;
+        await recordAiUsage({ provider: "gemini", model, keyIdentifier, inputText, success: false, errorType: "unavailable" });
         if (attempt < maxAttemptsPerModel && Date.now() < deadline) {
           logger.warn("Gemini request failed, retrying model", { model, error: lastError });
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
+        geminiKeyState[keyIndex].unavailableUntil = Date.now() + 30_000;
+        rotateKey = true;
         break;
       } finally {
         clearTimeout(timer);
@@ -1042,13 +1066,22 @@ const generateGemini = async (
 
       if (!response.ok) {
         const responseText = await response.text();
-        lastError = `Gemini error using ${model}: ${response.status} ${responseText}`;
+        lastError = `Gemini error using ${model}: ${response.status} ${responseText.slice(0, 1000)}`;
+        const quotaOrRateLimit = response.status === 429 || /RESOURCE_EXHAUSTED|quota|rate.?limit/i.test(responseText);
+        await recordAiUsage({
+          provider: "gemini", model, keyIdentifier, inputText, success: false,
+          errorType: quotaOrRateLimit ? "quota_or_rate_limit" : `http_${response.status}`,
+        });
         const dailyQuotaExhausted = response.status === 429 && (
           /GenerateRequestsPerDay|requests per day|free_tier_requests|current quota/i.test(responseText)
           || /RESOURCE_EXHAUSTED/i.test(responseText) && /quotaValue/i.test(responseText)
         );
         if (dailyQuotaExhausted) {
-          logger.warn("Gemini daily quota exhausted, skipping retries for model", { model, status: response.status });
+          const tomorrow = new Date();
+          tomorrow.setUTCHours(24, 5, 0, 0);
+          geminiKeyState[keyIndex].unavailableUntil = tomorrow.getTime();
+          rotateKey = true;
+          logger.warn("Gemini key quota exhausted, rotating to the next configured key", { model, keyIdentifier, status: response.status });
           break;
         }
         if ([429, 503].includes(response.status) && attempt < maxAttemptsPerModel && Date.now() < deadline) {
@@ -1056,8 +1089,18 @@ const generateGemini = async (
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
-        if ([400, 404, 429, 503].includes(response.status)) {
+        if ([401, 403].includes(response.status) || response.status >= 500) {
+          geminiKeyState[keyIndex].unavailableUntil = Date.now() + (response.status < 500 ? 60 * 60_000 : 60_000);
+          rotateKey = true;
+          logger.warn("Gemini key unavailable, rotating to the next configured key", { model, keyIdentifier, status: response.status });
+          break;
+        }
+        if ([400, 404, 429].includes(response.status)) {
           logger.warn("Gemini model unavailable, trying fallback", { model, status: response.status });
+          if (response.status === 429) {
+            geminiKeyState[keyIndex].unavailableUntil = Date.now() + 60_000;
+            rotateKey = true;
+          }
           break;
         }
         throw new Error(lastError);
@@ -1071,6 +1114,7 @@ const generateGemini = async (
 
       if (!text) {
         lastError = `Gemini returned an empty response using ${model}`;
+        await recordAiUsage({ provider: "gemini", model, keyIdentifier, inputText, success: false, errorType: "empty_response" });
         break;
       }
 
@@ -1078,6 +1122,7 @@ const generateGemini = async (
         options.validateResponse?.(text);
       } catch (error: any) {
         lastError = `Gemini returned an invalid response using ${model}: ${error?.message || String(error)}`;
+        await recordAiUsage({ provider: "gemini", model, keyIdentifier, inputText, outputText: text, success: false, errorType: "invalid_response" });
         if (attempt < maxAttemptsPerModel && Date.now() < deadline) {
           logger.warn("Gemini returned an invalid response, retrying model", { model, error: lastError });
           continue;
@@ -1086,9 +1131,27 @@ const generateGemini = async (
         break;
       }
 
+      const promptTokens = Number(data.usageMetadata?.promptTokenCount || 0);
+      const totalTokens = Number(data.usageMetadata?.totalTokenCount || 0);
+      const candidateTokens = Number(data.usageMetadata?.candidatesTokenCount || 0);
+      await recordAiUsage({
+        provider: "gemini",
+        model,
+        keyIdentifier,
+        inputTokens: promptTokens || undefined,
+        outputTokens: (totalTokens > promptTokens ? totalTokens - promptTokens : candidateTokens) || undefined,
+        inputText,
+        outputText: text,
+        success: true,
+      });
+      activeGeminiKeyIndex = keyIndex;
+      geminiKeyState[keyIndex].unavailableUntil = 0;
       options.onModel?.(model);
-      return text;
+        return text;
+      }
+      if (rotateKey) break;
     }
+    if (!rotateKey && Date.now() >= deadline) break;
   }
 
   throw new Error(lastError || "Gemini returned no usable response");
@@ -1176,6 +1239,10 @@ const generateOpenAiCompatibleText = async (
 
     if (!response.ok) {
       lastError = `${provider} error using ${model}: ${response.status} ${await response.text()}`;
+      await recordAiUsage({
+        provider, model, inputText: prompt, success: false,
+        errorType: response.status === 429 ? "quota_or_rate_limit" : `http_${response.status}`,
+      });
       if (RETRYABLE_AI_STATUS_CODES.has(response.status)) {
         logger.warn("Text AI model unavailable, trying fallback model", { provider, model, status: response.status });
         continue;
@@ -1188,9 +1255,19 @@ const generateOpenAiCompatibleText = async (
     const trimmed = String(text).trim();
     if (!trimmed) {
       lastError = `${provider} returned an empty response using ${model}`;
+      await recordAiUsage({ provider, model, inputText: prompt, success: false, errorType: "empty_response" });
       continue;
     }
 
+    await recordAiUsage({
+      provider,
+      model,
+      inputTokens: Number(data.usage?.prompt_tokens || 0) || undefined,
+      outputTokens: Number(data.usage?.completion_tokens || 0) || undefined,
+      inputText: prompt,
+      outputText: trimmed,
+      success: true,
+    });
     return { text: trimmed, provider, model };
   }
 
@@ -1202,7 +1279,7 @@ const generateAiText = async (
   options: TextAiOptions = {}
 ): Promise<TextAiResult> => {
   const configuredProviders = {
-    gemini: Boolean(GEMINI_API_KEY),
+    gemini: GEMINI_API_KEYS.length > 0 && !shouldSkipGeminiForMonthlyLimit(),
     groq: Boolean(GROQ_API_KEY),
     openrouter: isUsableOpenRouterApiKey(OPENROUTER_API_KEY),
     huggingface: Boolean(HUGGINGFACE_API_KEY),
@@ -1323,12 +1400,29 @@ const generateOpenAiCompatibleVision = async (
       }),
     });
     if (!response.ok) {
-      throw new Error(`${provider} vision error using ${model}: ${response.status} ${await response.text()}`);
+      const responseText = await response.text();
+      await recordAiUsage({
+        provider, model, inputText: prompt, success: false,
+        errorType: response.status === 429 ? "quota_or_rate_limit" : `http_${response.status}`,
+      });
+      throw new Error(`${provider} vision error using ${model}: ${response.status} ${responseText.slice(0, 1000)}`);
     }
     const data: any = await response.json();
     const text = String(data.choices?.[0]?.message?.content || "").trim();
-    if (!text) throw new Error(`${provider} vision returned an empty response using ${model}`);
+    if (!text) {
+      await recordAiUsage({ provider, model, inputText: prompt, success: false, errorType: "empty_response" });
+      throw new Error(`${provider} vision returned an empty response using ${model}`);
+    }
     options.validateResponse?.(text);
+    await recordAiUsage({
+      provider,
+      model,
+      inputTokens: Number(data.usage?.prompt_tokens || 0) || undefined,
+      outputTokens: Number(data.usage?.completion_tokens || 0) || undefined,
+      inputText: prompt,
+      outputText: text,
+      success: true,
+    });
     return text;
   } catch (error: any) {
     if (error?.name === "AbortError") throw new Error(`${provider} vision request timed out using ${model}`);
@@ -1348,7 +1442,7 @@ const generateAiVision = async (
 
   for (const provider of providers) {
     try {
-      if (provider === "gemini" && GEMINI_API_KEY) {
+      if (provider === "gemini" && GEMINI_API_KEYS.length && !shouldSkipGeminiForMonthlyLimit()) {
         let model = GEMINI_MODEL;
         const text = await generateGemini([
           ...images.map((image) => ({ inline_data: { mime_type: image.mimeType, data: image.base64Data } })),
@@ -1479,7 +1573,11 @@ ${description}`;
   };
 };
 
-const getFinancialInsightsWithAi = async (transactions: any[], recurringEvents: any[] = []) => {
+const getFinancialInsightsWithAi = async (
+  transactions: any[],
+  recurringEvents: any[] = [],
+  profileContext: any = { personalization_enabled: false }
+) => {
   const prompt = `You are an expert Indian personal-finance analyst. Analyze these expense tracker transactions and planned recurring payments to create a practical report for the user.
 
 Return ONLY valid JSON with this exact shape:
@@ -1494,12 +1592,14 @@ Return ONLY valid JSON with this exact shape:
 }
 
 Rules:
-- Use INR formatting like ₹12,500.
+- Use the preferred currency from profile context when available; otherwise use INR formatting like ₹12,500.
 - Use the user's previous transactions to identify category patterns, repeated payments, spikes, and unusual expenses.
 - Use planned recurring payments to improve future expense predictions, including subscriptions, EMIs, rent, insurance, and yearly fees.
 - Predict likely future expenses for the next 30 days and full year based on category totals, recurring payments, and recent spending pace.
 - Give practical saving advice and future planning advice for an Indian user.
 - Mention recurring commitments when they materially affect the forecast or action plan.
+- When personalization_enabled is true, tailor advice to the user's income, family, location, currency, risk comfort, goals, investments, loans, and insurance context.
+- When personalization_enabled is false, ignore profile context and base the report only on transactions and recurring payments.
 - Investment guidance must be general education only. Do not recommend a specific stock, fund, crypto, or guaranteed return.
 - Prefer clear bullet strings, one idea per bullet.
 - Keep every bullet under 24 words.
@@ -1509,7 +1609,10 @@ Transactions:
 ${JSON.stringify(transactions.slice(0, 60), null, 2)}
 
 Planned recurring payments for the next 365 days:
-${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}`;
+${JSON.stringify(recurringEvents.slice(0, 80), null, 2)}
+
+Optional profile context:
+${JSON.stringify(profileContext)}`;
 
   const result = await generateAiText(prompt, {
     responseMimeType: "application/json",
@@ -1574,11 +1677,16 @@ const getAdvisorProfileContext = async (userId: number) => {
     };
   }
 
+  if (!profile.ai_personalization_enabled) {
+    return {
+      personalization_enabled: false,
+      note: "User profile personalization is disabled. No saved profile details are included.",
+    };
+  }
+
   return {
-    personalization_enabled: Boolean(profile.ai_personalization_enabled),
-    note: profile.ai_personalization_enabled
-      ? "Full profile context is available for personalized finance answers."
-      : "User profile personalization is disabled. Do not use profile details unless the user shares them in chat.",
+    personalization_enabled: true,
+    note: "Full profile context is available for personalized finance answers.",
     derived: {
       age: getAgeFromDateOfBirth(profile.date_of_birth),
       location: [profile.city, profile.country].filter(Boolean).join(", ") || null,
@@ -1597,6 +1705,13 @@ const getAdvisorProfileContext = async (userId: number) => {
       emergency_fund_target: profile.emergency_fund_target === null ? null : Number(profile.emergency_fund_target),
       risk_appetite: profile.risk_appetite || null,
       investment_goal: profile.investment_goal || null,
+      savings_goal: profile.savings_goal || null,
+      investment_preference: profile.investment_preference || null,
+      retirement_goal: profile.retirement_goal || null,
+      existing_investments: profile.existing_investments || null,
+      loan_details: profile.loan_details || null,
+      insurance_details: profile.insurance_details || null,
+      additional_information: profile.additional_information || null,
       financial_dependents: profile.financial_dependents === null ? null : Number(profile.financial_dependents),
       preferred_currency: profile.preferred_currency || "INR",
       ai_personalization_enabled: Boolean(profile.ai_personalization_enabled),
@@ -1782,7 +1897,7 @@ const getWealthAdvisorReply = async (
   profileContext: any,
   transactionContext: any
 ) => {
-  if (![GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean)) {
+  if (!(GEMINI_API_KEYS.length || [GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean))) {
     return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
   }
 
@@ -1800,7 +1915,7 @@ Rules:
 - Do not repeat sensitive profile fields such as email, date of birth, or internal ids unless the user directly asks or it is clearly needed for the answer.
 - If profile values conflict with the user's latest message, trust the latest message and mention the assumption.
 - Adapt tone and risk suggestions to age, dependents, income, emergency fund target, risk appetite, and stated investment goal when present.
-- Use INR formatting like ₹15,00,000.
+- Use the user's preferred currency when present; otherwise use INR formatting like ₹15,00,000.
 - Do not recommend specific stocks, funds, crypto, or guaranteed returns.
 - Match the answer length to the user's need: short questions can get short replies, but complex planning questions should get a clear explanation, calculations, assumptions, and next steps without an artificial character or word limit.
 - Use readable sections or bullets when the answer is longer.
@@ -2090,6 +2205,7 @@ const createAuthResponse = (user: any, res?: Response) => {
       email: user.email,
       name: user.name,
       daily_threshold: user.daily_threshold,
+      gemini_admin: isGeminiAdmin(user.email),
     },
   };
 };
@@ -2105,6 +2221,13 @@ type ProfileInput = {
   emergency_fund_target: number | null;
   risk_appetite: "low" | "moderate" | "high" | null;
   investment_goal: string | null;
+  savings_goal: string | null;
+  investment_preference: string | null;
+  retirement_goal: string | null;
+  existing_investments: string | null;
+  loan_details: string | null;
+  insurance_details: string | null;
+  additional_information: string | null;
   financial_dependents: number | null;
   preferred_currency: string;
   ai_personalization_enabled: boolean;
@@ -2182,6 +2305,13 @@ const validateProfileInput = (body: any): { data: ProfileInput } | { error: stri
       emergency_fund_target: emergencyFundTarget,
       risk_appetite: riskAppetiteInput as ProfileInput["risk_appetite"],
       investment_goal: normalizeOptionalText(body?.investment_goal, 2000),
+      savings_goal: normalizeOptionalText(body?.savings_goal, 2000),
+      investment_preference: normalizeOptionalText(body?.investment_preference, 2000),
+      retirement_goal: normalizeOptionalText(body?.retirement_goal, 2000),
+      existing_investments: normalizeOptionalText(body?.existing_investments, 4000),
+      loan_details: normalizeOptionalText(body?.loan_details, 4000),
+      insurance_details: normalizeOptionalText(body?.insurance_details, 4000),
+      additional_information: normalizeOptionalText(body?.additional_information, 4000),
       financial_dependents: financialDependents,
       preferred_currency: preferredCurrency,
       ai_personalization_enabled: Boolean(body?.ai_personalization_enabled),
@@ -2205,6 +2335,13 @@ const getUserProfile = async (userId: number) => {
       user_profiles.emergency_fund_target,
       user_profiles.risk_appetite,
       user_profiles.investment_goal,
+      user_profiles.savings_goal,
+      user_profiles.investment_preference,
+      user_profiles.retirement_goal,
+      user_profiles.existing_investments,
+      user_profiles.loan_details,
+      user_profiles.insurance_details,
+      user_profiles.additional_information,
       user_profiles.financial_dependents,
       COALESCE(user_profiles.preferred_currency, 'INR') AS preferred_currency,
       COALESCE(user_profiles.ai_personalization_enabled, FALSE) AS ai_personalization_enabled,
@@ -4122,7 +4259,24 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
 app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
   const user: any = await queryOne("SELECT id, email, name, daily_threshold FROM users WHERE id = ? AND deleted_at IS NULL", [req.user.id]);
   if (!user) return res.sendStatus(401);
-  res.json({ user });
+  res.json({ user: { ...user, gemini_admin: isGeminiAdmin(user.email) } });
+});
+
+app.get("/api/admin/ai-usage", authenticateToken, requireGeminiAdmin, async (_req: any, res) => {
+  try {
+    res.json(await getAiUsageDashboard());
+  } catch (error) {
+    logger.error("AI usage dashboard load failed", { error });
+    res.status(500).json({ error: "Failed to load AI usage statistics" });
+  }
+});
+
+app.put("/api/admin/ai-usage/settings", authenticateToken, requireGeminiAdmin, async (req: any, res) => {
+  try {
+    res.json(await updateAiUsageSettings(req.user.id, req.body));
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || "Invalid AI usage settings" });
+  }
 });
 
 app.post("/api/auth/logout", (_req, res) => {
@@ -4331,7 +4485,7 @@ app.post("/api/transactions", authenticateToken, async (req: any, res) => {
   res.status(result.status).json(result.body);
 });
 
-app.post("/api/transactions/extract", authenticateToken, async (req: any, res) => {
+app.post("/api/transactions/extract", authenticateToken, createAiUsageGuard("transaction_extraction"), async (req: any, res) => {
   const description = isNonEmptyString(req.body?.description) ? req.body.description.trim() : "";
 
   if (description.length < 6) {
@@ -4481,12 +4635,19 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
       emergency_fund_target,
       risk_appetite,
       investment_goal,
+      savings_goal,
+      investment_preference,
+      retirement_goal,
+      existing_investments,
+      loan_details,
+      insurance_details,
+      additional_information,
       financial_dependents,
       preferred_currency,
       ai_personalization_enabled,
       profile_context_version
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON DUPLICATE KEY UPDATE
       date_of_birth = VALUES(date_of_birth),
       occupation = VALUES(occupation),
@@ -4497,6 +4658,13 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
       emergency_fund_target = VALUES(emergency_fund_target),
       risk_appetite = VALUES(risk_appetite),
       investment_goal = VALUES(investment_goal),
+      savings_goal = VALUES(savings_goal),
+      investment_preference = VALUES(investment_preference),
+      retirement_goal = VALUES(retirement_goal),
+      existing_investments = VALUES(existing_investments),
+      loan_details = VALUES(loan_details),
+      insurance_details = VALUES(insurance_details),
+      additional_information = VALUES(additional_information),
       financial_dependents = VALUES(financial_dependents),
       preferred_currency = VALUES(preferred_currency),
       ai_personalization_enabled = VALUES(ai_personalization_enabled),
@@ -4512,6 +4680,13 @@ app.put("/api/user/profile", authenticateToken, async (req: any, res) => {
     profile.emergency_fund_target,
     profile.risk_appetite,
     profile.investment_goal,
+    profile.savings_goal,
+    profile.investment_preference,
+    profile.retirement_goal,
+    profile.existing_investments,
+    profile.loan_details,
+    profile.insurance_details,
+    profile.additional_information,
     profile.financial_dependents,
     profile.preferred_currency,
     profile.ai_personalization_enabled,
@@ -5171,7 +5346,7 @@ app.get("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => 
   }
 });
 
-app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
+app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_advisor"), async (req: any, res) => {
   const message = isNonEmptyString(req.body?.message) ? req.body.message.trim() : "";
   const sessionId = isNonEmptyString(req.body?.sessionId) ? String(req.body.sessionId).slice(0, 64) : "default";
 
@@ -5254,7 +5429,7 @@ app.delete("/api/ai-advisor/messages", authenticateToken, async (req: any, res) 
 });
 
 // --- AI Routes (Gemini multimodal, configurable text provider fallback chain) ---
-app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
+app.post("/api/ai/extract-bill", authenticateToken, createAiUsageGuard("smart_bill_fetching"), async (req: any, res) => {
   const { base64Data, mimeType } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
@@ -5283,7 +5458,7 @@ app.post("/api/ai/extract-bill", authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
+app.post("/api/ai/insights", authenticateToken, createAiUsageGuard("ai_insights"), async (req: any, res) => {
   const transactions = Array.isArray(req.body?.transactions) ? req.body.transactions : null;
   const recurringEvents = Array.isArray(req.body?.recurringEvents) ? req.body.recurringEvents : [];
 
@@ -5292,7 +5467,8 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
   }
 
   try {
-    const data = await getFinancialInsightsWithAi(transactions, recurringEvents);
+    const profileContext = await getAdvisorProfileContext(req.user.id);
+    const data = await getFinancialInsightsWithAi(transactions, recurringEvents, profileContext);
     res.json({ ...data.insights, provider: data.provider, model: data.model });
   } catch (error: any) {
     logger.error("AI insights error", { error });
@@ -5304,7 +5480,7 @@ app.post("/api/ai/insights", authenticateToken, async (req: any, res) => {
   }
 });
 
-app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) => {
+app.post("/api/ai/import-statement", authenticateToken, createAiUsageGuard("statement_import"), async (req: any, res) => {
   const { base64Data, mimeType } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
@@ -5356,7 +5532,7 @@ app.post("/api/ai/import-statement", authenticateToken, async (req: any, res) =>
   }
 });
 
-app.post("/api/statement-import/preview-stream", authenticateToken, async (req: any, res) => {
+app.post("/api/statement-import/preview-stream", authenticateToken, createAiUsageGuard("statement_import"), async (req: any, res) => {
   const { base64Data, mimeType, renderedPages: renderedPagesValue, extractedText: extractedTextValue } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
@@ -5532,7 +5708,7 @@ app.post("/api/statement-import/preview-stream", authenticateToken, async (req: 
   }
 });
 
-app.post("/api/statement-import/preview", authenticateToken, async (req: any, res) => {
+app.post("/api/statement-import/preview", authenticateToken, createAiUsageGuard("statement_import"), async (req: any, res) => {
   const { base64Data, mimeType, renderedPages: renderedPagesValue, extractedText: extractedTextValue } = req.body || {};
 
   if (!isNonEmptyString(base64Data) || !isNonEmptyString(mimeType)) {
@@ -5724,7 +5900,7 @@ app.post("/api/upload", authenticateToken, upload.single('file'), async (req: an
   res.json(getLocalUploadResponse(req.file));
 });
 
-app.post("/api/ai/import-statement-file", authenticateToken, upload.single('file'), async (req: any, res) => {
+app.post("/api/ai/import-statement-file", authenticateToken, createAiUsageGuard("statement_import"), upload.single('file'), async (req: any, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded. Use form-data key 'file'." });
   }

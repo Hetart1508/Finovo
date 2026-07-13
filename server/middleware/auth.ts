@@ -33,7 +33,7 @@ export const authenticateToken: RequestHandler = (req: any, res, next) => {
     if (err?.name === "TokenExpiredError") {
       return res.status(401).json({ error: "Session expired. Please login again." });
     }
-    if (err) return res.sendStatus(403);
+    if (err) return res.sendStatus(401);
 
     try {
       const activeUser = await queryOne("SELECT id FROM users WHERE id = ? AND deleted_at IS NULL", [user.id]);

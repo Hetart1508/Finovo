@@ -51,6 +51,13 @@ type ProfileFormState = {
   emergency_fund_target: string;
   risk_appetite: RiskAppetite | '';
   investment_goal: string;
+  savings_goal: string;
+  investment_preference: string;
+  retirement_goal: string;
+  existing_investments: string;
+  loan_details: string;
+  insurance_details: string;
+  additional_information: string;
   financial_dependents: string;
   preferred_currency: string;
   ai_personalization_enabled: boolean;
@@ -69,12 +76,19 @@ const emptyForm: ProfileFormState = {
   emergency_fund_target: '',
   risk_appetite: '',
   investment_goal: '',
+  savings_goal: '',
+  investment_preference: '',
+  retirement_goal: '',
+  existing_investments: '',
+  loan_details: '',
+  insurance_details: '',
+  additional_information: '',
   financial_dependents: '',
   preferred_currency: 'INR',
   ai_personalization_enabled: false,
 };
 
-const profileFormSteps = ['Basic info', 'Financial info', 'AI personalization'] as const;
+const profileFormSteps = ['Basic info', 'Financial planning', 'Goals & AI'] as const;
 const lastProfileFormStep = profileFormSteps.length - 1;
 const profileSections: Array<{ value: ProfileSection; label: string }> = [
   { value: 'summary', label: 'Summary' },
@@ -113,6 +127,13 @@ const profileToForm = (profile: UserProfile): ProfileFormState => ({
   emergency_fund_target: profile.emergency_fund_target === null ? '' : String(profile.emergency_fund_target),
   risk_appetite: profile.risk_appetite || '',
   investment_goal: profile.investment_goal || '',
+  savings_goal: profile.savings_goal || '',
+  investment_preference: profile.investment_preference || '',
+  retirement_goal: profile.retirement_goal || '',
+  existing_investments: profile.existing_investments || '',
+  loan_details: profile.loan_details || '',
+  insurance_details: profile.insurance_details || '',
+  additional_information: profile.additional_information || '',
   financial_dependents: profile.financial_dependents === null ? '' : String(profile.financial_dependents),
   preferred_currency: profile.preferred_currency || 'INR',
   ai_personalization_enabled: profile.ai_personalization_enabled,
@@ -131,6 +152,13 @@ const countCompletedFields = (profile: UserProfile | undefined) => {
     profile.emergency_fund_target,
     profile.risk_appetite,
     profile.investment_goal,
+    profile.savings_goal,
+    profile.investment_preference,
+    profile.retirement_goal,
+    profile.existing_investments,
+    profile.loan_details,
+    profile.insurance_details,
+    profile.additional_information,
     profile.financial_dependents,
     profile.preferred_currency,
   ];
@@ -175,11 +203,14 @@ export default function Profile() {
   }, [reportPreferencesQuery.data]);
 
   const completion = useMemo(() => {
-    const total = 12;
+    const total = 19;
     const completed = countCompletedFields(profile);
+    const countSet = (values: unknown[]) => values.filter((value) => value !== null && value !== undefined && String(value).trim() !== '').length;
     return {
       completed,
       percent: Math.round((completed / total) * 100),
+      basic: profile ? countSet([profile.name, profile.date_of_birth, profile.occupation, profile.city, profile.country, profile.preferred_currency]) : 0,
+      finance: profile ? countSet([profile.monthly_income, profile.monthly_expense_target, profile.emergency_fund_target, profile.financial_dependents, profile.risk_appetite, profile.savings_goal, profile.retirement_goal]) : 0,
     };
   }, [profile]);
   const familyWallets = wallets.filter((wallet) => wallet.type === 'family');
@@ -287,6 +318,13 @@ export default function Profile() {
       emergency_fund_target: numberOrNull(form.emergency_fund_target),
       risk_appetite: form.risk_appetite || null,
       investment_goal: form.investment_goal.trim() || null,
+      savings_goal: form.savings_goal.trim() || null,
+      investment_preference: form.investment_preference.trim() || null,
+      retirement_goal: form.retirement_goal.trim() || null,
+      existing_investments: form.existing_investments.trim() || null,
+      loan_details: form.loan_details.trim() || null,
+      insurance_details: form.insurance_details.trim() || null,
+      additional_information: form.additional_information.trim() || null,
       financial_dependents: numberOrNull(form.financial_dependents),
       preferred_currency: form.preferred_currency.trim().toUpperCase() || 'INR',
       ai_personalization_enabled: form.ai_personalization_enabled,
@@ -416,8 +454,8 @@ export default function Profile() {
           </div>
           <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-center">
             <div className="grid grid-cols-3 gap-2">
-              <SummaryRow label="Basic" value={`${Math.min(completion.completed, 6)} of 6`} />
-              <SummaryRow label="Finance" value={`${Math.max(Math.min(completion.completed - 6, 5), 0)} of 5`} />
+              <SummaryRow label="Basic" value={`${completion.basic} of 6`} />
+              <SummaryRow label="Finance" value={`${completion.finance} of 7`} />
               <SummaryRow label="AI" value={profile.ai_personalization_enabled ? 'Enabled' : 'Off'} />
             </div>
             <Button
@@ -460,6 +498,25 @@ export default function Profile() {
                 <SummaryRow label="Dependents" value={profile.financial_dependents ?? 'Not set'} />
                 <SummaryRow label="Currency" value={profile.preferred_currency} />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="surface-panel mb-3 break-inside-avoid rounded-lg sm:mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <RiInformationLine className="text-[#8B5CF6]" aria-hidden="true" />
+                AI planning context
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <SummaryRow label="Savings goal" value={textOrDash(profile.savings_goal)} />
+              <SummaryRow label="Retirement goal" value={textOrDash(profile.retirement_goal)} />
+              <SummaryRow label="Investment preference" value={textOrDash(profile.investment_preference)} />
+              <SummaryRow label="Financial goals" value={textOrDash(profile.investment_goal)} />
+              <SummaryRow label="Existing investments" value={textOrDash(profile.existing_investments)} />
+              <SummaryRow label="Loan details" value={textOrDash(profile.loan_details)} />
+              <SummaryRow label="Insurance details" value={textOrDash(profile.insurance_details)} />
+              <SummaryRow label="Other information" value={textOrDash(profile.additional_information)} />
             </CardContent>
           </Card>
 
@@ -803,12 +860,14 @@ export default function Profile() {
                 <Field label="Country" htmlFor="profile-country">
                   <Input id="profile-country" value={form.country} onChange={(event) => updateField('country', event.target.value)} placeholder="India" />
                 </Field>
+                <Field label="Preferred currency" htmlFor="profile-currency">
+                  <Input id="profile-currency" value={form.preferred_currency} maxLength={10} onChange={(event) => updateField('preferred_currency', event.target.value.toUpperCase())} placeholder="INR" />
+                </Field>
                 </section>
               ) : null}
 
               {profileFormStep === 1 ? (
-                <section className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field label="Monthly income" htmlFor="profile-income">
                     <Input id="profile-income" type="number" min="0" step="0.01" value={form.monthly_income} onChange={(event) => updateField('monthly_income', event.target.value)} placeholder="150000" />
                   </Field>
@@ -818,11 +877,8 @@ export default function Profile() {
                   <Field label="Emergency fund target" htmlFor="profile-emergency-fund">
                     <Input id="profile-emergency-fund" type="number" min="0" step="0.01" value={form.emergency_fund_target} onChange={(event) => updateField('emergency_fund_target', event.target.value)} placeholder="600000" />
                   </Field>
-                  <Field label="Dependents" htmlFor="profile-dependents">
+                  <Field label="Family members / dependents" htmlFor="profile-dependents">
                     <Input id="profile-dependents" type="number" min="0" step="1" value={form.financial_dependents} onChange={(event) => updateField('financial_dependents', event.target.value)} placeholder="0" />
-                  </Field>
-                  <Field label="Preferred currency" htmlFor="profile-currency">
-                    <Input id="profile-currency" value={form.preferred_currency} maxLength={10} onChange={(event) => updateField('preferred_currency', event.target.value.toUpperCase())} />
                   </Field>
                   <Field label="Risk appetite" htmlFor="profile-risk">
                     <select
@@ -837,23 +893,57 @@ export default function Profile() {
                       <option value="high">High</option>
                     </select>
                   </Field>
-                </div>
-                <Field label="Investment goal" htmlFor="profile-investment-goal">
-                  <textarea
-                    id="profile-investment-goal"
-                    value={form.investment_goal}
-                    onChange={(event) => updateField('investment_goal', event.target.value)}
-                    rows={4}
-                    placeholder="Build a retirement corpus, save for a home, create passive income..."
-                    className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                  />
-                </Field>
+                  <Field label="Savings goal" htmlFor="profile-savings-goal">
+                    <textarea
+                      id="profile-savings-goal"
+                      value={form.savings_goal}
+                      onChange={(event) => updateField('savings_goal', event.target.value)}
+                      rows={2}
+                      placeholder="Save ₹10 lakh for a home deposit in 3 years"
+                      className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                  </Field>
+                  <Field label="Retirement goal" htmlFor="profile-retirement-goal">
+                    <textarea
+                      id="profile-retirement-goal"
+                      value={form.retirement_goal}
+                      onChange={(event) => updateField('retirement_goal', event.target.value)}
+                      rows={2}
+                      placeholder="Retire by 55 with ₹3 crore"
+                      className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                  </Field>
                 </section>
               ) : null}
 
               {profileFormStep === 2 ? (
-                <section className="rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-4">
-                <label className="flex items-start gap-3">
+                <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Investment preference" htmlFor="profile-investment-preference">
+                  <textarea
+                    id="profile-investment-preference"
+                    value={form.investment_preference}
+                    onChange={(event) => updateField('investment_preference', event.target.value)}
+                    rows={2}
+                    placeholder="Index funds, SIPs, fixed income, gold..."
+                    className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                </Field>
+                <Field label="Financial goals" htmlFor="profile-investment-goal">
+                  <textarea id="profile-investment-goal" value={form.investment_goal} onChange={(event) => updateField('investment_goal', event.target.value)} rows={2} placeholder="Buy a home, fund education, build passive income..." className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+                </Field>
+                <Field label="Existing investments" htmlFor="profile-existing-investments">
+                  <textarea id="profile-existing-investments" value={form.existing_investments} onChange={(event) => updateField('existing_investments', event.target.value)} rows={2} placeholder="EPF, mutual funds, deposits, stocks..." className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+                </Field>
+                <Field label="Loan details" htmlFor="profile-loan-details">
+                  <textarea id="profile-loan-details" value={form.loan_details} onChange={(event) => updateField('loan_details', event.target.value)} rows={2} placeholder="Home loan balance, EMI, interest rate..." className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+                </Field>
+                <Field label="Insurance details" htmlFor="profile-insurance-details">
+                  <textarea id="profile-insurance-details" value={form.insurance_details} onChange={(event) => updateField('insurance_details', event.target.value)} rows={2} placeholder="Health, term, vehicle or other cover..." className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+                </Field>
+                <Field label="Other financial information" htmlFor="profile-additional-information">
+                  <textarea id="profile-additional-information" value={form.additional_information} onChange={(event) => updateField('additional_information', event.target.value)} rows={2} placeholder="Anything else the AI should consider" className="w-full resize-none rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" />
+                </Field>
+                <label className="flex min-h-[5.25rem] items-start gap-3 rounded-lg border border-[#E5E7EB] bg-[#FAFBFC] p-3">
                   <input
                     type="checkbox"
                     checked={form.ai_personalization_enabled}
@@ -863,7 +953,7 @@ export default function Profile() {
                   <span>
                     <span className="block text-sm font-semibold text-[#1F2937]">Use this profile for future AI personalization</span>
                     <span className="mt-1 block text-xs leading-5 text-[#6B7280]">
-                      This prepares your profile for upcoming advisor and RAG features. You can turn it off any time.
+                      Use these optional details in AI Insights and Wealth Advisor. You can turn this off at any time.
                     </span>
                   </span>
                 </label>

@@ -268,6 +268,13 @@ export const runMigrations = async () => {
       emergency_fund_target DECIMAL(14,2) NULL,
       risk_appetite ENUM('low', 'moderate', 'high') NULL,
       investment_goal TEXT NULL,
+      savings_goal TEXT NULL,
+      investment_preference TEXT NULL,
+      retirement_goal TEXT NULL,
+      existing_investments TEXT NULL,
+      loan_details TEXT NULL,
+      insurance_details TEXT NULL,
+      additional_information TEXT NULL,
       financial_dependents INT NULL,
       preferred_currency VARCHAR(10) NOT NULL DEFAULT 'INR',
       ai_personalization_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -317,6 +324,46 @@ export const runMigrations = async () => {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_usage_events (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      feature VARCHAR(60) NOT NULL,
+      provider VARCHAR(30) NOT NULL,
+      model VARCHAR(160) NOT NULL,
+      key_identifier VARCHAR(40) NULL,
+      input_tokens INT NOT NULL DEFAULT 0,
+      output_tokens INT NOT NULL DEFAULT 0,
+      estimated_cost_usd DECIMAL(14,8) NOT NULL DEFAULT 0,
+      credits_used DECIMAL(14,4) NOT NULL DEFAULT 0,
+      status ENUM('success', 'failed') NOT NULL,
+      error_type VARCHAR(40) NULL,
+      request_ip_hash CHAR(64) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_usage_events_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_usage_settings (
+      id TINYINT PRIMARY KEY,
+      monthly_credit_limit DECIMAL(14,4) NOT NULL,
+      warning_percent INT NOT NULL DEFAULT 80,
+      limit_behavior ENUM('block', 'fallback') NOT NULL DEFAULT 'fallback',
+      updated_by_user_id INT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_usage_settings_user
+        FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+    )
+  `);
+
+  // Normalize usage categories introduced before the product feature names were finalized.
+  await db.query("UPDATE ai_usage_events SET feature = 'statement_import' WHERE feature = 'report_analysis'");
+  await db.query("UPDATE ai_usage_events SET feature = 'smart_bill_fetching' WHERE feature = 'investment_report_analysis'");
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INT PRIMARY KEY
     )
@@ -352,6 +399,13 @@ export const runMigrations = async () => {
   await ensureColumn("recurring_events", "payment_account", "VARCHAR(100) NULL");
   await ensureColumn("monthly_report_preferences", "report_frequency", "VARCHAR(20) NOT NULL DEFAULT 'monthly'");
   await ensureColumn("monthly_report_preferences", "custom_interval_days", "INT NOT NULL DEFAULT 30");
+  await ensureColumn("user_profiles", "savings_goal", "TEXT NULL");
+  await ensureColumn("user_profiles", "investment_preference", "TEXT NULL");
+  await ensureColumn("user_profiles", "retirement_goal", "TEXT NULL");
+  await ensureColumn("user_profiles", "existing_investments", "TEXT NULL");
+  await ensureColumn("user_profiles", "loan_details", "TEXT NULL");
+  await ensureColumn("user_profiles", "insurance_details", "TEXT NULL");
+  await ensureColumn("user_profiles", "additional_information", "TEXT NULL");
   await ensureColumn("mutual_fund_sip_investments", "investment_type", "VARCHAR(20) NOT NULL DEFAULT 'sip'");
   await ensureIndex("transactions", "idx_transactions_user_date", "user_id, date");
   await ensureIndex("transactions", "idx_transactions_wallet_date", "wallet_id, date");
@@ -373,6 +427,9 @@ export const runMigrations = async () => {
   await ensureIndex("user_profiles", "idx_user_profiles_user", "user_id");
   await ensureIndex("monthly_report_preferences", "idx_monthly_report_preferences_user", "user_id");
   await ensureIndex("monthly_report_logs", "idx_monthly_report_logs_user_month", "user_id, report_month");
+  await ensureIndex("ai_usage_events", "idx_ai_usage_month", "created_at, provider");
+  await ensureIndex("ai_usage_events", "idx_ai_usage_user_month", "user_id, created_at");
+  await ensureIndex("ai_usage_events", "idx_ai_usage_feature_month", "feature, created_at");
   await db.query("UPDATE ai_advisor_sessions SET title = TRIM(LEFT(title, 25)) WHERE CHAR_LENGTH(title) > 25");
   await db.query("ALTER TABLE ai_advisor_sessions MODIFY COLUMN title VARCHAR(25) NOT NULL DEFAULT 'New Chat'");
   await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_user_updated", "user_id, updated_at");

@@ -21,7 +21,7 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const hasSession = Boolean(localStorage.getItem(storageKeys.user));
 
-    if ((status === 401 || status === 403) && hasSession) {
+    if (status === 401 && hasSession) {
       clearSession();
       window.dispatchEvent(new Event('session-expired'));
     }
