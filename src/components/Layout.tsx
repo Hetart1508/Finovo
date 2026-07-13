@@ -26,6 +26,7 @@ import {
   RiRobot2Line,
   RiUserSettingsLine,
   RiGroupLine,
+  RiAddCircleLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -278,12 +279,32 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        <div className="app-scroll min-w-0 flex-1 p-3 sm:p-4 lg:p-6 xl:p-8">
+        <div className="app-scroll min-w-0 flex-1 p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-28 xl:p-8 xl:pb-28">
           <div className="mx-auto min-w-0 w-full max-w-[100rem]">
             {children}
           </div>
         </div>
       </main>
+
+      <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-center gap-3 sm:right-6 lg:right-8">
+        <Link
+          to="/transactions"
+          className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#34C759] text-white shadow-[0_16px_35px_rgba(52,199,89,0.32)] transition hover:bg-[#2EB851] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#34C759]/40"
+          aria-label="Go to transactions"
+          title="Add transaction"
+        >
+          <RiAddCircleLine className="text-xl" aria-hidden="true" />
+        </Link>
+
+        <Link
+          to="/wealth-advisor"
+          className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#4F9CF9] text-white shadow-[0_16px_35px_rgba(79,156,249,0.32)] transition hover:bg-[#3F8BE5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F9CF9]/40"
+          aria-label="Open wealth advisor chat"
+          title="Wealth advisor chat"
+        >
+          <RiRobot2Line className="text-xl" aria-hidden="true" />
+        </Link>
+      </div>
     </div>
   );
 }
