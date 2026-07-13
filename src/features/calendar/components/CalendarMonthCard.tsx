@@ -144,17 +144,21 @@ export function CalendarMonthCard({
                   <button
                     key={day.toISOString()}
                     type="button"
-                    onClick={() => onSelectDate(day)}
+                    onClick={(event) => {
+                      onSelectDate(day);
+                      if (event.detail > 0) event.currentTarget.blur();
+                    }}
                     style={balanceColorStyle}
                     className={cn(
                       'group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
                       !hasBalanceColor && (isWeekend ? 'text-[#4F9CF9]' : 'text-[#1F2937]'),
-                      isToday && !isSelected && !hasBalanceColor && 'border-[#4F9CF9] bg-[#EEF6FF]',
+                      isToday && !isSelected && !hasBalanceColor && 'ring-2 ring-inset ring-[#4F9CF9]',
                       isOverLimit && !isSelected && dailySummary.net < 0 && 'ring-2 ring-[#FF6B6B]',
-                      isSelected && 'bg-[#4F9CF9] text-white shadow-md shadow-[#4F9CF9]/20',
+                      isSelected && '!border-[#4F9CF9] !bg-[#4F9CF9] !text-white shadow-md shadow-[#4F9CF9]/20',
                       !hasBalanceColor && 'hover:border-[#4F9CF9] hover:bg-[#EEF6FF] hover:text-[#357CCB]',
                       hasBalanceColor && 'hover:brightness-95'
                     )}
+                    aria-pressed={isSelected}
                     aria-label={`${format(day, 'dd MMMM yyyy')}: income ₹${dailySummary.income}, expense ₹${dailySummary.expense}, balance ₹${dailySummary.net}`}
                   >
                     {format(day, 'd')}
