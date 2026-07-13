@@ -9,6 +9,9 @@ import { storageKeys } from '@/src/lib/storageKeys';
 import { authApi } from '@/src/api/authApi';
 import { useWallets } from '@/src/features/wallets/WalletProvider';
 import { useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { AddTransactionDialog } from '@/src/features/transactions/components/AddTransactionDialog';
+import { useTransactionMutations } from '@/src/features/transactions/hooks/useTransactionMutations';
 import {
   RiDashboard2Line,
   RiFileUploadLine,
@@ -41,6 +44,17 @@ export default function Layout({ children }: LayoutProps) {
   const { wallets, selectedWallet, selectedWalletId, walletsLoading, setSelectedWalletId } = useWallets();
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem(storageKeys.user) || '{}'));
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [globalAddDialogOpen, setGlobalAddDialogOpen] = useState(false);
+  const todayDateString = format(new Date(), 'yyyy-MM-dd');
+  const [globalTransactionDate, setGlobalTransactionDate] = useState(todayDateString);
+  const globalTransactionMutations = useTransactionMutations({
+    editingTransaction: null,
+    transactionDate: globalTransactionDate,
+    todayDateString,
+    selectedWalletId,
+    onAdded: () => setGlobalTransactionDate(todayDateString),
+    onUpdated: () => undefined,
+  });
 
   const finishLogout = (message: string) => {
     clearSession();
@@ -298,15 +312,28 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
+      <AddTransactionDialog
+        open={globalAddDialogOpen}
+        onOpenChange={setGlobalAddDialogOpen}
+        transactionDate={globalTransactionDate}
+        maxDate={todayDateString}
+        onTransactionDateChange={setGlobalTransactionDate}
+        onAddTransaction={globalTransactionMutations.handleAdd}
+        onExtractTransaction={globalTransactionMutations.handleExtract}
+        extractingTransaction={globalTransactionMutations.extractingTransaction}
+        selectedWalletName={selectedWallet?.name ?? 'Wallet'}
+      />
+
       <div className="pointer-events-none fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-30 flex flex-col items-center gap-3 sm:right-6 lg:right-8">
-        <Link
-          to="/transactions?add=1"
+        <button
+          type="button"
+          onClick={() => setGlobalAddDialogOpen(true)}
           className="pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full border border-[#34C759]/25 bg-[#34C759]/25 text-white/85 shadow-[0_12px_28px_rgba(52,199,89,0.14)] backdrop-blur-[2px] transition hover:border-transparent hover:bg-[#2EB851] hover:text-white hover:shadow-[0_16px_35px_rgba(52,199,89,0.32)] focus-visible:border-transparent focus-visible:bg-[#2EB851] focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#34C759]/40"
-          aria-label="Go to transactions"
+          aria-label="Add transaction"
           title="Add transaction"
         >
           <RiAddCircleLine className="text-xl" aria-hidden="true" />
-        </Link>
+        </button>
 
         <Link
           to="/wealth-advisor"
