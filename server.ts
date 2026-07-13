@@ -1240,6 +1240,9 @@ const generateAiText = async (
 type VisionInput = { base64Data: string; mimeType: string };
 type VisionAiResult = TextAiResult & { texts: string[] };
 const GROQ_VISION_MAX_OUTPUT_TOKENS = 4096;
+const isUsableOpenRouterApiKey = (key: string) => /^sk-or-[0-9A-Za-z_.-]+$/.test(key);
+const isKnownUnsupportedHuggingFaceVisionModel = (model: string) =>
+  model === "Qwen/Qwen2.5-VL-7B-Instruct";
 
 const generateOpenAiCompatibleVision = async (
   provider: Exclude<TextAiProvider, "gemini">,
@@ -1278,9 +1281,6 @@ const generateOpenAiCompatibleVision = async (
         max_tokens: provider === "groq"
           ? Math.min(options.maxOutputTokens || 1024, GROQ_VISION_MAX_OUTPUT_TOKENS)
           : options.maxOutputTokens || 1024,
-        ...(provider === "groq" && options.responseMimeType === "application/json"
-          ? { response_format: { type: "json_object" } }
-          : {}),
       }),
     });
     if (!response.ok) {
@@ -1339,6 +1339,12 @@ const generateAiVision = async (
           : { key: HUGGINGFACE_API_KEY, baseUrl: HUGGINGFACE_API_BASE_URL, model: HUGGINGFACE_VISION_MODEL, headers: {} };
 
       if (!configuration.key) continue;
+      if (provider === "openrouter" && !isUsableOpenRouterApiKey(configuration.key)) {
+        throw new Error("OpenRouter vision fallback is configured, but OPENROUTER_API_KEY is missing or invalid.");
+      }
+      if (provider === "huggingface" && isKnownUnsupportedHuggingFaceVisionModel(configuration.model)) {
+        throw new Error(`Hugging Face vision fallback model is not supported by the configured provider: ${configuration.model}.`);
+      }
       if (images.some((image) => image.mimeType === "application/pdf")) {
         throw new Error(`${provider} vision cannot read raw PDF statements. Use extracted PDF text, unlocked rendered pages, or configure Gemini vision for PDF input.`);
       }
