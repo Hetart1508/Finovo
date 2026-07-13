@@ -26,6 +26,7 @@ export function useStatementImport() {
   const [statementHash, setStatementHash] = useState('');
   const [alreadyImported, setAlreadyImported] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState('Reading Statement...');
   const [approveLoading, setApproveLoading] = useState(false);
   const [approvedCount, setApprovedCount] = useState(0);
   const [passwordProtectedFile, setPasswordProtectedFile] = useState<File | null>(null);
@@ -98,6 +99,7 @@ export function useStatementImport() {
     setStatementHash('');
     setAlreadyImported(false);
     setApprovedCount(0);
+    setPreviewStatus('Reading Statement...');
     setPasswordProtectedFile(null);
     setPasswordError('');
     setPasswordProgress('Unlocking PDF...');
@@ -127,9 +129,11 @@ export function useStatementImport() {
 
     resetPreview(selectedFile);
     setPreviewLoading(true);
+    setPreviewStatus(selectedFile.type === 'application/pdf' ? 'Reading PDF...' : 'Preparing image...');
 
     try {
       const extractedText = await inspectStatementPdf(selectedFile);
+      setPreviewStatus('Extracting with AI...');
       await previewFile(selectedFile, undefined, extractedText);
     } catch (error: unknown) {
       if (error instanceof StatementPasswordRequiredError) {
@@ -156,6 +160,7 @@ export function useStatementImport() {
       setPasswordProtectedFile(null);
       setPasswordUnlockLoading(false);
       toast.info('PDF unlocked. Extracting transactions...');
+      setPreviewStatus('Extracting with AI...');
       await previewFile(unlockedFile, unlockedPdf.pages, unlockedPdf.extractedText);
       return true;
     } catch (error: unknown) {
@@ -234,6 +239,7 @@ export function useStatementImport() {
     model,
     alreadyImported,
     previewLoading,
+    previewStatus,
     approveLoading,
     approvedCount,
     passwordProtectedFile,

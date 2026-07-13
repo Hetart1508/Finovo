@@ -1784,24 +1784,73 @@ const importStatementWithAi = async (
   };
 };
 
-const importStatementFromText = async (statementText: string) => {
-  const prompt = `${getStatementImportPrompt()}
+const splitStatementTextForImport = (statementText: string) => {
+  const pages = statementText.match(/--- Page \d+ ---\n[\s\S]*?(?=\n--- Page \d+ ---|$)/g);
+  const maxPagesPerChunk = 4;
+  const maxCharsPerChunk = 80_000;
 
-The PDF text was extracted locally and is enclosed below. Use only this statement text.
+  if (pages?.length) {
+    const chunks: string[] = [];
+    let currentPages: string[] = [];
+    let currentLength = 0;
+
+    for (const page of pages) {
+      const nextLength = currentLength + page.length;
+      if (currentPages.length && (currentPages.length >= maxPagesPerChunk || nextLength > maxCharsPerChunk)) {
+        chunks.push(currentPages.join("\n"));
+        currentPages = [];
+        currentLength = 0;
+      }
+      currentPages.push(page);
+      currentLength += page.length;
+    }
+
+    if (currentPages.length) chunks.push(currentPages.join("\n"));
+    return chunks.length ? chunks : [statementText];
+  }
+
+  if (statementText.length <= maxCharsPerChunk) return [statementText];
+
+  const chunks: string[] = [];
+  for (let start = 0; start < statementText.length; start += maxCharsPerChunk) {
+    chunks.push(statementText.slice(start, start + maxCharsPerChunk));
+  }
+  return chunks;
+};
+
+const importStatementFromText = async (statementText: string) => {
+  const chunks = splitStatementTextForImport(statementText);
+  const transactions: GeminiStatementTransaction[] = [];
+  let provider: TextAiProvider | null = null;
+  let model = "";
+
+  for (const [index, chunk] of chunks.entries()) {
+    const prompt = `${getStatementImportPrompt()}
+
+The PDF text was extracted locally and is enclosed below. Use only this statement text batch.
+Batch ${index + 1} of ${chunks.length}. Extract only rows visible in this batch.
 <statement_text>
-${statementText}
+${chunk}
 </statement_text>`;
-  const result = await generateAiText(prompt, {
-    responseMimeType: "application/json",
-    maxOutputTokens: 10000,
-    validateResponse: (text) => {
-      normalizeGeminiStatementTransactions(text);
-    },
-  });
+
+    const result = await generateAiText(prompt, {
+      responseMimeType: "application/json",
+      maxOutputTokens: 10000,
+      validateResponse: (text) => {
+        normalizeGeminiStatementTransactions(text);
+      },
+    });
+
+    provider = provider || result.provider;
+    model = model || result.model;
+    transactions.push(...normalizeGeminiStatementTransactions(result.text));
+    if (transactions.length >= 250) break;
+  }
+
   return {
-    transactions: normalizeGeminiStatementTransactions(result.text),
-    provider: result.provider,
-    model: result.model,
+    transactions: transactions.slice(0, 250),
+    provider: provider || "gemini",
+    model: model || GEMINI_MODEL,
   };
 };
 

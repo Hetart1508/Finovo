@@ -20,6 +20,7 @@ export default function StatementImport() {
     model,
     alreadyImported,
     previewLoading,
+    previewStatus,
     approveLoading,
     approvedCount,
     passwordProtectedFile,
@@ -45,7 +46,7 @@ export default function StatementImport() {
         actions={(
           <Button className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={previewLoading || approveLoading}>
             <RiUploadCloudLine className="text-base" aria-hidden="true" />
-            {previewLoading ? 'Reading Statement...' : 'Select Statement File'}
+            {previewLoading ? previewStatus : 'Select Statement File'}
           </Button>
         )}
       />
