@@ -16,7 +16,7 @@ export default function AIWealthAdvisor() {
   const advisor = useAIAdvisor();
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] w-full max-w-[100rem] flex-col overflow-hidden md:grid md:h-full md:min-h-0 md:gap-2 md:grid-rows-[auto_minmax(0,1fr)]">
+    <div className="mx-auto flex h-[calc(100dvh-6.5rem)] w-full max-w-[100rem] flex-col overflow-hidden md:grid md:h-[calc(100dvh-10rem)] md:min-h-[34rem] md:gap-2 md:grid-rows-[auto_minmax(0,1fr)] xl:h-[calc(100dvh-11rem)]">
       <AdvisorHeader
         messageCount={advisor.messages.length}
         clearMutation={advisor.clearMutation}

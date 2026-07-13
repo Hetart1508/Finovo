@@ -1642,20 +1642,161 @@ const getAdvisorPortfolioContext = async (userId: number) => {
   };
 };
 
-const getWealthAdvisorReply = async (message: string, investments: any[], summary: any, history: any[], profileContext: any) => {
+const normalizeAdvisorTransactionDate = (value: unknown) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  if (typeof value === "string") return value.slice(0, 10);
+  return null;
+};
+
+const roundMoney = (value: number) => Number(value.toFixed(2));
+
+const getAdvisorTransactionContext = async (userId: number) => {
+  const transactions = await queryAll(`
+    SELECT
+      transactions.id,
+      transactions.wallet_id,
+      wallets.name AS wallet_name,
+      wallets.type AS wallet_type,
+      transactions.type,
+      transactions.date,
+      transactions.category,
+      transactions.payment_mode,
+      transactions.amount,
+      transactions.description,
+      transactions.merchant_name,
+      transactions.payee_vpa,
+      transactions.source_type
+    FROM transactions
+    LEFT JOIN wallets ON wallets.id = transactions.wallet_id
+    WHERE transactions.user_id = ?
+    ORDER BY transactions.date DESC, transactions.id DESC
+    LIMIT 1000
+  `, [userId]);
+
+  const categoryTotals = new Map<string, { income: number; expense: number; count: number }>();
+  const paymentModeTotals = new Map<string, { income: number; expense: number; count: number }>();
+  const monthlyTotals = new Map<string, { income: number; expense: number; count: number }>();
+  const payeeTotals = new Map<string, { amount: number; count: number; last_date: string | null }>();
+  const walletTotals = new Map<string, { income: number; expense: number; count: number }>();
+  let totalIncome = 0;
+  let totalExpense = 0;
+  let firstDate: string | null = null;
+  let lastDate: string | null = null;
+
+  const bump = (map: Map<string, { income: number; expense: number; count: number }>, key: string, type: string, amount: number) => {
+    const current = map.get(key) || { income: 0, expense: 0, count: 0 };
+    if (type === "income") current.income += amount;
+    if (type === "expense") current.expense += amount;
+    current.count += 1;
+    map.set(key, current);
+  };
+
+  for (const transaction of transactions as any[]) {
+    const date = normalizeAdvisorTransactionDate(transaction.date);
+    const amount = Number(transaction.amount || 0);
+    const type = transaction.type === "income" ? "income" : "expense";
+    if (!date || !Number.isFinite(amount) || amount <= 0) continue;
+
+    if (!lastDate || date > lastDate) lastDate = date;
+    if (!firstDate || date < firstDate) firstDate = date;
+    if (type === "income") totalIncome += amount;
+    if (type === "expense") totalExpense += amount;
+
+    bump(categoryTotals, transaction.category || "Uncategorized", type, amount);
+    bump(paymentModeTotals, transaction.payment_mode || "Unknown", type, amount);
+    bump(monthlyTotals, date.slice(0, 7), type, amount);
+    bump(walletTotals, transaction.wallet_name || "No wallet", type, amount);
+
+    const payee = transaction.merchant_name || transaction.payee_vpa || transaction.description;
+    if (type === "expense" && isNonEmptyString(payee)) {
+      const key = payee.trim().slice(0, 120);
+      const current = payeeTotals.get(key) || { amount: 0, count: 0, last_date: null };
+      current.amount += amount;
+      current.count += 1;
+      current.last_date = !current.last_date || date > current.last_date ? date : current.last_date;
+      payeeTotals.set(key, current);
+    }
+  }
+
+  const toSortedBreakdown = (map: Map<string, { income: number; expense: number; count: number }>, sortBy: "expense" | "income" | "count", limit: number) =>
+    Array.from(map.entries())
+      .map(([name, value]) => ({
+        name,
+        income: roundMoney(value.income),
+        expense: roundMoney(value.expense),
+        net: roundMoney(value.income - value.expense),
+        count: value.count,
+      }))
+      .sort((first, second) => Number(second[sortBy]) - Number(first[sortBy]))
+      .slice(0, limit);
+
+  const recentTransactions = (transactions as any[]).slice(0, 60).map((transaction) => ({
+    date: normalizeAdvisorTransactionDate(transaction.date),
+    type: transaction.type,
+    amount: Number(transaction.amount || 0),
+    category: transaction.category || null,
+    payment_mode: transaction.payment_mode || null,
+    description: transaction.merchant_name || transaction.description || null,
+    payee_vpa: transaction.payee_vpa || null,
+    wallet: transaction.wallet_name || null,
+    source_type: transaction.source_type || null,
+  }));
+
+  const recurringLikeExpenses = Array.from(payeeTotals.entries())
+    .filter(([, value]) => value.count >= 2)
+    .map(([name, value]) => ({
+      name,
+      count: value.count,
+      total_expense: roundMoney(value.amount),
+      average_amount: roundMoney(value.amount / value.count),
+      last_date: value.last_date,
+    }))
+    .sort((first, second) => second.total_expense - first.total_expense)
+    .slice(0, 20);
+
+  return {
+    note: "Use this transaction context for financial planning, affordability, budgeting, cash-flow, recurring expense, saving capacity, and spending-pattern questions.",
+    summary: {
+      transaction_count: transactions.length,
+      date_range: { first: firstDate, last: lastDate },
+      total_income: roundMoney(totalIncome),
+      total_expense: roundMoney(totalExpense),
+      net_cashflow: roundMoney(totalIncome - totalExpense),
+      average_monthly_expense: monthlyTotals.size ? roundMoney(totalExpense / monthlyTotals.size) : 0,
+      average_monthly_income: monthlyTotals.size ? roundMoney(totalIncome / monthlyTotals.size) : 0,
+    },
+    top_expense_categories: toSortedBreakdown(categoryTotals, "expense", 12),
+    payment_mode_breakdown: toSortedBreakdown(paymentModeTotals, "count", 10),
+    wallet_breakdown: toSortedBreakdown(walletTotals, "count", 10),
+    monthly_trend: toSortedBreakdown(monthlyTotals, "count", 18).sort((first, second) => first.name.localeCompare(second.name)),
+    recurring_like_expenses: recurringLikeExpenses,
+    recent_transactions: recentTransactions,
+  };
+};
+
+const getWealthAdvisorReply = async (
+  message: string,
+  investments: any[],
+  summary: any,
+  history: any[],
+  profileContext: any,
+  transactionContext: any
+) => {
   if (![GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean)) {
     return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
   }
 
-  const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's profile, portfolio, and chat history to answer any investment, wealth, goal, SIP, retirement, or money planning question.
+  const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's profile, transactions, portfolio, and chat history to answer any investment, wealth, goal, SIP, retirement, budgeting, cash-flow, affordability, or money planning question.
 
 Rules:
 - If the user's latest message is only a greeting, thanks, acknowledgement, or small talk, reply in one short friendly line and ask how you can help. Do not mention profile, portfolio, goals, retirement, SIPs, calculations, or disclaimer for those messages.
 - Use current_context for all relative time/date questions such as today, tomorrow, this week, this month, this year, age, and birthday weekday/date calculations.
-- Use profile and portfolio context only when the user asks a finance, investment, planning, goal, or follow-up question that needs it.
+- Use profile, transaction, and portfolio context only when the user asks a finance, investment, planning, budgeting, cash-flow, goal, or follow-up question that needs it.
 - Ask focused follow-up questions when important data is missing.
 - When enough data exists, give practical calculations, required SIP/lumpsum, feasibility, assumptions, and next steps.
 - Personalize the reply using all relevant fields from full_profile, derived profile values, and monthly_report_preferences when personalization_enabled is true.
+- Use transaction_context to infer spending pattern, savings capacity, recurring expenses, category leaks, income consistency, emergency-fund gap, and goal affordability.
+- Do not list raw transactions unless the user asks. Summarize patterns and cite only the relevant recent transactions or categories.
 - Do not repeat sensitive profile fields such as email, date of birth, or internal ids unless the user directly asks or it is clearly needed for the answer.
 - If profile values conflict with the user's latest message, trust the latest message and mention the assumption.
 - Adapt tone and risk suggestions to age, dependents, income, emergency fund target, risk appetite, and stated investment goal when present.
@@ -1670,6 +1811,9 @@ ${JSON.stringify(getAdvisorCurrentContext())}
 
 Profile context:
 ${JSON.stringify(profileContext)}
+
+Transaction context:
+${JSON.stringify(transactionContext)}
 
 Portfolio summary:
 ${JSON.stringify(summary)}
@@ -5059,13 +5203,14 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
       ORDER BY created_at ASC, id ASC
       LIMIT 30
     `, [req.user.id, sessionId]);
-    const [{ investments, summary }, profileContext] = await Promise.all([
+    const [{ investments, summary }, profileContext, transactionContext] = await Promise.all([
       getAdvisorPortfolioContext(req.user.id),
       getAdvisorProfileContext(req.user.id),
+      getAdvisorTransactionContext(req.user.id),
     ]);
     const advisor = requestedTitle
       ? { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" }
-      : await getWealthAdvisorReply(message, investments, summary, history, profileContext);
+      : await getWealthAdvisorReply(message, investments, summary, history, profileContext, transactionContext);
 
     const info = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
@@ -5082,6 +5227,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, async (req: any, res) => {
       },
       portfolio: summary,
       profile: profileContext,
+      transactions: transactionContext,
       ...advisor,
     });
   } catch (error: any) {

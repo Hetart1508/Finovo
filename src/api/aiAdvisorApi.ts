@@ -10,6 +10,7 @@ export type AdvisorChatResponse = {
   provider: string;
   portfolio?: unknown;
   profile?: unknown;
+  transactions?: unknown;
 };
 
 export const aiAdvisorApi = {

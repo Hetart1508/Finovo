@@ -173,7 +173,7 @@ function AdvisorThread({
         scrollToBottomOnThreadSwitch={false}
         scrollToBottomOnRunStart={false}
         onScroll={onViewportScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 md:rounded-lg md:border md:border-border md:px-2"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 pb-5 md:rounded-lg md:border md:border-border md:px-2"
       >
         <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
 
@@ -211,7 +211,7 @@ function AdvisorThread({
         <button
           type="button"
           onClick={onFollowLatest}
-          className="absolute bottom-[6.75rem] left-1/2 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:text-foreground"
+          className="absolute bottom-[6.25rem] left-1/2 z-20 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:text-foreground md:bottom-[5.5rem]"
           aria-label="Scroll to latest message"
           title="Scroll to latest message"
         >
@@ -226,7 +226,7 @@ function AdvisorThread({
         </div>
       ) : null}
 
-      <ComposerPrimitive.Root className="shrink-0 border-t bg-white/95 p-2 md:border-0 md:bg-transparent md:px-0 md:pb-0 md:pt-3">
+      <ComposerPrimitive.Root className="sticky bottom-0 z-10 shrink-0 border-t bg-white/95 p-2 md:border-0 md:bg-card md:px-0 md:pb-1 md:pt-3">
         <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm transition focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20 md:rounded-xl">
           <ComposerPrimitive.Input
             submitMode="enter"
