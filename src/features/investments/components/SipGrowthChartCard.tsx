@@ -39,6 +39,7 @@ export function SipGrowthChartCard({ growthData }: SipGrowthChartCardProps) {
               <Tooltip
                 position={{ x: 88, y: 8 }}
                 isAnimationActive={false}
+                cursor={false}
                 formatter={(value: any, name: string) => [currency.format(Number(value)), name === 'estimatedValue' ? 'Estimated Value' : 'Contributed']}
                 labelFormatter={(label) => `Duration: ${label}`}
                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 12px 30px rgba(31,41,55,0.12)' }}

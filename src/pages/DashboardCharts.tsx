@@ -27,14 +27,16 @@ type DashboardChartsProps = {
   dailyData: DailyDataPoint[];
   categoryData: CategoryDataPoint[];
   colors: string[];
+  trendGranularity: 'daily' | 'weekly' | 'monthly';
 };
 
-export default function DashboardCharts({ dailyData, categoryData, colors }: DashboardChartsProps) {
+export default function DashboardCharts({ dailyData, categoryData, colors, trendGranularity }: DashboardChartsProps) {
   return (
     <div className="grid grid-cols-1 gap-5 sm:gap-8 lg:grid-cols-2">
       <Card className="surface-panel rounded-lg">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Spending Trend</CardTitle>
+          <p className="text-sm capitalize text-[#6B7280]">{trendGranularity} expense totals for the selected range.</p>
         </CardHeader>
         <CardContent className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -45,6 +47,7 @@ export default function DashboardCharts({ dailyData, categoryData, colors }: Das
               <Tooltip
                 position={{ x: 68, y: 8 }}
                 isAnimationActive={false}
+                cursor={false}
                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                 formatter={(v: unknown) => [`₹${v}`, 'Amount']}
                 wrapperStyle={{ pointerEvents: 'none' }}
@@ -78,6 +81,7 @@ export default function DashboardCharts({ dailyData, categoryData, colors }: Das
               <Tooltip
                 position={{ x: 8, y: 8 }}
                 isAnimationActive={false}
+                cursor={false}
                 wrapperStyle={{ pointerEvents: 'none' }}
               />
             </PieChart>

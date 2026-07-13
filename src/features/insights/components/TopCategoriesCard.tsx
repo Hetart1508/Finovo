@@ -35,6 +35,7 @@ export function TopCategoriesCard({ categoryData, loading }: TopCategoriesCardPr
               <Tooltip
                 position={{ x: 68, y: 8 }}
                 isAnimationActive={false}
+                cursor={false}
                 wrapperStyle={{ pointerEvents: 'none' }}
               />
               <Bar dataKey="value" fill="#4F9CF9" radius={[4, 4, 0, 0]} />
