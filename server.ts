@@ -1072,6 +1072,11 @@ type TextAiOptions = {
 
 const DEFAULT_TEXT_PROVIDER_PRIORITY: TextAiProvider[] = ["gemini", "groq", "openrouter", "huggingface"];
 const RETRYABLE_AI_STATUS_CODES = new Set([400, 404, 408, 409, 429, 500, 502, 503, 504]);
+const GROQ_TEXT_MAX_OUTPUT_TOKENS = 2048;
+const GROQ_VISION_MAX_OUTPUT_TOKENS = 4096;
+const isUsableOpenRouterApiKey = (key: string) => /^sk-or-[0-9A-Za-z_.-]+$/.test(key);
+const isKnownUnsupportedHuggingFaceVisionModel = (model: string) =>
+  model === "Qwen/Qwen2.5-VL-7B-Instruct";
 
 const normalizeTextProvider = (provider: string): TextAiProvider | null => {
   const normalized = provider.toLowerCase().replace(/[-_\s]/g, "");
@@ -1127,7 +1132,9 @@ const generateOpenAiCompatibleText = async (
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: options.maxOutputTokens || 1024,
+        max_tokens: provider === "groq"
+          ? Math.min(options.maxOutputTokens || 1024, GROQ_TEXT_MAX_OUTPUT_TOKENS)
+          : options.maxOutputTokens || 1024,
       }),
     });
 
@@ -1161,7 +1168,7 @@ const generateAiText = async (
   const configuredProviders = {
     gemini: Boolean(GEMINI_API_KEY),
     groq: Boolean(GROQ_API_KEY),
-    openrouter: Boolean(OPENROUTER_API_KEY),
+    openrouter: isUsableOpenRouterApiKey(OPENROUTER_API_KEY),
     huggingface: Boolean(HUGGINGFACE_API_KEY),
   };
   const providerPriority = getTextProviderPriority().filter((provider) => configuredProviders[provider]);
@@ -1239,10 +1246,6 @@ const generateAiText = async (
 
 type VisionInput = { base64Data: string; mimeType: string };
 type VisionAiResult = TextAiResult & { texts: string[] };
-const GROQ_VISION_MAX_OUTPUT_TOKENS = 4096;
-const isUsableOpenRouterApiKey = (key: string) => /^sk-or-[0-9A-Za-z_.-]+$/.test(key);
-const isKnownUnsupportedHuggingFaceVisionModel = (model: string) =>
-  model === "Qwen/Qwen2.5-VL-7B-Instruct";
 
 const generateOpenAiCompatibleVision = async (
   provider: Exclude<TextAiProvider, "gemini">,
@@ -1802,8 +1805,8 @@ const importStatementWithAi = async (
 
 const splitStatementTextForImport = (statementText: string) => {
   const pages = statementText.match(/--- Page \d+ ---\n[\s\S]*?(?=\n--- Page \d+ ---|$)/g);
-  const maxPagesPerChunk = 4;
-  const maxCharsPerChunk = 80_000;
+  const maxPagesPerChunk = 1;
+  const maxCharsPerChunk = 12_000;
 
   if (pages?.length) {
     const chunks: string[] = [];
