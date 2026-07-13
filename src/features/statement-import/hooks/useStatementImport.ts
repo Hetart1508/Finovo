@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { statementImportApi, type StatementImportPreviewPayload } from '@/src/api/statementImportApi';
+import { apiBaseUrl } from '@/src/lib/api';
 import { invalidateMerchantAliases, invalidateTransactions } from '@/src/server-state/invalidations';
 import { getApiMessage, getApiSuccessMessage } from '@/src/lib/toastMessages';
 import { useWallets } from '@/src/features/wallets/WalletProvider';
@@ -15,6 +16,22 @@ import {
   StatementPasswordRequiredError,
   type RenderedStatementPage,
 } from '../statementImport.utils';
+
+type StatementPreviewStreamEvent = {
+  transactions?: StatementTransaction[];
+  statementHash?: string;
+  alreadyImported?: boolean;
+  provider?: string;
+  model?: string;
+  batchIndex?: number;
+  totalBatches?: number;
+  extractedCount?: number;
+  limitReached?: boolean;
+  message?: string;
+  error?: string;
+  detail?: string;
+  hint?: string;
+};
 
 export function useStatementImport() {
   const queryClient = useQueryClient();
@@ -61,34 +78,135 @@ export function useStatementImport() {
   ) => {
     try {
       const base64Data = await readFileAsBase64(selectedFile);
-      const { data } = await previewStatement.mutateAsync({
+      const payload = {
         base64Data,
         mimeType: selectedFile.type,
         renderedPages,
         extractedText,
-      });
-      const importedTransactions: StatementTransaction[] = data.transactions || [];
-      const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
-      const futureTransactionCount = importedTransactions.length - validTransactions.length;
+      };
 
-      setTransactions(validTransactions);
-      setModel(data.model || '');
-      setStatementHash(data.statementHash || '');
-      setAlreadyImported(Boolean(data.alreadyImported));
+      if (typeof ReadableStream === 'undefined') {
+        const { data } = await previewStatement.mutateAsync(payload);
+        const importedTransactions: StatementTransaction[] = data.transactions || [];
+        const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
+        const futureTransactionCount = importedTransactions.length - validTransactions.length;
 
-      if (data.alreadyImported) {
-        toast.warn('This statement was already imported. No transactions will be added again.');
-      } else if (validTransactions.length) {
-        toast.success(`Found ${validTransactions.length} statement transactions. Review and approve to save.`);
-      } else {
-        toast.warn('No transactions found in this statement.');
+        setTransactions(validTransactions);
+        setModel(data.model || '');
+        setStatementHash(data.statementHash || '');
+        setAlreadyImported(Boolean(data.alreadyImported));
+
+        if (data.alreadyImported) {
+          toast.warn('This statement was already imported. No transactions will be added again.');
+        } else if (validTransactions.length) {
+          toast.success(`Found ${validTransactions.length} statement transactions. Review and approve to save.`);
+        } else {
+          toast.warn('No transactions found in this statement.');
+        }
+
+        if (futureTransactionCount > 0) {
+          toast.warn(`${futureTransactionCount} future-dated statement row${futureTransactionCount === 1 ? '' : 's'} skipped.`);
+        }
+        return;
       }
 
-      if (futureTransactionCount > 0) {
-        toast.warn(`${futureTransactionCount} future-dated statement row${futureTransactionCount === 1 ? '' : 's'} skipped.`);
-      }
+      await previewStatementStream(payload);
     } catch (error: unknown) {
       throw error;
+    }
+  };
+
+  const previewStatementStream = async (payload: StatementImportPreviewPayload) => {
+    const response = await fetch(`${apiBaseUrl}/statement-import/preview-stream`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok || !response.body) {
+      let message = 'Failed to import statement.';
+      try {
+        const errorBody = await response.json();
+        message = [errorBody.error, errorBody.detail, errorBody.hint].filter(Boolean).join(': ') || message;
+      } catch {
+        message = response.statusText || message;
+      }
+      throw new Error(message);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let accumulatedTransactions: StatementTransaction[] = [];
+    let futureTransactionCount = 0;
+    let finalAlreadyImported = false;
+    let limitReached = false;
+
+    const handleEvent = (rawEvent: string) => {
+      const eventName = rawEvent.split('\n').find((line) => line.startsWith('event: '))?.slice(7).trim() || 'message';
+      const dataText = rawEvent
+        .split('\n')
+        .filter((line) => line.startsWith('data: '))
+        .map((line) => line.slice(6))
+        .join('\n');
+      if (!dataText) return;
+
+      const data = JSON.parse(dataText) as StatementPreviewStreamEvent;
+
+      if (eventName === 'error') {
+        throw new Error([data.error, data.detail, data.hint].filter(Boolean).join(': ') || 'AI statement import failed');
+      }
+
+      if (data.statementHash) setStatementHash(data.statementHash);
+      if (data.model) setModel(data.model);
+      if (data.alreadyImported !== undefined) {
+        finalAlreadyImported = Boolean(data.alreadyImported);
+        setAlreadyImported(finalAlreadyImported);
+      }
+
+      if (eventName === 'batch') {
+        const importedTransactions = data.transactions || [];
+        const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
+        futureTransactionCount += importedTransactions.length - validTransactions.length;
+        accumulatedTransactions = [...accumulatedTransactions, ...validTransactions].slice(0, 250);
+        setTransactions(accumulatedTransactions);
+        if (data.totalBatches && data.batchIndex) {
+          setPreviewStatus(`Extracting with AI... ${data.batchIndex}/${data.totalBatches}`);
+        }
+      }
+
+      if (data.limitReached) limitReached = true;
+    };
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        for (const rawEvent of events) handleEvent(rawEvent.trim());
+        if (done) break;
+      }
+      if (buffer.trim()) handleEvent(buffer.trim());
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (finalAlreadyImported) {
+      toast.warn('This statement was already imported. No transactions will be added again.');
+    } else if (accumulatedTransactions.length) {
+      toast.success(`Found ${accumulatedTransactions.length} statement transactions. Review and approve to save.`);
+    } else {
+      toast.warn('No transactions found in this statement.');
+    }
+
+    if (futureTransactionCount > 0) {
+      toast.warn(`${futureTransactionCount} future-dated statement row${futureTransactionCount === 1 ? '' : 's'} skipped.`);
+    }
+
+    if (limitReached) {
+      toast.warn('AI transaction extraction limit reached. Review and approve the fetched rows before importing more.');
     }
   };
 
