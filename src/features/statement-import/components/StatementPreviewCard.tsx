@@ -27,6 +27,7 @@ type StatementPreviewCardProps = {
   transactions: StatementTransaction[];
   alreadyImported: boolean;
   previewLoading: boolean;
+  previewStatus: string;
   approveLoading: boolean;
   approvedCount: number;
   onApproveAll: () => void;
@@ -39,6 +40,7 @@ export function StatementPreviewCard({
   transactions,
   alreadyImported,
   previewLoading,
+  previewStatus,
   approveLoading,
   approvedCount,
   onApproveAll,
@@ -80,9 +82,11 @@ export function StatementPreviewCard({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {previewLoading ? (
+            {transactions.length === 0 && previewLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">Extracting statement transactions...</TableCell>
+                <TableCell colSpan={7} className="py-10 text-center text-[#6B7280]">
+                  {previewStatus || 'Extracting statement transactions...'}
+                </TableCell>
               </TableRow>
             ) : transactions.length === 0 ? (
               <TableRow>
@@ -91,74 +95,83 @@ export function StatementPreviewCard({
                 </TableCell>
               </TableRow>
             ) : (
-              transactions.map((transaction, index) => (
-                <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB]">
-                  <TableCell>
-                    <button
-                      type="button"
-                      onClick={() => onToggleType(index)}
-                      title={`Change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
-                      aria-label={`Currently ${transaction.type}; change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
-                      className={cn(
-                        'w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110',
-                        transaction.type === 'income' ? 'bg-[#EAFBF0] text-[#34C759]' : 'bg-[#FFF1F1] text-[#FF6B6B]'
-                      )}
-                    >
-                      {transaction.type === 'income'
-                        ? <RiArrowRightUpLine className="text-base" aria-hidden="true" />
-                        : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
-                    </button>
-                  </TableCell>
-                  <TableCell className="text-[#6B7280]">
-                    {format(parseISO(transaction.date), 'dd MMM yyyy')}
-                  </TableCell>
-                  <TableCell className="min-w-[260px] font-medium">
-                    <p>{getDisplayDescription(transaction)}</p>
-                    {transaction.type === 'expense' && transaction.vpa ? (
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <code className="rounded bg-[#EEF6FF] px-2 py-1 text-xs text-[#2878D0]">{transaction.vpa}</code>
-                          <Badge variant="outline" className={transaction.alias_status === 'matched' ? 'border-[#EAFBF0] text-[#34C759]' : 'border-[#FFF7E8] text-[#B87516]'}>
-                            {transaction.alias_status === 'matched' ? 'Saved match' : 'Add name (optional)'}
-                          </Badge>
+              <>
+                {transactions.map((transaction, index) => (
+                  <TableRow key={`${transaction.date}-${transaction.amount}-${index}`} className="border-[#E5E7EB]">
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => onToggleType(index)}
+                        title={`Change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
+                        aria-label={`Currently ${transaction.type}; change to ${transaction.type === 'income' ? 'expense' : 'income'}`}
+                        className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110',
+                          transaction.type === 'income' ? 'bg-[#EAFBF0] text-[#34C759]' : 'bg-[#FFF1F1] text-[#FF6B6B]'
+                        )}
+                      >
+                        {transaction.type === 'income'
+                          ? <RiArrowRightUpLine className="text-base" aria-hidden="true" />
+                          : <RiArrowLeftDownLine className="text-base" aria-hidden="true" />}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-[#6B7280]">
+                      {format(parseISO(transaction.date), 'dd MMM yyyy')}
+                    </TableCell>
+                    <TableCell className="min-w-[260px] font-medium">
+                      <p>{getDisplayDescription(transaction)}</p>
+                      {transaction.type === 'expense' && transaction.vpa ? (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <code className="rounded bg-[#EEF6FF] px-2 py-1 text-xs text-[#2878D0]">{transaction.vpa}</code>
+                            <Badge variant="outline" className={transaction.alias_status === 'matched' ? 'border-[#EAFBF0] text-[#34C759]' : 'border-[#FFF7E8] text-[#B87516]'}>
+                              {transaction.alias_status === 'matched' ? 'Saved match' : 'Add name (optional)'}
+                            </Badge>
+                          </div>
+                          <Label htmlFor={`merchant-name-${index}`} className="text-xs font-semibold">
+                            Merchant/company name (optional)
+                          </Label>
+                          <Input
+                            id={`merchant-name-${index}`}
+                            value={transaction.merchant_name || ''}
+                            maxLength={255}
+                            placeholder="Enter merchant name"
+                            onChange={(event) => onMerchantNameChange(transaction.vpa!, event.target.value)}
+                            aria-label={`Company name for ${transaction.vpa}`}
+                            className="h-9"
+                          />
                         </div>
-                        <Label htmlFor={`merchant-name-${index}`} className="text-xs font-semibold">
-                          Merchant/company name (optional)
-                        </Label>
-                        <Input
-                          id={`merchant-name-${index}`}
-                          value={transaction.merchant_name || ''}
-                          maxLength={255}
-                          placeholder="Enter merchant name"
-                          onChange={(event) => onMerchantNameChange(transaction.vpa!, event.target.value)}
-                          aria-label={`Company name for ${transaction.vpa}`}
-                          className="h-9"
-                        />
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-normal">{transaction.category}</Badge>
-                  </TableCell>
-                  <TableCell className="text-[#6B7280]">{transaction.payment_mode}</TableCell>
-                  <TableCell className={cn(
-                    'text-right font-bold',
-                    transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
-                  )}>
-                    {formatSignedRupees(transaction.amount, transaction.type === 'income')}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-[#6B7280] hover:text-[#FF6B6B]"
-                      onClick={() => onRemoveRow(index)}
-                    >
-                      <RiDeleteBin6Line className="text-base" aria-hidden="true" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-normal">{transaction.category}</Badge>
+                    </TableCell>
+                    <TableCell className="text-[#6B7280]">{transaction.payment_mode}</TableCell>
+                    <TableCell className={cn(
+                      'text-right font-bold',
+                      transaction.type === 'income' ? 'text-[#34C759]' : 'text-[#1F2937] text-[#FF6B6B]'
+                    )}>
+                      {formatSignedRupees(transaction.amount, transaction.type === 'income')}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-[#6B7280] hover:text-[#FF6B6B]"
+                        onClick={() => onRemoveRow(index)}
+                      >
+                        <RiDeleteBin6Line className="text-base" aria-hidden="true" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {previewLoading ? (
+                  <TableRow className="border-[#E5E7EB] hover:bg-transparent">
+                    <TableCell colSpan={7} className="py-4 text-center text-sm text-[#6B7280]">
+                      {previewStatus || 'Extracting more statement transactions...'}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </>
             )}
           </TableBody>
         </Table>

@@ -74,6 +74,7 @@ export default function StatementImport() {
         transactions={transactions}
         alreadyImported={alreadyImported}
         previewLoading={previewLoading}
+        previewStatus={previewStatus}
         approveLoading={approveLoading}
         approvedCount={approvedCount}
         onApproveAll={handleApproveAll}

@@ -170,7 +170,7 @@ export function useStatementImport() {
         const validTransactions = importedTransactions.filter((transaction) => !isFutureTransactionDate(transaction.date));
         futureTransactionCount += importedTransactions.length - validTransactions.length;
         accumulatedTransactions = [...accumulatedTransactions, ...validTransactions].slice(0, 250);
-        setTransactions(accumulatedTransactions);
+        setTransactions((current) => [...current, ...validTransactions].slice(0, 250));
         if (data.totalBatches && data.batchIndex) {
           setPreviewStatus(`Extracting with AI... ${data.batchIndex}/${data.totalBatches}`);
         }
