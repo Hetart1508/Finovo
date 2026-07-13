@@ -144,10 +144,7 @@ export function CalendarMonthCard({
                   <button
                     key={day.toISOString()}
                     type="button"
-                    onClick={(event) => {
-                      onSelectDate(day);
-                      if (event.detail > 0) event.currentTarget.blur();
-                    }}
+                    onClick={() => onSelectDate(day)}
                     style={balanceColorStyle}
                     className={cn(
                       'group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
