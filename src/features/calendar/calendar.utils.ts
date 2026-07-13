@@ -15,12 +15,10 @@ export const getBalanceColorStyle = (
   const easedIntensity = Math.pow(intensity, 0.8);
   const isPositive = netBalance > 0;
   const backgroundOpacity = 0.1 + easedIntensity * 0.24;
-  const borderOpacity = 0.1 + easedIntensity * 0.16;
   const rgb = isPositive ? '52, 199, 89' : '255, 107, 107';
 
   return {
     backgroundColor: `rgba(${rgb}, ${backgroundOpacity})`,
-    borderColor: `rgba(${rgb}, ${borderOpacity})`,
     boxShadow: easedIntensity > 0.6 ? `0 6px 14px rgba(${rgb}, 0.08)` : undefined,
     color: isPositive ? '#218A44' : '#D94B4B',
   };

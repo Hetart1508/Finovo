@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
@@ -49,6 +50,8 @@ export function CalendarMonthCard({
   onMonthChange,
   onYearChange,
 }: CalendarMonthCardProps) {
+  const [activeTooltipDate, setActiveTooltipDate] = useState<string | null>(null);
+
   return (
     <Card className="overflow-visible border-none shadow-sm lg:col-span-2">
       <CardContent className="p-0">
@@ -139,23 +142,35 @@ export function CalendarMonthCard({
                 const rowIndex = Math.floor(index / 7);
                 const totalRows = totalSlots / 7;
                 const shouldOpenUp = rowIndex >= totalRows - 2;
+                const dateKey = format(day, 'yyyy-MM-dd');
+                const isTooltipActive = activeTooltipDate === dateKey;
 
                 return (
                   <button
                     key={day.toISOString()}
                     type="button"
-                    onClick={() => onSelectDate(day)}
-                    style={balanceColorStyle}
+                    onClick={() => {
+                      onSelectDate(day);
+                      setActiveTooltipDate(dateKey);
+                    }}
+                    style={{
+                      ...balanceColorStyle,
+                      borderColor: isSelected ? '#357CCB' : 'rgba(79, 156, 249, 0.65)',
+                      borderStyle: 'solid',
+                      borderWidth: '2px',
+                    }}
                     className={cn(
-                      'group relative flex aspect-square w-full items-center justify-center rounded-md border border-transparent text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
+                      'group relative flex aspect-square w-full items-center justify-center rounded-md text-base font-extrabold transition hover:z-50 focus-visible:z-50 sm:text-lg lg:text-xl',
                       !hasBalanceColor && (isWeekend ? 'text-[#4F9CF9]' : 'text-[#1F2937]'),
                       isToday && !isSelected && !hasBalanceColor && 'ring-1 ring-inset ring-[#4F9CF9]',
                       isOverLimit && !isSelected && dailySummary.net < 0 && 'ring-1 ring-[#FF6B6B]',
-                      isSelected && '!border-transparent !bg-[#4F9CF9] !text-white shadow-md shadow-[#4F9CF9]/20',
-                      !hasBalanceColor && 'hover:border-[#4F9CF9]/35 hover:bg-[#EEF6FF] hover:text-[#357CCB]',
+                      isSelected && '!border-[#4F9CF9] !bg-[#4F9CF9] !text-white shadow-md shadow-[#4F9CF9]/20',
+                      isTooltipActive && 'z-50',
+                      !hasBalanceColor && 'hover:bg-[#EEF6FF] hover:text-[#357CCB]',
                       hasBalanceColor && 'hover:brightness-95'
                     )}
                     aria-pressed={isSelected}
+                    aria-expanded={isTooltipActive}
                     aria-label={`${format(day, 'dd MMMM yyyy')}: income ₹${dailySummary.income}, expense ₹${dailySummary.expense}, balance ₹${dailySummary.net}`}
                   >
                     {format(day, 'd')}
@@ -170,6 +185,7 @@ export function CalendarMonthCard({
                     <span
                       className={cn(
                         'pointer-events-none absolute z-50 w-44 rounded-md border border-[#E5E7EB] bg-white p-3 text-left text-xs font-medium text-[#1F2937] opacity-0 shadow-xl shadow-[#1F2937]/15 transition group-hover:opacity-100 group-focus-visible:opacity-100',
+                        isTooltipActive && 'opacity-100',
                         columnIndex === 0 && 'left-0',
                         columnIndex === 6 && 'right-0',
                         columnIndex > 0 && columnIndex < 6 && 'left-1/2 -translate-x-1/2',
