@@ -738,8 +738,44 @@ const hashBase64File = (base64Data: string) =>
   sha256(Buffer.from(base64Data, "base64"));
 
 const extractJsonObject = (text: string) => {
-  const match = text.match(/\{[\s\S]*\}/);
-  return match ? match[0] : text;
+  const withoutReasoning = text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/```(?:json)?/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const firstObjectIndex = withoutReasoning.indexOf("{");
+  const firstArrayIndex = withoutReasoning.indexOf("[");
+  const start = [firstObjectIndex, firstArrayIndex].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+  if (start === undefined) return withoutReasoning || text;
+
+  const opening = withoutReasoning[start];
+  const closing = opening === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < withoutReasoning.length; index += 1) {
+    const char = withoutReasoning[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === opening) depth += 1;
+    if (char === closing) depth -= 1;
+    if (depth === 0) return withoutReasoning.slice(start, index + 1);
+  }
+
+  return withoutReasoning.slice(start);
 };
 
 const normalizeGeminiCategory = (value: unknown): GeminiCategory => {
@@ -1343,10 +1379,14 @@ const generateAiVision = async (
 
       if (!configuration.key) continue;
       if (provider === "openrouter" && !isUsableOpenRouterApiKey(configuration.key)) {
-        throw new Error("OpenRouter vision fallback is configured, but OPENROUTER_API_KEY is missing or invalid.");
+        logger.warn("Skipping OpenRouter vision fallback because OPENROUTER_API_KEY is missing or invalid.");
+        continue;
       }
       if (provider === "huggingface" && isKnownUnsupportedHuggingFaceVisionModel(configuration.model)) {
-        throw new Error(`Hugging Face vision fallback model is not supported by the configured provider: ${configuration.model}.`);
+        logger.warn("Skipping Hugging Face vision fallback because the configured model is unsupported.", {
+          model: configuration.model,
+        });
+        continue;
       }
       if (images.some((image) => image.mimeType === "application/pdf")) {
         throw new Error(`${provider} vision cannot read raw PDF statements. Use extracted PDF text, unlocked rendered pages, or configure Gemini vision for PDF input.`);
@@ -1363,7 +1403,7 @@ const generateAiVision = async (
           configuration.baseUrl,
           configuration.key,
           configuration.model,
-          `${prompt}\n\nThese are statement image batch ${index + 1} of ${chunks.length}. Extract only rows visible in this batch.`,
+          `${provider === "groq" ? "Do not include reasoning, <think> tags, explanations, markdown, or prose.\n\n" : ""}${prompt}\n\nThese are statement image batch ${index + 1} of ${chunks.length}. Extract only rows visible in this batch.`,
           chunk,
           options,
           configuration.headers
