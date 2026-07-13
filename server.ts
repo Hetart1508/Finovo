@@ -5264,10 +5264,9 @@ app.post("/api/statement-import/preview-stream", authenticateToken, async (req: 
     let model = GEMINI_MODEL;
     let extractedCount = 0;
 
-    if (!renderedPages?.length && extractedText.length >= 80) {
-      const chunks = splitStatementTextForImport(extractedText);
-      writeEvent("start", { statementHash, alreadyImported, totalBatches: chunks.length });
-
+    const streamTextChunks = async (text: string, initialBatchIndex = 0, totalBatchCount?: number) => {
+      const chunks = splitStatementTextForImport(text);
+      const totalBatches = totalBatchCount || chunks.length;
       for (const [index, chunk] of chunks.entries()) {
         if (extractedCount >= 250) break;
         const result = await importStatementTextChunk(chunk, index, chunks.length);
@@ -5285,37 +5284,65 @@ app.post("/api/statement-import/preview-stream", authenticateToken, async (req: 
           alreadyImported,
           provider,
           model,
-          batchIndex: index + 1,
-          totalBatches: chunks.length,
+          batchIndex: initialBatchIndex + index + 1,
+          totalBatches,
           extractedCount,
           limitReached: extractedCount >= 250,
         });
       }
-    } else if (renderedPages?.length) {
-      writeEvent("start", { statementHash, alreadyImported, totalBatches: renderedPages.length });
+      return chunks.length;
+    };
 
+    if (!renderedPages?.length && extractedText.length >= 80) {
+      const chunks = splitStatementTextForImport(extractedText);
+      writeEvent("start", { statementHash, alreadyImported, totalBatches: chunks.length });
+      await streamTextChunks(extractedText);
+    } else if (renderedPages?.length) {
+      const textChunks = extractedText.length >= 80 ? splitStatementTextForImport(extractedText) : [];
+      writeEvent("start", {
+        statementHash,
+        alreadyImported,
+        totalBatches: renderedPages.length + textChunks.length,
+      });
+
+      let visualFailed = false;
       for (const [index, page] of renderedPages.entries()) {
         if (extractedCount >= 250) break;
-        const result = await importStatementWithAi(base64Data, mimeType, [page]);
-        provider = result.provider;
-        model = result.model;
-        const remaining = Math.max(0, 250 - extractedCount);
-        const enrichedTransactions = await enrichStatementTransactionsWithAliases(
-          req.user.id,
-          result.transactions.slice(0, remaining)
-        );
-        extractedCount += enrichedTransactions.length;
-        writeEvent("batch", {
-          transactions: enrichedTransactions,
-          statementHash,
-          alreadyImported,
-          provider,
-          model,
-          batchIndex: index + 1,
-          totalBatches: renderedPages.length,
-          extractedCount,
-          limitReached: extractedCount >= 250,
-        });
+        try {
+          const result = await importStatementWithAi(base64Data, mimeType, [page]);
+          provider = result.provider;
+          model = result.model;
+          const remaining = Math.max(0, 250 - extractedCount);
+          const enrichedTransactions = await enrichStatementTransactionsWithAliases(
+            req.user.id,
+            result.transactions.slice(0, remaining)
+          );
+          extractedCount += enrichedTransactions.length;
+          writeEvent("batch", {
+            transactions: enrichedTransactions,
+            statementHash,
+            alreadyImported,
+            provider,
+            model,
+            batchIndex: index + 1,
+            totalBatches: renderedPages.length + textChunks.length,
+            extractedCount,
+            limitReached: extractedCount >= 250,
+          });
+        } catch (visualError: any) {
+          visualFailed = true;
+          logger.warn("Statement page vision extraction failed, falling back to unlocked PDF text", {
+            error: visualError?.message || String(visualError),
+          });
+          break;
+        }
+      }
+
+      if (visualFailed) {
+        if (!textChunks.length) {
+          throw new Error("Statement page vision extraction failed and no selectable unlocked PDF text was available.");
+        }
+        await streamTextChunks(extractedText, renderedPages.length, renderedPages.length + textChunks.length);
       }
     } else {
       writeEvent("start", { statementHash, alreadyImported, totalBatches: 1 });
