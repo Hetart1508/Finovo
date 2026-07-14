@@ -145,8 +145,10 @@ export default function Layout({ children }: LayoutProps) {
       <Link
         key={item.path}
         to={item.path}
+        aria-current={isActive ? 'page' : undefined}
         className={cn(
           "group/nav kt-nav-item metronic-action flex items-center gap-3 rounded-lg text-sm font-semibold transition-all",
+          "app-nav-item",
           variant === 'drawer' ? "px-3 py-3.5" : "px-3 py-3",
           isActive
             ? "bg-[#EEF6FF] text-[#4F9CF9] shadow-sm"
@@ -161,7 +163,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
-      <aside className="hidden w-60 flex-col overflow-hidden border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
+      <aside className="app-sidebar hidden w-60 flex-col overflow-hidden border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
         <div className="shrink-0 p-6">
           <div className="flex items-center gap-3">
             <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
@@ -210,7 +212,7 @@ export default function Layout({ children }: LayoutProps) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(20rem,86vw)] flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] shadow-2xl transition-transform duration-200 lg:hidden",
+          "app-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(20rem,86vw)] flex-col border-r border-[#E5E7EB] bg-white text-[#1F2937] shadow-2xl transition-transform duration-200 lg:hidden",
           mobileNavOpen ? "translate-x-0" : "-translate-x-full"
         )}
         aria-hidden={!mobileNavOpen}

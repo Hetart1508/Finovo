@@ -91,6 +91,16 @@
     --kt-app-border: color-mix(in oklab, oklch(0.89 0.025 232) 78%, transparent);
     --kt-app-shadow: 0 18px 55px rgba(15, 23, 42, 0.08);
     --kt-transition: 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    --app-control-height: 2.5rem;
+    --app-card-padding: 1rem;
+    --app-motion-duration: 180ms;
+    --app-sidebar-bg: var(--sidebar);
+    --app-sidebar-fg: var(--sidebar-foreground);
+    --app-sidebar-muted: var(--muted-foreground);
+    --app-sidebar-border: var(--sidebar-border);
+    --app-sidebar-active-bg: var(--sidebar-accent);
+    --app-sidebar-active-fg: var(--sidebar-primary);
+    --app-sidebar-hover-bg: var(--background);
 }
 
 @layer base {
@@ -151,10 +161,17 @@
 @layer components {
   [data-slot="card"] {
     @apply border border-border bg-card text-card-foreground shadow-[0_16px_40px_rgba(31,41,55,0.06)] ring-0;
+    border-radius: var(--radius);
+    transition:
+      border-color var(--app-motion-duration) ease,
+      background-color var(--app-motion-duration) ease,
+      box-shadow var(--app-motion-duration) ease,
+      color var(--app-motion-duration) ease;
   }
 
   [data-slot="button"][data-size="default"] {
-    @apply h-10 px-4;
+    height: var(--app-control-height);
+    padding-inline: 1rem;
   }
 
   [data-slot="button"]:not([class*="bg-"]) {
@@ -165,6 +182,13 @@
   [data-slot="input"],
   [data-slot="select-trigger"] {
     @apply font-semibold;
+    min-height: var(--app-control-height);
+    transition:
+      border-color var(--app-motion-duration) ease,
+      background-color var(--app-motion-duration) ease,
+      box-shadow var(--app-motion-duration) ease,
+      color var(--app-motion-duration) ease,
+      transform var(--app-motion-duration) ease;
   }
 
   .app-icon {
@@ -176,6 +200,9 @@
     height: 100dvh;
     max-height: 100dvh;
     overflow: hidden;
+    transition:
+      background-color var(--app-motion-duration) ease,
+      color var(--app-motion-duration) ease;
   }
 
   .app-scroll {
@@ -188,10 +215,15 @@
 
   .surface-panel {
     @apply border border-border bg-card shadow-[0_16px_40px_rgba(31,41,55,0.06)] backdrop-blur-xl;
+    transition:
+      border-color var(--app-motion-duration) ease,
+      background-color var(--app-motion-duration) ease,
+      box-shadow var(--app-motion-duration) ease;
   }
 
   .metric-card {
     @apply border border-border bg-card shadow-[0_16px_40px_rgba(31,41,55,0.06)];
+    border-radius: var(--radius);
   }
 
   .metric-card > [data-slot="card-content"],
@@ -263,10 +295,11 @@
 
   .metronic-action {
     transition:
-      transform var(--kt-transition),
-      background-color var(--kt-transition),
-      color var(--kt-transition),
-      box-shadow var(--kt-transition);
+      transform var(--app-motion-duration) cubic-bezier(0.22, 1, 0.36, 1),
+      background-color var(--app-motion-duration) ease,
+      color var(--app-motion-duration) ease,
+      box-shadow var(--app-motion-duration) ease,
+      border-color var(--app-motion-duration) ease;
   }
 
   .metronic-action:hover {
@@ -565,6 +598,207 @@
 
 [data-personalization-theme] .hover\:text-\[\#FF6B6B\]:hover {
   color: var(--color-expense) !important;
+}
+
+.calendar-period-select,
+[data-personalization-theme] .calendar-period-select,
+[data-appearance-mode="dark"] .calendar-period-select {
+  background-color: #FFFFFF !important;
+  color: #1F2937 !important;
+}
+
+.calendar-period-select svg,
+[data-personalization-theme] .calendar-period-select svg,
+[data-appearance-mode="dark"] .calendar-period-select svg {
+  color: #1F2937 !important;
+}
+
+[data-radius="sharp"] [data-slot="card"],
+[data-radius="sharp"] .surface-panel,
+[data-radius="sharp"] .metric-card,
+[data-radius="sharp"] .rounded-lg,
+[data-radius="sharp"] .rounded-xl,
+[data-radius="sharp"] .rounded-2xl {
+  border-radius: calc(var(--radius) + 0.05rem) !important;
+}
+
+[data-radius="soft"] [data-slot="card"],
+[data-radius="soft"] .surface-panel,
+[data-radius="soft"] .metric-card,
+[data-radius="soft"] .rounded-lg,
+[data-radius="soft"] .rounded-xl,
+[data-radius="soft"] .rounded-2xl {
+  border-radius: calc(var(--radius) + 0.15rem) !important;
+}
+
+[data-density="compact"] .app-scroll {
+  padding: 0.875rem !important;
+}
+
+[data-density="compact"] [data-slot="card-content"],
+[data-density="compact"] [data-slot="card-header"],
+[data-density="compact"] [data-slot="card-footer"] {
+  padding: 0.75rem !important;
+}
+
+[data-density="compact"] .app-nav-item {
+  padding-block: 0.625rem !important;
+}
+
+[data-density="compact"] table th,
+[data-density="compact"] table td {
+  padding-block: 0.55rem !important;
+}
+
+[data-density="spacious"] .app-scroll {
+  padding: 2rem !important;
+}
+
+[data-density="spacious"] [data-slot="card-content"],
+[data-density="spacious"] [data-slot="card-header"],
+[data-density="spacious"] [data-slot="card-footer"] {
+  padding: 1.25rem !important;
+}
+
+[data-density="spacious"] .app-nav-item {
+  padding-block: 0.95rem !important;
+}
+
+[data-large-text="true"] {
+  font-size: 106%;
+}
+
+[data-high-contrast="true"] [data-slot="card"],
+[data-high-contrast="true"] .surface-panel,
+[data-high-contrast="true"] .metric-card,
+[data-high-contrast="true"] [data-slot="input"],
+[data-high-contrast="true"] [data-slot="select-trigger"] {
+  border-width: 1.5px;
+}
+
+[data-high-contrast="true"] .text-muted-foreground,
+[data-high-contrast="true"] [class*="text-\\[\\#6B7280\\]"] {
+  color: var(--muted-foreground) !important;
+}
+
+[data-appearance-mode="dark"] body,
+[data-appearance-mode="dark"] .app-shell {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+[data-appearance-mode="dark"] [data-slot="card"],
+[data-appearance-mode="dark"] .surface-panel,
+[data-appearance-mode="dark"] .metric-card {
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+[data-appearance-mode="dark"] [data-slot="input"],
+[data-appearance-mode="dark"] [data-slot="select-trigger"],
+[data-appearance-mode="dark"] .react-datepicker__input-container input {
+  background-color: var(--card) !important;
+}
+
+[data-appearance-mode="dark"] .bg-white {
+  background-color: var(--card) !important;
+}
+
+[data-appearance-mode="dark"] .shadow-\[0_16px_40px_rgba\(31\,41\,55\,0\.06\)\],
+[data-appearance-mode="dark"] .shadow-\[0_18px_45px_rgba\(31\,41\,55\,0\.08\)\],
+[data-appearance-mode="dark"] .shadow-\[0_12px_32px_rgba\(31\,41\,55\,0\.08\)\] {
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22) !important;
+}
+
+[data-sidebar-style="light"] {
+  --app-sidebar-bg: var(--sidebar);
+  --app-sidebar-fg: var(--sidebar-foreground);
+  --app-sidebar-muted: var(--muted-foreground);
+  --app-sidebar-border: var(--sidebar-border);
+  --app-sidebar-active-bg: var(--sidebar-accent);
+  --app-sidebar-active-fg: var(--sidebar-primary);
+  --app-sidebar-hover-bg: var(--background);
+}
+
+[data-sidebar-style="tinted"] {
+  --app-sidebar-bg: color-mix(in oklab, var(--primary) 8%, var(--card));
+  --app-sidebar-fg: var(--foreground);
+  --app-sidebar-muted: var(--muted-foreground);
+  --app-sidebar-border: color-mix(in oklab, var(--primary) 18%, var(--border));
+  --app-sidebar-active-bg: color-mix(in oklab, var(--primary) 16%, var(--card));
+  --app-sidebar-active-fg: var(--primary);
+  --app-sidebar-hover-bg: color-mix(in oklab, var(--primary) 10%, var(--card));
+}
+
+[data-sidebar-style="dark"] {
+  --app-sidebar-bg: #0F172A;
+  --app-sidebar-fg: #F8FAFC;
+  --app-sidebar-muted: #CBD5E1;
+  --app-sidebar-border: #1E293B;
+  --app-sidebar-active-bg: color-mix(in oklab, var(--primary) 24%, #0F172A);
+  --app-sidebar-active-fg: #FFFFFF;
+  --app-sidebar-hover-bg: #172033;
+}
+
+.app-sidebar {
+  background: var(--app-sidebar-bg) !important;
+  border-color: var(--app-sidebar-border) !important;
+  color: var(--app-sidebar-fg) !important;
+  transition:
+    background-color var(--app-motion-duration) ease,
+    border-color var(--app-motion-duration) ease,
+    color var(--app-motion-duration) ease,
+    transform var(--app-motion-duration) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-sidebar h1,
+.app-sidebar .text-\[\#1F2937\] {
+  color: var(--app-sidebar-fg) !important;
+}
+
+.app-sidebar p,
+.app-sidebar .text-\[\#6B7280\] {
+  color: var(--app-sidebar-muted) !important;
+}
+
+.app-sidebar .app-nav-item {
+  color: var(--app-sidebar-muted) !important;
+}
+
+.app-sidebar .app-nav-item.bg-\[\#EEF6FF\],
+.app-sidebar .app-nav-item[aria-current="page"] {
+  background-color: var(--app-sidebar-active-bg) !important;
+  color: var(--app-sidebar-active-fg) !important;
+}
+
+.app-sidebar .app-nav-item:hover {
+  background-color: var(--app-sidebar-hover-bg) !important;
+  color: var(--app-sidebar-fg) !important;
+}
+
+.app-sidebar .kt-icon-badge,
+.app-sidebar .bg-\[\#EEF6FF\] {
+  background-color: var(--app-sidebar-active-bg) !important;
+  color: var(--app-sidebar-active-fg) !important;
+}
+
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 1ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
 }
 
 @media (max-width: 1023px) {

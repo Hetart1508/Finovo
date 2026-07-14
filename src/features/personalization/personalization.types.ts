@@ -10,6 +10,12 @@ export type PersonalizationThemeId =
   | 'copper'
   | 'mono';
 
+export type AppearanceMode = 'light' | 'dark';
+export type DensityMode = 'comfortable' | 'compact' | 'spacious';
+export type RadiusMode = 'sharp' | 'balanced' | 'soft';
+export type SidebarStyle = 'light' | 'tinted' | 'dark';
+export type ChartPaletteId = 'theme' | 'vibrant' | 'accessible' | 'muted';
+
 export type ThemeVariableName =
   | '--background'
   | '--foreground'
@@ -62,4 +68,21 @@ export interface PersonalizationTheme {
   description: string;
   swatches: string[];
   variables: ThemeVariables;
+}
+
+export interface PersonalizationPreferences {
+  appearanceMode: AppearanceMode;
+  density: DensityMode;
+  radius: RadiusMode;
+  sidebarStyle: SidebarStyle;
+  chartPalette: ChartPaletteId;
+  highContrast: boolean;
+  largeText: boolean;
+  reducedMotion: boolean;
+}
+
+export interface PersonalizationOption<TValue extends string> {
+  id: TValue;
+  label: string;
+  description: string;
 }

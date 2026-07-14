@@ -95,7 +95,7 @@ export function CalendarMonthCard({
               <p className="text-xl font-extrabold tracking-tight">Calendar</p>
               <div className="mt-2 flex items-center justify-center gap-2">
                 <Select value={format(visibleMonth, 'MMMM')} onValueChange={onMonthChange}>
-                  <SelectTrigger className="h-8 w-32 border-white/30 bg-white/15 text-white shadow-none hover:bg-white/20 [&_svg]:text-white">
+                  <SelectTrigger className="calendar-period-select h-8 w-32 border-white/30 bg-white text-[#1F2937] shadow-none hover:bg-white/90 [&_svg]:text-[#1F2937]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -108,7 +108,7 @@ export function CalendarMonthCard({
                 </Select>
 
                 <Select value={String(visibleMonth.getFullYear())} onValueChange={onYearChange}>
-                  <SelectTrigger className="h-8 w-24 border-white/30 bg-white/15 text-white shadow-none hover:bg-white/20 [&_svg]:text-white">
+                  <SelectTrigger className="calendar-period-select h-8 w-24 border-white/30 bg-white text-[#1F2937] shadow-none hover:bg-white/90 [&_svg]:text-[#1F2937]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

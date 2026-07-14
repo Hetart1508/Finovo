@@ -1,4 +1,14 @@
-import type { PersonalizationTheme, ThemeVariables } from './personalization.types';
+import type {
+  AppearanceMode,
+  ChartPaletteId,
+  DensityMode,
+  PersonalizationOption,
+  PersonalizationPreferences,
+  PersonalizationTheme,
+  RadiusMode,
+  SidebarStyle,
+  ThemeVariables,
+} from './personalization.types';
 
 const baseTheme: ThemeVariables = {
   '--background': '#FAFBFC',
@@ -54,6 +64,71 @@ const theme = (
 });
 
 export const DEFAULT_PERSONALIZATION_THEME_ID = 'finovo';
+
+export const DEFAULT_PERSONALIZATION_PREFERENCES: PersonalizationPreferences = {
+  appearanceMode: 'light',
+  density: 'comfortable',
+  radius: 'balanced',
+  sidebarStyle: 'light',
+  chartPalette: 'theme',
+  highContrast: false,
+  largeText: false,
+  reducedMotion: false,
+};
+
+export const appearanceModeOptions: PersonalizationOption<AppearanceMode>[] = [
+  { id: 'light', label: 'Light', description: 'Bright surfaces for daytime use.' },
+  { id: 'dark', label: 'Dark', description: 'Lower-glare surfaces for focused work.' },
+];
+
+export const densityOptions: PersonalizationOption<DensityMode>[] = [
+  { id: 'comfortable', label: 'Comfortable', description: 'Balanced spacing for everyday use.' },
+  { id: 'compact', label: 'Compact', description: 'Shows more table rows and controls on screen.' },
+  { id: 'spacious', label: 'Spacious', description: 'Larger touch targets and more breathing room.' },
+];
+
+export const radiusOptions: PersonalizationOption<RadiusMode>[] = [
+  { id: 'balanced', label: 'Balanced', description: 'Current professional rounded corners.' },
+  { id: 'sharp', label: 'Sharp', description: 'Crisper edges for dense operational screens.' },
+  { id: 'soft', label: 'Soft', description: 'More rounded surfaces and controls.' },
+];
+
+export const sidebarStyleOptions: PersonalizationOption<SidebarStyle>[] = [
+  { id: 'light', label: 'Light', description: 'Clean white navigation.' },
+  { id: 'tinted', label: 'Tinted', description: 'Subtle brand-tinted navigation.' },
+  { id: 'dark', label: 'Dark', description: 'High-contrast navigation rail.' },
+];
+
+export const chartPaletteOptions: PersonalizationOption<ChartPaletteId>[] = [
+  { id: 'theme', label: 'Theme', description: 'Charts follow the selected theme.' },
+  { id: 'vibrant', label: 'Vibrant', description: 'Higher color separation for dashboards.' },
+  { id: 'accessible', label: 'Accessible', description: 'Color-blind safer chart colors.' },
+  { id: 'muted', label: 'Muted', description: 'Quieter analytical charts.' },
+];
+
+export const chartPaletteVariables: Record<Exclude<ChartPaletteId, 'theme'>, Pick<ThemeVariables, '--chart-1' | '--chart-2' | '--chart-3' | '--chart-4' | '--chart-5'>> = {
+  vibrant: {
+    '--chart-1': '#2563EB',
+    '--chart-2': '#16A34A',
+    '--chart-3': '#F97316',
+    '--chart-4': '#DC2626',
+    '--chart-5': '#7C3AED',
+  },
+  accessible: {
+    '--chart-1': '#0072B2',
+    '--chart-2': '#009E73',
+    '--chart-3': '#E69F00',
+    '--chart-4': '#D55E00',
+    '--chart-5': '#CC79A7',
+  },
+  muted: {
+    '--chart-1': '#64748B',
+    '--chart-2': '#0F766E',
+    '--chart-3': '#A16207',
+    '--chart-4': '#B91C1C',
+    '--chart-5': '#6D28D9',
+  },
+};
 
 export const personalizationThemes: PersonalizationTheme[] = [
   theme({
