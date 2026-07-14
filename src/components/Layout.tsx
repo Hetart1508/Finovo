@@ -28,6 +28,7 @@ import {
   RiFundsLine,
   RiRobot2Line,
   RiUserSettingsLine,
+  RiPaletteLine,
   RiGroupLine,
   RiBarChartBoxLine,
 } from 'react-icons/ri';
@@ -127,6 +128,7 @@ export default function Layout({ children }: LayoutProps) {
     { name: 'AI Insights', path: '/insights', icon: RiSparkling2Line },
     ...(user.gemini_admin ? [{ name: 'Gemini Usage', path: '/admin/ai-usage', icon: RiBarChartBoxLine }] : []),
     { name: 'Profile', path: '/profile', icon: RiUserSettingsLine },
+    { name: 'Personalization', path: '/personalization', icon: RiPaletteLine },
   ];
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
   const getWalletLabel = (wallet: typeof wallets[number]) =>

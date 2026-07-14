@@ -8,6 +8,7 @@ import { clearSession, hasValidSession } from './lib/session';
 import { TOAST_AUTO_CLOSE_MS } from './lib/toastMessages';
 import { useQueryClient } from '@tanstack/react-query';
 import { WalletProvider } from './features/wallets/WalletProvider';
+import { PersonalizationProvider } from './features/personalization/PersonalizationProvider';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
@@ -19,6 +20,7 @@ const Recurring = lazy(() => import('./pages/Recurring'));
 const Investments = lazy(() => import('./pages/Investments'));
 const AIWealthAdvisor = lazy(() => import('./pages/AIWealthAdvisor'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Personalization = lazy(() => import('./pages/Personalization'));
 const AIUsageDashboard = lazy(() => import('./pages/AIUsageDashboard'));
 const Auth = lazy(() => import('./pages/Auth'));
 
@@ -55,36 +57,39 @@ export default function App() {
   }, [queryClient]);
 
   return (
-    <Router>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
-          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-          <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
-          <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
-          <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
-          <Route path="/recurring" element={<ProtectedRoute><Recurring /></ProtectedRoute>} />
-          <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
-          <Route path="/wealth-advisor" element={<ProtectedRoute><AIWealthAdvisor /></ProtectedRoute>} />
-          <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          <Route path="/admin/ai-usage" element={<ProtectedRoute><AIUsageDashboard /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-      <ToastContainer
-        aria-label="Notifications"
-        position="top-right"
-        autoClose={TOAST_AUTO_CLOSE_MS}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="colored"
-      />
-    </Router>
+    <PersonalizationProvider>
+      <Router>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+            <Route path="/upload" element={<ProtectedRoute><SmartUpload /></ProtectedRoute>} />
+            <Route path="/statement-import" element={<ProtectedRoute><StatementImport /></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><CalendarView /></ProtectedRoute>} />
+            <Route path="/recurring" element={<ProtectedRoute><Recurring /></ProtectedRoute>} />
+            <Route path="/investments" element={<ProtectedRoute><Investments /></ProtectedRoute>} />
+            <Route path="/wealth-advisor" element={<ProtectedRoute><AIWealthAdvisor /></ProtectedRoute>} />
+            <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/personalization" element={<ProtectedRoute><Personalization /></ProtectedRoute>} />
+            <Route path="/admin/ai-usage" element={<ProtectedRoute><AIUsageDashboard /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+        <ToastContainer
+          aria-label="Notifications"
+          position="top-right"
+          autoClose={TOAST_AUTO_CLOSE_MS}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="colored"
+        />
+      </Router>
+    </PersonalizationProvider>
   );
 }

@@ -224,19 +224,23 @@
   }
 
   .icon-income {
-    @apply bg-[#EAFBF0] text-[#34C759];
+    background-color: var(--color-success-soft);
+    color: var(--color-success);
   }
 
   .icon-expense {
-    @apply bg-[#FFF1F1] text-[#FF6B6B];
+    background-color: var(--color-expense-soft);
+    color: var(--color-expense);
   }
 
   .icon-ai {
-    @apply bg-[#EEF6FF] text-[#4F9CF9];
+    background-color: var(--color-primary-soft);
+    color: var(--primary);
   }
 
   .icon-upcoming {
-    @apply bg-[#FFF7E8] text-[#FFB84D];
+    background-color: var(--color-warning-soft);
+    color: var(--color-warning);
   }
 
   .Toastify__toast {
@@ -299,53 +303,53 @@
   }
 
   .Toastify__toast--success {
-    background: #34C759;
+    background: var(--color-success);
   }
 
   .Toastify__toast--error {
-    background: #FF6B6B;
+    background: var(--color-expense);
   }
 
   .Toastify__toast--warning {
-    background: #FFB84D;
+    background: var(--color-warning);
   }
 }
 
 [data-slot="button"].bg-primary,
 [data-slot="button"]:not([class*="bg-"]):not([data-slot="dialog-close"]) {
-  box-shadow: 0 10px 24px rgba(79, 156, 249, 0.22);
+  box-shadow: 0 10px 24px color-mix(in oklab, var(--primary) 24%, transparent);
 }
 
 [data-slot="input"],
 [data-slot="select-trigger"],
 .react-datepicker__input-container input {
-  background-color: #FFFFFF !important;
-  color: #1F2937 !important;
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
 }
 
 [data-slot="input"]::placeholder,
 .react-datepicker__input-container input::placeholder {
-  color: #6B7280 !important;
+  color: var(--muted-foreground) !important;
 }
 
 .recharts-cartesian-axis-tick-value,
 .recharts-legend-item-text {
-  fill: #6B7280;
-  color: #6B7280 !important;
+  fill: var(--muted-foreground);
+  color: var(--muted-foreground) !important;
 }
 
 .recharts-tooltip-wrapper .recharts-default-tooltip {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E5E7EB !important;
+  background-color: var(--card) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 8px !important;
-  color: #1F2937 !important;
-  box-shadow: 0 16px 40px rgba(31, 41, 55, 0.12) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--foreground) 14%, transparent) !important;
 }
 
 .react-datepicker {
-  border-color: #E5E7EB !important;
-  background-color: #FFFFFF !important;
-  color: #1F2937 !important;
+  border-color: var(--border) !important;
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
 }
 
 .react-datepicker-wrapper,
@@ -359,9 +363,9 @@
 
 .modern-date-calendar {
   overflow: hidden;
-  border: 1px solid #E5E7EB !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
-  box-shadow: 0 20px 50px rgba(31, 41, 55, 0.16);
+  box-shadow: 0 20px 50px color-mix(in oklab, var(--foreground) 18%, transparent);
   font-family: var(--font-sans) !important;
 }
 
@@ -378,11 +382,11 @@
 .modern-date-calendar .react-datepicker__month-select,
 .modern-date-calendar .react-datepicker__year-select {
   height: 2rem;
-  border: 1px solid #DCE3EC;
+  border: 1px solid var(--input);
   border-radius: 7px;
-  background: #FFFFFF;
+  background: var(--card);
   padding: 0 0.5rem;
-  color: #1F2937;
+  color: var(--foreground);
   font-weight: 600;
 }
 
@@ -395,13 +399,13 @@
 }
 
 .modern-date-calendar .react-datepicker__day--keyboard-selected {
-  background-color: #EEF6FF !important;
-  color: #4F9CF9 !important;
+  background-color: var(--secondary) !important;
+  color: var(--primary) !important;
 }
 
 .react-datepicker__header {
-  border-color: #E5E7EB !important;
-  background-color: #EEF6FF !important;
+  border-color: var(--border) !important;
+  background-color: var(--secondary) !important;
 }
 
 .react-datepicker__current-month,
@@ -409,22 +413,158 @@
 .react-datepicker-year-header,
 .react-datepicker__day-name,
 .react-datepicker__day {
-  color: #1F2937 !important;
+  color: var(--foreground) !important;
 }
 
 .react-datepicker__day:hover,
 .react-datepicker__month-text:hover,
 .react-datepicker__quarter-text:hover,
 .react-datepicker__year-text:hover {
-  background-color: #EEF6FF !important;
+  background-color: var(--secondary) !important;
 }
 
 .react-datepicker__day--selected,
 .react-datepicker__month-text--selected,
 .react-datepicker__quarter-text--selected,
 .react-datepicker__year-text--selected {
-  background-color: #4F9CF9 !important;
-  color: #FFFFFF !important;
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+[data-personalization-theme] .bg-\[\#4F9CF9\],
+[data-personalization-theme] .bg-\[\#357CCB\],
+[data-personalization-theme] .bg-\[\#2878D0\] {
+  background-color: var(--primary) !important;
+}
+
+[data-personalization-theme] .text-\[\#4F9CF9\],
+[data-personalization-theme] .text-\[\#357CCB\],
+[data-personalization-theme] .text-\[\#2878D0\] {
+  color: var(--primary) !important;
+}
+
+[data-personalization-theme] .border-\[\#4F9CF9\],
+[data-personalization-theme] .ring-\[\#4F9CF9\] {
+  border-color: var(--primary) !important;
+}
+
+[data-personalization-theme] .bg-\[\#EEF6FF\],
+[data-personalization-theme] .bg-\[\#F8FBFF\] {
+  background-color: var(--secondary) !important;
+}
+
+[data-personalization-theme] .text-\[\#1F2937\] {
+  color: var(--foreground) !important;
+}
+
+[data-personalization-theme] .text-\[\#6B7280\] {
+  color: var(--muted-foreground) !important;
+}
+
+[data-personalization-theme] .border-\[\#E5E7EB\],
+[data-personalization-theme] .border-\[\#DCE3EC\] {
+  border-color: var(--border) !important;
+}
+
+[data-personalization-theme] .bg-\[\#FAFBFC\],
+[data-personalization-theme] .bg-\[\#F8FAFC\],
+[data-personalization-theme] .bg-\[\#FBFCFE\] {
+  background-color: var(--background) !important;
+}
+
+[data-personalization-theme] .bg-white {
+  background-color: var(--card) !important;
+}
+
+[data-personalization-theme] .text-white {
+  color: var(--primary-foreground) !important;
+}
+
+[data-personalization-theme] .bg-\[\#34C759\],
+[data-personalization-theme] .bg-\[\#2EB851\] {
+  background-color: var(--color-success) !important;
+}
+
+[data-personalization-theme] .text-\[\#34C759\],
+[data-personalization-theme] .text-\[\#218A44\] {
+  color: var(--color-success) !important;
+}
+
+[data-personalization-theme] .bg-\[\#EAFBF0\] {
+  background-color: var(--color-success-soft) !important;
+}
+
+[data-personalization-theme] .border-\[\#EAFBF0\] {
+  border-color: var(--color-success-soft) !important;
+}
+
+[data-personalization-theme] .bg-\[\#FF6B6B\],
+[data-personalization-theme] .bg-\[\#D94B4B\] {
+  background-color: var(--color-expense) !important;
+}
+
+[data-personalization-theme] .text-\[\#FF6B6B\],
+[data-personalization-theme] .text-\[\#D94B4B\] {
+  color: var(--color-expense) !important;
+}
+
+[data-personalization-theme] .bg-\[\#FFF1F1\] {
+  background-color: var(--color-expense-soft) !important;
+}
+
+[data-personalization-theme] .border-\[\#FF6B6B\] {
+  border-color: var(--color-expense) !important;
+}
+
+[data-personalization-theme] .bg-\[\#FFB84D\],
+[data-personalization-theme] .bg-\[\#D98B16\],
+[data-personalization-theme] .bg-\[\#B87516\] {
+  background-color: var(--color-warning) !important;
+}
+
+[data-personalization-theme] .text-\[\#FFB84D\],
+[data-personalization-theme] .text-\[\#D98B16\],
+[data-personalization-theme] .text-\[\#B87516\] {
+  color: var(--color-warning) !important;
+}
+
+[data-personalization-theme] .bg-\[\#FFF7E8\] {
+  background-color: var(--color-warning-soft) !important;
+}
+
+[data-personalization-theme] .border-\[\#FFB84D\] {
+  border-color: var(--color-warning) !important;
+}
+
+[data-personalization-theme] .hover\:bg-\[\#3F8BE5\]:hover,
+[data-personalization-theme] .hover\:bg-\[\#4F9CF9\]:hover {
+  background-color: color-mix(in oklab, var(--primary) 88%, black) !important;
+}
+
+[data-personalization-theme] .hover\:bg-\[\#FAFBFC\]:hover {
+  background-color: var(--background) !important;
+}
+
+[data-personalization-theme] .hover\:bg-\[\#EEF6FF\]:hover,
+[data-personalization-theme] .hover\:bg-\[\#F8FBFF\]:hover {
+  background-color: var(--secondary) !important;
+}
+
+[data-personalization-theme] .hover\:text-\[\#4F9CF9\]:hover,
+[data-personalization-theme] .hover\:text-\[\#357CCB\]:hover {
+  color: var(--primary) !important;
+}
+
+[data-personalization-theme] .hover\:text-\[\#1F2937\]:hover {
+  color: var(--foreground) !important;
+}
+
+[data-personalization-theme] .hover\:text-\[\#34C759\]:hover {
+  color: var(--color-success) !important;
+}
+
+[data-personalization-theme] .hover\:text-\[\#FF6B6B\]:hover {
+  color: var(--color-expense) !important;
 }
 
 @media (max-width: 1023px) {
