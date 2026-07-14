@@ -46,18 +46,32 @@ jobs:
             BODY="{\"month\":\"${REPORT_MONTH}\",\"force\":${FORCE_SEND}}"
           fi
 
-          RESPONSE="$(curl --silent --show-error --fail-with-body \
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_STATUS="$(curl --silent --show-error --output "${RESPONSE_FILE}" --write-out "%{http_code}" \
             --request POST \
             --header "Authorization: Bearer ${MONTHLY_REPORT_CRON_SECRET}" \
             --header "Content-Type: application/json" \
             --data "${BODY}" \
             "${FINOVO_API_BASE_URL%/}/admin/monthly-reports/send")"
+          RESPONSE="$(cat "${RESPONSE_FILE}")"
 
+          echo "HTTP status: ${HTTP_STATUS}"
+          echo "Response bytes: $(wc -c < "${RESPONSE_FILE}")"
           echo "${RESPONSE}"
 
-          FAILED="$(printf '%s' "${RESPONSE}" | jq -r '.failed // 0')"
-          SENT="$(printf '%s' "${RESPONSE}" | jq -r '.sent // 0')"
-          SKIPPED="$(printf '%s' "${RESPONSE}" | jq -r '.skipped // 0')"
+          if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+            echo "Report endpoint returned HTTP ${HTTP_STATUS}."
+            exit 1
+          fi
+
+          if ! jq empty "${RESPONSE_FILE}" >/dev/null 2>&1; then
+            echo "Report endpoint did not return valid JSON. Check FINOVO_API_BASE_URL points to the backend API URL."
+            exit 1
+          fi
+
+          FAILED="$(jq -r '.failed // 0' "${RESPONSE_FILE}")"
+          SENT="$(jq -r '.sent // 0' "${RESPONSE_FILE}")"
+          SKIPPED="$(jq -r '.skipped // 0' "${RESPONSE_FILE}")"
 
           echo "Report summary: sent=${SENT}, skipped=${SKIPPED}, failed=${FAILED}"
 
