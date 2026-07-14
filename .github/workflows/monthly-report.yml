@@ -1,8 +1,8 @@
-name: Send monthly finance reports
+name: Send scheduled finance reports
 
 on:
   schedule:
-    - cron: "30 3 1 * *"
+    - cron: "30 3 * * *"
   workflow_dispatch:
     inputs:
       month:
