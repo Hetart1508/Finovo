@@ -46,9 +46,22 @@ jobs:
             BODY="{\"month\":\"${REPORT_MONTH}\",\"force\":${FORCE_SEND}}"
           fi
 
-          curl --fail-with-body \
+          RESPONSE="$(curl --silent --show-error --fail-with-body \
             --request POST \
             --header "Authorization: Bearer ${MONTHLY_REPORT_CRON_SECRET}" \
             --header "Content-Type: application/json" \
             --data "${BODY}" \
-            "${FINOVO_API_BASE_URL%/}/admin/monthly-reports/send"
+            "${FINOVO_API_BASE_URL%/}/admin/monthly-reports/send")"
+
+          echo "${RESPONSE}"
+
+          FAILED="$(printf '%s' "${RESPONSE}" | jq -r '.failed // 0')"
+          SENT="$(printf '%s' "${RESPONSE}" | jq -r '.sent // 0')"
+          SKIPPED="$(printf '%s' "${RESPONSE}" | jq -r '.skipped // 0')"
+
+          echo "Report summary: sent=${SENT}, skipped=${SKIPPED}, failed=${FAILED}"
+
+          if [ "${FAILED}" -gt 0 ]; then
+            echo "One or more report emails failed. Check the response above and backend logs."
+            exit 1
+          fi
