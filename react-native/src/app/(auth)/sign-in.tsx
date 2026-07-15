@@ -100,7 +100,7 @@ export default function SignInScreen() {
             {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Sign in</Text>}
           </Pressable>
 
-          <Text style={styles.apiHint}>API: {apiBaseUrl}</Text>
+        
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
