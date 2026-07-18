@@ -11,6 +11,8 @@ type AuthContextValue = {
   status: AuthStatus;
   session: AuthSession | null;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: (credential: string) => Promise<void>;
+  finishAuthentication: (session: AuthSession) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -47,13 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeout);
   }, [clearLocalSession, session?.expiresAt]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const nextSession = await authApi.login(email, password);
+  const finishAuthentication = useCallback(async (nextSession: AuthSession) => {
     await sessionStorage.save(nextSession);
     queryClient.clear();
     setSession(nextSession);
     setStatus('authenticated');
   }, [queryClient]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    await finishAuthentication(await authApi.login(email, password));
+  }, [finishAuthentication]);
+
+  const signInWithGoogle = useCallback(async (credential: string) => {
+    await finishAuthentication(await authApi.googleLogin(credential));
+  }, [finishAuthentication]);
 
   const signOut = useCallback(async () => {
     try {
@@ -63,7 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearLocalSession]);
 
-  const value = useMemo(() => ({ status, session, signIn, signOut }), [session, signIn, signOut, status]);
+  const value = useMemo(
+    () => ({ status, session, signIn, signInWithGoogle, finishAuthentication, signOut }),
+    [finishAuthentication, session, signIn, signInWithGoogle, signOut, status],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

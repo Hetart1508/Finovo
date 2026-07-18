@@ -61,6 +61,10 @@ export const BREVO_FROM_EMAIL = readEnv("BREVO_FROM_EMAIL") || EMAIL_USER;
 export const BREVO_FROM_NAME = readEnv("BREVO_FROM_NAME", "Finovo AI");
 
 export const GOOGLE_CLIENT_ID = readEnv("GOOGLE_CLIENT_ID");
+export const GOOGLE_MOBILE_CLIENT_IDS = readEnv("GOOGLE_MOBILE_CLIENT_IDS")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 export const GEMINI_API_KEY = extractGoogleApiKey(
   readEnv("GEMINI_API_KEY") || readEnv("GOOGLE_GEMINI_API_KEY") || readEnv("GOOGLE_API_KEY")

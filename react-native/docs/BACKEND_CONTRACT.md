@@ -6,12 +6,17 @@ This document records backend capabilities needed by the mobile application. It 
 
 ```text
 POST /api/auth/login
+POST /api/auth/register
+POST /api/auth/register/verify-otp
+POST /api/auth/google
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
 POST /api/auth/logout
 GET  /api/wallets
 GET  /api/transactions?wallet_id=:id&limit=:limit&offset=:offset
 ```
 
-The existing authentication middleware already accepts `Authorization: Bearer <JWT>`, so finance endpoints do not need mobile-specific duplicates.
+The shared auth responses include the short-lived JWT as `accessToken`, and the existing authentication middleware accepts `Authorization: Bearer <JWT>`, so finance endpoints do not need mobile-specific duplicates.
 
 ## Required production authentication response
 
@@ -34,11 +39,7 @@ The mobile app accepts this shape:
 Recommended endpoints:
 
 ```text
-POST /api/auth/mobile/login
-POST /api/auth/mobile/register/verify-otp
-POST /api/auth/mobile/google
 POST /api/auth/mobile/refresh
-POST /api/auth/mobile/logout
 ```
 
 Requirements:

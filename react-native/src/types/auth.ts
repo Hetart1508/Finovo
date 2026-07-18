@@ -3,6 +3,7 @@ export type AuthUser = {
   name: string;
   email: string;
   daily_threshold?: number;
+  gemini_admin?: boolean;
 };
 
 export type AuthSession = {

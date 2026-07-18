@@ -8,7 +8,8 @@
     "scheme": "finovo",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.hetarth123.finovomobile"
     },
     "android": {
       "adaptiveIcon": {

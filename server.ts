@@ -26,6 +26,7 @@ import {
   GEMINI_FALLBACK_MODELS,
   GEMINI_MODEL,
   GOOGLE_CLIENT_ID,
+  GOOGLE_MOBILE_CLIENT_IDS,
   GROQ_API_BASE_URL,
   GROQ_API_KEY,
   GROQ_FALLBACK_MODELS,
@@ -2224,7 +2225,7 @@ const importStatementFromText = async (statementText: string) => {
   };
 };
 
-const createAuthResponse = (user: any, res?: Response) => {
+const createAuthResponse = (user: any, res?: Response, includeAccessToken = false) => {
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name },
     JWT_SECRET,
@@ -2243,6 +2244,7 @@ const createAuthResponse = (user: any, res?: Response) => {
 
   return {
     expiresAt,
+    ...(includeAccessToken ? { accessToken: token } : {}),
     user: {
       id: user.id,
       email: user.email,
@@ -2430,7 +2432,8 @@ const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo>
     throw Object.assign(new Error("Invalid Google sign-in token"), { status: 401 });
   }
 
-  if (payload.aud !== GOOGLE_CLIENT_ID) {
+  const allowedClientIds = new Set([GOOGLE_CLIENT_ID, ...GOOGLE_MOBILE_CLIENT_IDS].filter(Boolean));
+  if (!payload.aud || !allowedClientIds.has(payload.aud)) {
     throw Object.assign(new Error("Google token was issued for another client"), { status: 401 });
   }
 
@@ -2441,7 +2444,7 @@ const verifyGoogleIdToken = async (credential: string): Promise<GoogleTokenInfo>
   return payload;
 };
 
-const authenticateGoogleCredential = async (credential: string, res?: Response) => {
+const authenticateGoogleCredential = async (credential: string, res?: Response, includeAccessToken = false) => {
   const googleUser = await verifyGoogleIdToken(credential);
   const email = normalizeEmail(googleUser.email);
   const name = isNonEmptyString(googleUser.name) ? googleUser.name.trim() : email.split("@")[0];
@@ -2463,7 +2466,7 @@ const authenticateGoogleCredential = async (credential: string, res?: Response) 
     };
   }
 
-  return createAuthResponse(user, res);
+  return createAuthResponse(user, res, includeAccessToken);
 };
 
 const normalizeTransactionBody = (body: any) => {
@@ -4080,7 +4083,7 @@ app.post("/api/auth/register/verify-otp", authRateLimiters.otpVerify, async (req
       email: pending.email,
       name: pending.name,
       daily_threshold: 1000,
-    }, res));
+    }, res, req.get("X-Finovo-Client") === "mobile"));
   } catch (e) {
     logger.error("Register OTP verification error", { error: e });
     res.status(500).json({ error: "Failed to verify registration OTP" });
@@ -4230,7 +4233,11 @@ app.post("/api/auth/google", authRateLimiters.google, async (req, res) => {
   }
 
   try {
-    res.json(await authenticateGoogleCredential(credential, res));
+    res.json(await authenticateGoogleCredential(
+      credential,
+      res,
+      req.get("X-Finovo-Client") === "mobile"
+    ));
   } catch (error: any) {
     logger.error("Google auth error", { message: error?.message });
     res.status(error?.status || 500).json({ error: error?.message || "Failed to sign in with Google" });
@@ -4292,7 +4299,7 @@ app.post("/api/auth/login", authRateLimiters.login, async (req, res) => {
     }
 
     await execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", [user.id]);
-    res.json(createAuthResponse(user, res));
+    res.json(createAuthResponse(user, res, req.get("X-Finovo-Client") === "mobile"));
   } catch (error) {
     logger.error("Login error", { error });
     res.status(500).json({ error: "Failed to login" });

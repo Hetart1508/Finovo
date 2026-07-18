@@ -24,6 +24,11 @@ Copy `.env.example` to `.env.local` and set the backend origins without `/api`:
 ```env
 EXPO_PUBLIC_API_URL_IOS=http://localhost:3000
 EXPO_PUBLIC_API_URL_ANDROID=http://10.0.2.2:3000
+
+# Google OAuth client IDs (the shared value is used as a fallback)
+EXPO_PUBLIC_GOOGLE_CLIENT_ID_IOS=your-ios-client-id.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_CLIENT_ID_ANDROID=your-android-client-id.apps.googleusercontent.com
+EXPO_PUBLIC_GOOGLE_CLIENT_ID_WEB=your-web-client-id.apps.googleusercontent.com
 ```
 
 Host selection depends on the runtime:
@@ -34,6 +39,8 @@ Host selection depends on the runtime:
 - Production: use the HTTPS Render/backend origin.
 
 For a physical device or production build, set the shared `EXPO_PUBLIC_API_URL`; it takes precedence over the platform-specific development values.
+
+For Google sign-in, add the iOS and Android OAuth client IDs to `.env.local`. Add the same IDs as a comma-separated `GOOGLE_MOBILE_CLIENT_IDS` value in the backend environment. The Android OAuth client must use package `com.hetarth123.finovomobile`; the iOS OAuth client must use the same bundle identifier. Google sign-in requires a development/production build and is not supported by Expo Go.
 
 ## Run
 
@@ -50,8 +57,6 @@ npm run check
 npx expo export --platform web --output-dir /tmp/finovo-mobile-web
 ```
 
-## Current authentication limitation
+## Authentication
 
-The existing backend returns the user and expiry while setting an HTTP-only web cookie. The client supports an optional `accessToken` already, but reliable restart-safe native authentication requires the mobile Bearer/refresh-token contract described in [docs/BACKEND_CONTRACT.md](./docs/BACKEND_CONTRACT.md).
-
-Until that backend phase is authorized, login uses the existing cookie response and is intended for development validation only.
+Mobile login, signup with email OTP, Google sign-in, forgot password and password reset use the same endpoints as the website. Authentication responses include the short-lived JWT as `accessToken`; the app stores it in SecureStore and sends it as a Bearer token. A rotating refresh-token flow remains a production hardening item described in [docs/BACKEND_CONTRACT.md](./docs/BACKEND_CONTRACT.md).

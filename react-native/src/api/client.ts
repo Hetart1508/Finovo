@@ -18,7 +18,7 @@ export const api = axios.create({
   baseURL: apiBaseUrl,
   timeout: 30_000,
   withCredentials: true,
-  headers: { Accept: 'application/json' },
+  headers: { Accept: 'application/json', 'X-Finovo-Client': 'mobile' },
 });
 
 let onUnauthorized: (() => void) | undefined;
