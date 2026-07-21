@@ -95,11 +95,20 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:"],
       frameSrc: ["'self'", "https://accounts.google.com"],
       scriptSrc: IS_PRODUCTION
-        ? ["'self'", "https://accounts.google.com"]
-        : ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com"],
+        ? ["'self'", "https://accounts.google.com", "https://www.googletagmanager.com"]
+        : ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://accounts.google.com", "https://www.googletagmanager.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       connectSrc: IS_PRODUCTION
-        ? ["'self'", "https://accounts.google.com", "https://oauth2.googleapis.com", "https://generativelanguage.googleapis.com", "https://api.brevo.com"]
+        ? [
+            "'self'",
+            "https://accounts.google.com",
+            "https://oauth2.googleapis.com",
+            "https://generativelanguage.googleapis.com",
+            "https://api.brevo.com",
+            "https://www.google-analytics.com",
+            "https://analytics.google.com",
+            "https://region1.google-analytics.com",
+          ]
         : ["'self'", "ws:", "http:", "https:"],
     },
   },
