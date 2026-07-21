@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import Layout from './components/Layout';
@@ -9,6 +9,7 @@ import { TOAST_AUTO_CLOSE_MS } from './lib/toastMessages';
 import { useQueryClient } from '@tanstack/react-query';
 import { WalletProvider } from './features/wallets/WalletProvider';
 import { PersonalizationProvider } from './features/personalization/PersonalizationProvider';
+import { initAnalytics, trackPageView } from './lib/analytics';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Transactions = lazy(() => import('./pages/Transactions'));
@@ -47,6 +48,20 @@ const PublicRoute = ({ children }: { children: ReactNode }) => {
   return children;
 };
 
+const AnalyticsTracker = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
+  return null;
+};
+
 export default function App() {
   const queryClient = useQueryClient();
 
@@ -59,6 +74,7 @@ export default function App() {
   return (
     <PersonalizationProvider>
       <Router>
+        <AnalyticsTracker />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
