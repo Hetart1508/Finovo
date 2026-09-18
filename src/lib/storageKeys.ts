@@ -5,4 +5,5 @@ export const storageKeys = {
   selectedWalletId: 'selected-wallet-id',
   personalizationTheme: 'personalization-theme',
   personalizationPreferences: 'personalization-preferences',
+  aiAdvisorMemories: 'ai-advisor-memories',
 } as const;

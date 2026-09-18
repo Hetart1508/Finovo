@@ -483,7 +483,42 @@ export const runMigrations = async () => {
         transactions.created_by_user_id = COALESCE(transactions.created_by_user_id, transactions.user_id)
     WHERE transactions.wallet_id IS NULL
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_memories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      type ENUM('preference','financial_goal','conversation_preference','assistant_preference') NOT NULL,
+      content TEXT NOT NULL,
+      confidence DECIMAL(4,2) NOT NULL DEFAULT 1.00,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_memories_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_pending_actions (
+      id CHAR(36) PRIMARY KEY,
+      user_id INT NOT NULL,
+      session_id VARCHAR(64) NOT NULL,
+      tool_name VARCHAR(60) NOT NULL,
+      arguments JSON NOT NULL,
+      status ENUM('pending','confirmed','cancelled','expired') NOT NULL DEFAULT 'pending',
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_pending_actions_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+
+  await ensureIndex("ai_memories", "idx_ai_memories_user", "user_id");
+  await ensureIndex("ai_pending_actions", "idx_ai_pending_actions_user_session", "user_id, session_id, status");
+
   await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
+
 
   logger.info("MySQL schema is ready.");
 };

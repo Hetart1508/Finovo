@@ -21,7 +21,7 @@ export const invalidateUserProfile = (queryClient: QueryClient) =>
   queryClient.invalidateQueries({ queryKey: queryKeys.userProfile });
 
 export const invalidateAdvisorSessions = (queryClient: QueryClient) =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions });
+  queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions, refetchType: 'all' });
 
 export const invalidateAdvisorMessages = (queryClient: QueryClient, sessionId = 'default') =>
-  queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId), refetchType: 'all' });

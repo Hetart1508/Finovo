@@ -28,14 +28,14 @@ export const db = mysql.createPool({
   dateStrings: true,
 });
 
-export const queryAll = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
-  const [rows] = await db.execute<T[]>(sql, params);
-  return rows;
+export const queryAll = async <T = any>(sql: string, params: any[] = []) => {
+  const [rows] = await db.execute<any>(sql, params);
+  return rows as T[];
 };
 
-export const queryOne = async <T extends RowDataPacket = RowDataPacket>(sql: string, params: any[] = []) => {
+export const queryOne = async <T = any>(sql: string, params: any[] = []) => {
   const rows = await queryAll<T>(sql, params);
-  return rows[0];
+  return rows[0] as T | undefined;
 };
 
 export const execute = async (sql: string, params: any[] = []) => {

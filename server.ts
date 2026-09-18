@@ -50,6 +50,7 @@ import {
 } from "./server/config/env";
 import { logger } from "./server/config/logger";
 import { execute, queryAll, queryOne } from "./server/db/client";
+import { runAdvisorAgent } from "./server/ai/agent";
 import { runMigrations } from "./server/db/migrations";
 import { authenticateToken } from "./server/middleware/auth";
 import { requestLogger } from "./server/middleware/requestLogger";
@@ -1939,6 +1940,158 @@ const getAdvisorSmallTalkReply = (message: string) => {
   return null;
 };
 
+// ---- AI Advisor Guardrails Engine ----
+
+type GuardrailResult = { blocked: true; reply: string } | { blocked: false };
+
+const checkAdvisorInputGuardrails = (message: string): GuardrailResult => {
+  const normalized = message.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+  // Rule 1: Prompt injection / jailbreak
+  const jailbreakPatterns = [
+    /ignore\s+(all\s+)?(previous|prior|above|your)\s+(instructions?|rules?|constraints?|context|prompt)/,
+    /forget\s+(all\s+)?(your\s+)?(previous\s+)?(instructions?|training|rules?|guidelines?|context)/,
+    /you\s+(are|are\s+now|will\s+be|must\s+be|should\s+be)\s+(a\s+)?(new|different|unrestricted|free|uncensored|jailbroken)/,
+    /\bdan\s+mode\b|\bdo\s+anything\s+now\b|\bjailbreak\b|\bunrestricted\s+mode\b/,
+    /\bsystem\s+prompt\b|\bsystem\s+message\b|\boverride\s+(the\s+)?(system|instructions?|rules?)\b/,
+    /act\s+as\s+(if\s+you\s+are\s+)?(an?\s+)?(unrestricted|uncensored|unfiltered|evil|bad)/,
+    /disregard\s+(your\s+)?(previous\s+)?(instructions?|training|guidelines?|rules?)/,
+    /pretend\s+(you\s+are|to\s+be)\s+(an?\s+)?(unrestricted|different|other|new)/,
+    /reveal\s+(your\s+)?(system\s+)?(prompt|instructions?|training\s+data|hidden|secret)/,
+  ];
+  if (jailbreakPatterns.some((p) => p.test(normalized))) {
+    return {
+      blocked: true,
+      reply: "I'm Finovo's AI Financial Advisor, here to help with budgeting, investments, savings, and wealth planning. I can't assist with that request. How can I help with your financial goals today?",
+    };
+  }
+
+  // Rule 2: Off-domain topics
+  const offDomainPatterns = [
+    /\b(write|generate|create|debug|fix\s+the\s+bug)\b.{0,40}\b(code|program|script|function|class|api|html|css|python|javascript|java|sql)\b/,
+    /\b(medical|doctor|diagnos|symptom|treatment|medicine|prescription|disease|illness|surgery)\b/,
+    /\b(homework|essay|assignment|thesis|research\s+paper|write\s+an?\s+essay)\b/,
+    /\b(sports\s+bet|fantasy\s+(sports|football|cricket)|gambling|casino|poker|lottery|jackpot)\b/,
+  ];
+  if (offDomainPatterns.some((p) => p.test(normalized))) {
+    return {
+      blocked: true,
+      reply: "I specialize in personal finance and wealth management — budgeting, SIPs, investments, savings goals, and financial planning. I'm not able to assist with that topic. What financial question can I help you with today?",
+    };
+  }
+
+  // Rule 3: Speculative / unsafe financial advice
+  const speculativePatterns = [
+    /\b(penny\s+stock|micro[\s-]?cap\s+stock|hot\s+stock\s+tip)\b/,
+    /\b(guaranteed\s+return|guaranteed\s+profit|risk[\s-]?free\s+investment|double\s+your\s+money\s+in)\b/,
+    /\b(ponzi|pyramid\s+scheme|mlm\s+investment|multi[\s-]?level\s+marketing)\b/,
+    /\b(pump\s+and\s+dump|insider\s+trading|market\s+manipulation)\b/,
+    /\bwhich\s+(stock|coin|crypto|token)\s+(will|is\s+going\s+to)\s+(10x|100x|moon|explode|skyrocket)\b/,
+    /\b(meme\s+coin|shitcoin|safemoon)\b/,
+  ];
+  if (speculativePatterns.some((p) => p.test(normalized))) {
+    return {
+      blocked: true,
+      reply: "I don't offer speculative stock or crypto tips, penny stock recommendations, or promises of guaranteed returns — these carry extreme risk. I can help you build a diversified, risk-aligned investment strategy based on your goals and profile. Shall I help with that?",
+    };
+  }
+
+  // Rule 4: Harmful / illegal financial activities
+  const harmfulPatterns = [
+    /\b(tax\s+evasion|evade\s+(taxes?|tax)|hide\s+(income|money|assets)\s+from\s+tax|black\s+money)\b/,
+    /\b(money\s+laundering|launder\s+money|hawala\s+transaction)\b/,
+    /\b(dark\s+web|darknet|illegal\s+(transfer|transaction|funding))\b/,
+    /\bhack\s+(bank|payment|account|atm|upi)\b/,
+  ];
+  if (harmfulPatterns.some((p) => p.test(normalized))) {
+    return {
+      blocked: true,
+      reply: "I'm unable to assist with requests involving illegal financial activities. If you have a legitimate tax planning or investment question, I'm here to help within legal and ethical boundaries.",
+    };
+  }
+
+  return { blocked: false };
+};
+
+const generateAdvisorSuggestedPrompts = (
+  message: string,
+  profileContext: any,
+  summary: any
+): string[] => {
+  const lower = message.toLowerCase();
+  const hasProfile = profileContext?.personalization_enabled === true;
+  const hasPortfolio = (summary?.investment_count ?? 0) > 0;
+
+  if (/retire|retirement/.test(lower)) {
+    return [
+      "How much monthly SIP do I need to retire comfortably?",
+      "What asset allocation suits my retirement timeline?",
+      "How does inflation affect my retirement corpus?",
+    ];
+  }
+  if (/emergency\s*fund|emergency/.test(lower)) {
+    return [
+      "Where should I park my emergency fund?",
+      "How many months of expenses should my emergency fund cover?",
+      "Can I use a liquid fund for my emergency corpus?",
+    ];
+  }
+  if (/\bsip\b|mutual\s*fund/.test(lower)) {
+    return [
+      "Should I increase my SIP amount this year?",
+      "What is the difference between SIP and lumpsum investing?",
+      "How do I pick between equity and debt mutual funds?",
+    ];
+  }
+  if (/budget|expense|spending|saving/.test(lower)) {
+    return [
+      "How can I cut down my monthly expenses?",
+      "What percentage of income should I save each month?",
+      "How do I build a zero-based budget?",
+    ];
+  }
+  if (/\btax\b|80c|section/.test(lower)) {
+    return [
+      "What are the best tax-saving instruments under Section 80C?",
+      "How much tax can I save with ELSS investments?",
+      "Should I choose the old or new tax regime?",
+    ];
+  }
+  if (/loan|emi|home\s*loan|car\s*loan/.test(lower)) {
+    return [
+      "Should I prepay my home loan or invest the surplus?",
+      "How does EMI affect my monthly savings capacity?",
+      "What is the ideal debt-to-income ratio?",
+    ];
+  }
+  if (/goal|house|car|vacation|education/.test(lower)) {
+    return [
+      "How much should I save monthly to reach my goal?",
+      "What investment vehicle is best for a 3–5 year goal?",
+      "How does inflation impact my target amount?",
+    ];
+  }
+  if (hasPortfolio && hasProfile) {
+    return [
+      "Am I on track to meet my savings goal?",
+      "How can I optimize my current investment mix?",
+      "What is my current savings rate based on my income?",
+    ];
+  }
+  if (hasPortfolio) {
+    return [
+      "What is the overall return on my portfolio?",
+      "Should I rebalance my investments?",
+      "How do I calculate my XIRR?",
+    ];
+  }
+  return [
+    "How much should I invest monthly to build ₹1 Crore?",
+    "What is the right emergency fund size for me?",
+    "Explain SIP vs lumpsum investing in simple terms.",
+  ];
+};
+
 const getWealthAdvisorReply = async (
   message: string,
   investments: any[],
@@ -1947,11 +2100,25 @@ const getWealthAdvisorReply = async (
   profileContext: any,
   transactionContext: any
 ) => {
+  // --- Input Guardrails (no LLM call, $0 cost) ---
+  const guardrailResult = checkAdvisorInputGuardrails(message);
+  if (guardrailResult.blocked) {
+    return {
+      reply: guardrailResult.reply,
+      provider: "local-guardrail",
+      model: "guardrail-engine",
+      guardrail_status: "blocked",
+      suggested_prompts: [] as string[],
+    };
+  }
+
+  const suggestedPrompts = generateAdvisorSuggestedPrompts(message, profileContext, summary);
+
   const smallTalkReply = getAdvisorSmallTalkReply(message);
-  if (smallTalkReply) return { reply: smallTalkReply, provider: "local-fallback" };
+  if (smallTalkReply) return { reply: smallTalkReply, provider: "local-fallback", model: "local", guardrail_status: "passed", suggested_prompts: suggestedPrompts };
 
   if (!(GEMINI_API_KEYS.length || [GROQ_API_KEY, OPENROUTER_API_KEY, HUGGINGFACE_API_KEY].some(Boolean))) {
-    return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback" };
+    return { reply: getAdvisorFallbackReply(message, investments, summary, history), provider: "local-fallback", model: "local", guardrail_status: "passed", suggested_prompts: suggestedPrompts };
   }
 
   const prompt = `You are Finovo AI Wealth Advisor for an Indian user. Use the user's profile, transactions, portfolio, and chat history to answer any investment, wealth, goal, SIP, retirement, budgeting, cash-flow, affordability, or money planning question.
@@ -1996,7 +2163,15 @@ User message:
 ${message}`;
 
   const result = await generateAiText(prompt, { responseMimeType: "text/plain", maxOutputTokens: 1800 });
-  return { reply: result.text, provider: result.provider, model: result.model };
+
+  // --- Output guardrail: enforce statutory disclaimer ---
+  let finalReply = result.text;
+  const hasDisclaimer = /disclaimer|planning guidance|not financial advice|not investment advice|not a financial advisor/i.test(finalReply);
+  if (!hasDisclaimer) {
+    finalReply += "\n\n*Disclaimer: This is for educational and financial planning purposes only and should not be construed as SEBI-registered investment advice. Past performance is not indicative of future returns.*";
+  }
+
+  return { reply: finalReply, provider: result.provider, model: result.model, guardrail_status: "passed", suggested_prompts: suggestedPrompts };
 };
 
 const ADVISOR_TITLE_MAX_LENGTH = 25;
@@ -5413,6 +5588,100 @@ app.get("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => 
   }
 });
 
+const executeConfirmedAction = async (action: {
+  id: string;
+  tool_name: string;
+  arguments: any;
+  user_id: number;
+  session_id: string;
+}) => {
+  const args = typeof action.arguments === "string" ? JSON.parse(action.arguments) : action.arguments;
+
+  if (action.tool_name === "create_expense") {
+    let wallet = await queryOne<{ id: number }>(
+      "SELECT id FROM wallets WHERE owner_user_id = ? AND type = 'personal' LIMIT 1",
+      [action.user_id]
+    );
+    if (!wallet) {
+      wallet = await queryOne<{ id: number }>(
+        "SELECT id FROM wallets WHERE owner_user_id = ? LIMIT 1",
+        [action.user_id]
+      );
+    }
+    const walletId = wallet ? wallet.id : null;
+
+    const res = await execute(
+      `INSERT INTO transactions (user_id, wallet_id, amount, type, category, date, payment_mode, description, merchant_name)
+       VALUES (?, ?, ?, 'expense', ?, ?, ?, ?, ?)`,
+      [
+        action.user_id,
+        walletId,
+        args.amount,
+        args.category || "General",
+        args.date || new Date().toISOString().split("T")[0],
+        args.payment_mode || "Cash",
+        args.description || args.merchant || args.category || null,
+        args.merchant || null,
+      ]
+    );
+    await execute("UPDATE ai_pending_actions SET status = 'confirmed' WHERE id = ?", [action.id]);
+    return {
+      success: true,
+      message: `✓ Confirmed! Added expense of ₹${Number(args.amount).toLocaleString("en-IN")} for ${args.category} (Transaction #${res.insertId}).`,
+    };
+  }
+
+  if (action.tool_name === "delete_expense") {
+    await execute("DELETE FROM transactions WHERE id = ? AND user_id = ?", [args.transactionId, action.user_id]);
+    await execute("UPDATE ai_pending_actions SET status = 'confirmed' WHERE id = ?", [action.id]);
+    return {
+      success: true,
+      message: `✓ Confirmed! Successfully deleted transaction #${args.transactionId}.`,
+    };
+  }
+
+  return { success: false, message: "Unknown action type" };
+};
+
+app.post("/api/ai-advisor/confirm", authenticateToken, async (req: any, res) => {
+  const { actionId, sessionId, confirm } = req.body || {};
+  if (!actionId) {
+    return res.status(400).json({ error: "actionId is required" });
+  }
+
+  try {
+    const action = await queryOne<any>(
+      `SELECT * FROM ai_pending_actions
+       WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > NOW()`,
+      [actionId, req.user.id]
+    );
+
+    if (!action) {
+      return res.status(404).json({ error: "Pending action not found, expired, or already resolved." });
+    }
+
+    if (!confirm) {
+      await execute("UPDATE ai_pending_actions SET status = 'cancelled' WHERE id = ?", [actionId]);
+      const reply = "Action cancelled. No changes were made.";
+      await execute(
+        "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
+        [req.user.id, action.session_id || sessionId || "default", reply]
+      );
+      return res.json({ success: true, status: "cancelled", reply });
+    }
+
+    const result = await executeConfirmedAction(action);
+    await execute(
+      "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
+      [req.user.id, action.session_id || sessionId || "default", result.message]
+    );
+    return res.json({ success: true, status: "confirmed", reply: result.message });
+  } catch (error: any) {
+    logger.error("Action confirmation failed", { error: error?.message, actionId });
+    res.status(500).json({ error: "Failed to process confirmation" });
+  }
+});
+
 app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_advisor"), async (req: any, res) => {
   const message = isNonEmptyString(req.body?.message) ? req.body.message.trim() : "";
   const sessionId = isNonEmptyString(req.body?.sessionId) ? String(req.body.sessionId).slice(0, 64) : "default";
@@ -5425,6 +5694,23 @@ app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_a
   }
 
   try {
+    const MAX_SESSION_MESSAGES = 30;
+    const msgCountRow = await queryOne<{ count: number }>(
+      "SELECT COUNT(*) as count FROM ai_advisor_messages WHERE user_id = ? AND session_id = ?",
+      [req.user.id, sessionId]
+    );
+    const existingMsgCount = Number(msgCountRow?.count || 0);
+    if (existingMsgCount >= MAX_SESSION_MESSAGES) {
+      return res.status(400).json({
+        error: "Session message limit reached",
+        detail: "This chat has reached the maximum limit of 30 messages. Please start a new chat to continue.",
+        message_count: existingMsgCount,
+        max_messages: MAX_SESSION_MESSAGES,
+      });
+    }
+
+    const clientMemories = Array.isArray(req.body?.clientMemories) ? req.body.clientMemories : [];
+
     await ensureAdvisorSession(req.user.id, sessionId, message);
     const requestedTitle = getAdvisorRequestedTitle(message);
     if (requestedTitle) {
@@ -5453,9 +5739,58 @@ app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_a
       getAdvisorProfileContext(req.user.id),
       getAdvisorTransactionContext(req.user.id),
     ]);
-    const advisor = requestedTitle
-      ? { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" }
-      : await getWealthAdvisorReply(message, investments, summary, safeHistory, profileContext, transactionContext);
+
+    let advisor: any;
+    const confirmMatch = /^(yes|confirm|proceed|ok|sure|delete it|do it|add it|yes please)$/i.test(message.trim());
+    const cancelMatch = /^(no|cancel|stop|dont|don't|abort|nevermind)$/i.test(message.trim());
+
+    if (confirmMatch || cancelMatch) {
+      const pending = await queryOne<any>(
+        `SELECT * FROM ai_pending_actions
+         WHERE user_id = ? AND session_id = ? AND status = 'pending' AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [req.user.id, sessionId]
+      );
+      if (pending) {
+        if (confirmMatch) {
+          const res = await executeConfirmedAction(pending);
+          advisor = { reply: res.message, provider: "local-action", model: "confirmation" };
+        } else {
+          await execute("UPDATE ai_pending_actions SET status = 'cancelled' WHERE id = ?", [pending.id]);
+          advisor = { reply: "Action cancelled. No changes were made.", provider: "local-action", model: "cancellation" };
+        }
+      }
+    }
+
+    if (!advisor) {
+      if (requestedTitle) {
+        advisor = { reply: `Done. I renamed this chat to "${requestedTitle}".`, provider: "local-fallback" };
+      } else {
+        try {
+          const agentRes = await runAdvisorAgent(message, req.user.id, sessionId, {
+            profileContext,
+            summary,
+            investments,
+            history: safeHistory,
+            transactionContext,
+            clientMemories,
+          });
+          const suggestedPrompts = generateAdvisorSuggestedPrompts(message, profileContext, summary);
+          advisor = {
+            reply: agentRes.reply,
+            provider: agentRes.provider,
+            model: agentRes.model,
+            tools_used: agentRes.toolsUsed,
+            pending_action: agentRes.pendingAction,
+            guardrail_status: agentRes.guardrail_status,
+            suggested_prompts: suggestedPrompts,
+          };
+        } catch (agentErr) {
+          logger.warn("Agent execution failed, falling back to standard advisor reply", { error: agentErr });
+          advisor = await getWealthAdvisorReply(message, investments, summary, safeHistory, profileContext, transactionContext);
+        }
+      }
+    }
 
     const info = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content) VALUES (?, ?, 'assistant', ?)",
@@ -5473,6 +5808,7 @@ app.post("/api/ai-advisor/chat", authenticateToken, createAiUsageGuard("wealth_a
       portfolio: summary,
       profile: profileContext,
       transactions: transactionContext,
+      message_count: existingMsgCount + 2,
       ...advisor,
     });
   } catch (error: any) {

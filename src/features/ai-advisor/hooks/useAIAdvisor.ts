@@ -11,7 +11,8 @@ import {
   invalidateAdvisorMessages,
   invalidateAdvisorSessions,
 } from '@/src/server-state/invalidations';
-import { aiAdvisorApi, type AdvisorMessage } from '@/src/api/aiAdvisorApi';
+import { queryKeys } from '@/src/server-state/queryKeys';
+import { aiAdvisorApi, type AdvisorMessage, type AdvisorSession } from '@/src/api/aiAdvisorApi';
 import { getApiMessage } from '@/src/lib/toastMessages';
 import { storageKeys } from '@/src/lib/storageKeys';
 import { defaultAdvisorSessionId } from '../aiAdvisor.constants';
@@ -63,23 +64,42 @@ export function useAIAdvisor() {
 
   const clearMutation = useMutation({
     mutationFn: () => aiAdvisorApi.clearMessages(sessionId),
-    onSuccess: () => {
-      invalidateAdvisorMessages(queryClient, sessionId);
-      invalidateAdvisorSessions(queryClient);
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId) });
+      const previousMessages = queryClient.getQueryData<AdvisorMessage[]>(queryKeys.aiAdvisorMessages(sessionId));
+      queryClient.setQueryData<AdvisorMessage[]>(queryKeys.aiAdvisorMessages(sessionId), []);
+      return { previousMessages };
+    },
+    onSuccess: async () => {
+      queryClient.setQueryData<AdvisorMessage[]>(queryKeys.aiAdvisorMessages(sessionId), []);
+      queryClient.setQueryData<AdvisorSession[]>(queryKeys.aiAdvisorSessions, (old) =>
+        old ? old.map((s) => (s.session_id === sessionId ? { ...s, message_count: 0, title: 'New Chat' } : s)) : []
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId), refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions, refetchType: 'all' }),
+      ]);
       toast.success('Advisor chat cleared.');
     },
-    onError: (error) => {
+    onError: (error, _vars, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(queryKeys.aiAdvisorMessages(sessionId), context.previousMessages);
+      }
       toast.error(getApiMessage(error, 'Failed to clear advisor chat.'));
     },
   });
 
   const newChatMutation = useMutation({
     mutationFn: () => aiAdvisorApi.createSession(),
-    onSuccess: (session) => {
+    onSuccess: async (session) => {
+      queryClient.setQueryData<AdvisorSession[]>(queryKeys.aiAdvisorSessions, (old) =>
+        old ? [session, ...old.filter((s) => s.session_id !== session.session_id)] : [session]
+      );
+      queryClient.setQueryData<AdvisorMessage[]>(queryKeys.aiAdvisorMessages(session.session_id), []);
       setSessionId(session.session_id);
       localStorage.setItem(storageKeys.aiAdvisorSession, session.session_id);
       sendMutation.reset();
-      invalidateAdvisorSessions(queryClient);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions, refetchType: 'all' });
     },
     onError: (error) => {
       toast.error(getApiMessage(error, 'Failed to create advisor chat.'));
@@ -88,15 +108,39 @@ export function useAIAdvisor() {
 
   const deleteChatMutation = useMutation({
     mutationFn: (id: string) => aiAdvisorApi.deleteSession(id),
-    onSuccess: (_data, deletedId) => {
-      const nextSession = sessions.find((session) => session.session_id !== deletedId)?.session_id || defaultAdvisorSessionId;
-      setSessionId(nextSession);
-      localStorage.setItem(storageKeys.aiAdvisorSession, nextSession);
-      invalidateAdvisorSessions(queryClient);
-      invalidateAdvisorMessages(queryClient, deletedId);
-      invalidateAdvisorMessages(queryClient, nextSession);
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.aiAdvisorSessions });
+      const previousSessions = queryClient.getQueryData<AdvisorSession[]>(queryKeys.aiAdvisorSessions);
+      queryClient.setQueryData<AdvisorSession[]>(queryKeys.aiAdvisorSessions, (old) =>
+        old ? old.filter((s) => s.session_id !== deletedId) : []
+      );
+      return { previousSessions };
     },
-    onError: (error) => {
+    onSuccess: async (_data, deletedId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.aiAdvisorMessages(deletedId) });
+
+      if (sessionId === deletedId) {
+        const remaining = (queryClient.getQueryData<AdvisorSession[]>(queryKeys.aiAdvisorSessions) || [])
+          .filter((s) => s.session_id !== deletedId);
+        const nextSession = remaining[0]?.session_id || defaultAdvisorSessionId;
+        setSessionId(nextSession);
+        localStorage.setItem(storageKeys.aiAdvisorSession, nextSession);
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.aiAdvisorMessages(nextSession),
+          refetchType: 'all',
+        });
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.aiAdvisorSessions,
+        refetchType: 'all',
+      });
+      toast.success('Advisor chat deleted.');
+    },
+    onError: (error, _deletedId, context) => {
+      if (context?.previousSessions) {
+        queryClient.setQueryData(queryKeys.aiAdvisorSessions, context.previousSessions);
+      }
       toast.error(getApiMessage(error, 'Failed to delete advisor chat.'));
     },
   });
@@ -111,7 +155,12 @@ export function useAIAdvisor() {
     setShowRecentChats(false);
   };
 
-  const refreshMessages = () => invalidateAdvisorMessages(queryClient, sessionId);
+  const refreshMessages = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorMessages(sessionId), refetchType: 'all' }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions, refetchType: 'all' }),
+    ]);
+  };
 
   return {
     sessionId,
