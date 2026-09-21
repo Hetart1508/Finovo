@@ -31,6 +31,10 @@ import {
   RiPaletteLine,
   RiGroupLine,
   RiBarChartBoxLine,
+  RiMenuFoldLine,
+  RiMenuUnfoldLine,
+  RiArrowRightSLine,
+  RiArrowLeftSLine,
 } from 'react-icons/ri';
 
 interface LayoutProps {
@@ -134,69 +138,127 @@ export default function Layout({ children }: LayoutProps) {
   const getWalletLabel = (wallet: typeof wallets[number]) =>
     wallet.type === 'family' ? wallet.name : 'Personal wallet';
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('finovo_sidebar_collapsed') === 'true');
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('finovo_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
   const renderNavLink = (
     item: typeof navItems[number],
     variant: 'sidebar' | 'drawer' = 'sidebar'
   ) => {
     const Icon = item.icon;
     const isActive = location.pathname === item.path;
+    const isCollapsed = variant === 'sidebar' && sidebarCollapsed;
 
     return (
       <Link
         key={item.path}
         to={item.path}
         aria-current={isActive ? 'page' : undefined}
+        title={isCollapsed ? item.name : undefined}
         className={cn(
-          "group/nav kt-nav-item metronic-action flex items-center gap-3 rounded-lg text-sm font-semibold transition-all",
+          "group/nav kt-nav-item metronic-action flex items-center rounded-lg text-sm font-semibold transition-all",
           "app-nav-item",
-          variant === 'drawer' ? "px-3 py-3.5" : "px-3 py-3",
+          isCollapsed ? "justify-center px-2 py-3" : variant === 'drawer' ? "gap-3 px-3 py-3.5" : "gap-3 px-3 py-3",
           isActive
             ? "bg-[#EEF6FF] text-[#4F9CF9] shadow-sm"
             : "text-[#6B7280] hover:bg-[#FAFBFC] hover:text-[#1F2937]"
         )}
       >
-        <Icon className="text-lg transition-transform group-hover/nav:scale-110" aria-hidden="true" />
-        {item.name}
+        <Icon className="text-lg transition-transform group-hover/nav:scale-110 shrink-0" aria-hidden="true" />
+        {!isCollapsed && <span className="truncate">{item.name}</span>}
       </Link>
     );
   };
 
   return (
     <div className="app-shell flex h-dvh overflow-hidden">
-      <aside className="app-sidebar hidden w-60 flex-col overflow-hidden border-r border-[#E5E7EB] bg-white text-[#1F2937] lg:flex">
-        <div className="shrink-0 p-6">
-          <div className="flex items-center gap-3">
-            <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15">
-              <RiWallet3Line aria-hidden="true" />
+      <aside
+        className={cn(
+          "app-sidebar hidden flex-col overflow-hidden border-r border-[#E5E7EB] bg-white text-[#1F2937] transition-[width] duration-300 ease-in-out will-change-[width] lg:flex",
+          sidebarCollapsed ? "w-16" : "w-60"
+        )}
+      >
+        {/* Top Header & Toggle Arrow */}
+        <div className={cn("shrink-0 transition-all duration-300", sidebarCollapsed ? "p-3 flex flex-col items-center gap-2" : "p-5")}>
+          {sidebarCollapsed ? (
+            /* When closed, display the prominent arrow on top for opening the sidebar */
+            <div className="flex w-full justify-center">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="group flex size-9 items-center justify-center rounded-xl border border-[#4F9CF9]/30 bg-[#EEF6FF] text-[#4F9CF9] shadow-xs transition-all duration-200 hover:scale-105 hover:bg-[#4F9CF9] hover:text-white"
+                title="Open sidebar"
+                aria-label="Open sidebar"
+              >
+                <RiArrowRightSLine className="text-xl transition-transform duration-200 group-hover:translate-x-0.5" />
+              </button>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">Finovo AI</h1>
-              <p className="text-xs font-medium text-[#6B7280]">Expense intelligence</p>
+          ) : (
+            /* When open, display logo, brand name and collapse arrow */
+            <div className="flex w-full items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="kt-icon-badge bg-[#EEF6FF] text-lg font-black text-[#4F9CF9] shadow-lg shadow-[#4F9CF9]/15 shrink-0">
+                  <RiWallet3Line aria-hidden="true" />
+                </div>
+                <div className="min-w-0 transition-opacity duration-200">
+                  <h1 className="text-xl font-bold truncate text-[#1F2937]">Finovo AI</h1>
+                  <p className="text-xs font-medium text-[#6B7280] truncate">Expense intelligence</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="group flex size-8 items-center justify-center rounded-lg border border-transparent p-1 text-[#6B7280] transition-all duration-200 hover:border-border hover:bg-[#EEF6FF] hover:text-[#4F9CF9]"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <RiArrowLeftSLine className="text-xl transition-transform duration-200 group-hover:-translate-x-0.5" />
+              </button>
             </div>
-          </div>
+          )}
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-4 pb-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2.5 pb-4">
           {navItems.map((item) => renderNavLink(item))}
         </nav>
 
-        <div className="shrink-0 border-t border-[#E5E7EB] p-4">
-          <Link to="/profile" className="mb-3 flex items-center gap-3 rounded-lg bg-[#FAFBFC] px-3 py-3 transition-colors hover:bg-[#EEF6FF]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FF]">
+        <div className={cn("shrink-0 border-t border-[#E5E7EB] transition-all duration-300", sidebarCollapsed ? "p-2 flex flex-col items-center gap-2" : "p-4")}>
+          <Link
+            to="/profile"
+            title={sidebarCollapsed ? user.name || 'User Profile' : undefined}
+            className={cn(
+              "flex items-center rounded-lg bg-[#FAFBFC] transition-all duration-200 hover:bg-[#EEF6FF]",
+              sidebarCollapsed ? "size-10 justify-center p-0" : "mb-3 gap-3 px-3 py-3"
+            )}
+          >
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#EEF6FF]">
               <RiUser3Line className="text-[#4F9CF9]" aria-hidden="true" />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
-              <p className="truncate text-xs text-[#6B7280]">{user.email}</p>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{user.name || 'User'}</p>
+                <p className="truncate text-xs text-[#6B7280]">{user.email}</p>
+              </div>
+            )}
           </Link>
           <Button 
             variant="ghost" 
-            className="h-10 w-full justify-start text-[#6B7280] hover:bg-[#FFF1F1] hover:text-[#FF6B6B]"
+            title={sidebarCollapsed ? "Logout" : undefined}
+            className={cn(
+              "text-[#6B7280] transition-all duration-200 hover:bg-[#FFF1F1] hover:text-[#FF6B6B]",
+              sidebarCollapsed ? "size-10 p-0 justify-center" : "h-10 w-full justify-start"
+            )}
             onClick={handleLogout}
           >
-            <RiLogoutCircleRLine className="mr-2 text-base" aria-hidden="true" />
-            Logout
+            <RiLogoutCircleRLine className={sidebarCollapsed ? "text-lg" : "mr-2 text-base"} aria-hidden="true" />
+            {!sidebarCollapsed && <span>Logout</span>}
           </Button>
         </div>
       </aside>
@@ -308,11 +370,19 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        <div className="app-scroll min-w-0 flex-1 p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-28 xl:p-8 xl:pb-28">
-          <div className="mx-auto min-w-0 w-full max-w-[100rem]">
-            {children}
+        {location.pathname === '/wealth-advisor' ? (
+          <div className="flex min-w-0 flex-1 flex-col overflow-visible p-2 sm:p-3 lg:min-h-0 lg:overflow-hidden lg:p-4">
+            <div className="mx-auto flex min-w-0 w-full max-w-[100rem] flex-col overflow-visible lg:h-full lg:min-h-0 lg:overflow-hidden">
+              {children}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="app-scroll min-w-0 flex-1 p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-28 xl:p-8 xl:pb-28">
+            <div className="mx-auto min-w-0 w-full max-w-[100rem]">
+              {children}
+            </div>
+          </div>
+        )}
       </main>
 
       <AddTransactionDialog

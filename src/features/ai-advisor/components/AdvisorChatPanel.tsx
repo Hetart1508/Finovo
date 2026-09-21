@@ -239,6 +239,7 @@ export function AdvisorChatPanel({
   const [editPromptText, setEditPromptText] = useState<string>('');
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [pendingUserMessage, setPendingUserMessage] = useState<{ content: string; createdAt: Date } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +257,10 @@ export function AdvisorChatPanel({
 
   // Suggested prompts
   const suggestedPrompts = !isGenerating ? (lastCompletedResponse?.suggestedPrompts || []) : [];
+  const latestSavedUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+  const pendingMessageIsSaved = Boolean(
+    pendingUserMessage && latestSavedUserMessage?.content.trim() === pendingUserMessage.content.trim()
+  );
 
   // Scroll viewport to bottom
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -277,14 +282,20 @@ export function AdvisorChatPanel({
     if (shouldFollowRef.current) {
       scrollToBottom('auto');
     }
-  }, [messages.length, streamingText, activeStatus]);
+  }, [messages.length, pendingUserMessage?.content, streamingText, activeStatus]);
+
+  const lastPromptRef = useRef<string>('');
 
   // Main streaming submission function
   const handleSendMessage = async (userPrompt: string) => {
     const trimmed = userPrompt.trim();
     if (!trimmed || isGenerating) return;
 
+    lastPromptRef.current = trimmed;
     setInputText('');
+    // The API saves this turn before producing a reply, but that write is not
+    // visible to the message query until the stream completes. Render it now.
+    setPendingUserMessage({ content: trimmed, createdAt: new Date() });
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -334,25 +345,43 @@ export function AdvisorChatPanel({
 
       await onResponseComplete();
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        // User explicitly stopped generation: restore prompt to input box, discard stopped output
+        setStreamingText('');
+        if (lastPromptRef.current) {
+          setInputText(lastPromptRef.current);
+        }
+        await onResponseComplete();
+      } else {
         toast.error('Could not complete generation. Please try again.');
       }
     } finally {
       setIsGenerating(false);
       setActiveStatus(null);
       setStreamingText('');
+      setPendingUserMessage(null);
       abortControllerRef.current = null;
     }
   };
 
-  const handleStopGenerating = () => {
+  const handleStopGenerating = async () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setIsGenerating(false);
-      setActiveStatus(null);
-      toast.info('Generation stopped.');
     }
+    setIsGenerating(false);
+    setActiveStatus(null);
+    setStreamingText('');
+    setExecutedTools([]);
+
+    // Restore prompt so user does not lose input
+    if (lastPromptRef.current) {
+      setInputText(lastPromptRef.current);
+    }
+
+    // Refresh messages from server to remove the aborted user turn
+    await onResponseComplete();
+    toast.info('Generation stopped. Message restored to input box.');
   };
 
   const handleRegenerateLast = () => {
@@ -393,18 +422,18 @@ export function AdvisorChatPanel({
             </div>
           ) : null}
 
-          {/* Empty State / Starter Cards */}
+          {/* Empty State / Starter Cards - Compact so it fits in one screen without any scrolling */}
           {!isLoading && messages.length === 0 && !isGenerating ? (
-            <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-2 py-8 text-center">
-              <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#4F9CF9] to-[#80BFFF] text-white shadow-lg">
-                <RiSparkling2Line className="size-7" />
+            <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-3 py-3 text-center">
+              <div className="mb-2 flex size-10 items-center justify-center rounded-xl bg-gradient-to-tr from-[#4F9CF9] to-[#80BFFF] text-white shadow-md">
+                <RiSparkling2Line className="size-5" />
               </div>
-              <h2 className="text-lg font-semibold text-foreground">Welcome to Finovo AI</h2>
-              <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
-                Your production personal wealth and finance advisor. Ask anything about your daily expenses, monthly budgets, SIP investments, or Indian tax rules.
+              <h2 className="text-base font-bold text-foreground">Welcome to Finovo AI</h2>
+              <p className="mt-0.5 max-w-sm text-[0.75rem] text-muted-foreground">
+                Your personal wealth advisor. Ask anything about expenses, budgets, SIPs, or Indian tax rules.
               </p>
 
-              <div className="mt-6 grid w-full gap-2.5 sm:grid-cols-2">
+              <div className="mt-3.5 grid w-full gap-2 sm:grid-cols-2">
                 {starterPromptCards.map((card) => {
                   const Icon = card.icon;
                   return (
@@ -412,13 +441,13 @@ export function AdvisorChatPanel({
                       key={card.title}
                       type="button"
                       onClick={() => handleSendMessage(card.prompt)}
-                      className="group flex flex-col items-start rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-xs transition hover:border-[#4F9CF9] hover:bg-[#EEF6FF]/50 dark:hover:bg-blue-950/20"
+                      className="group flex flex-col items-start rounded-xl border border-border/80 bg-card p-2.5 text-left shadow-2xs transition hover:border-[#4F9CF9] hover:bg-[#EEF6FF]/50 dark:hover:bg-blue-950/20"
                     >
-                      <div className="flex items-center gap-2 text-xs font-semibold text-foreground group-hover:text-[#4F9CF9]">
-                        <Icon className="size-4 text-[#4F9CF9]" />
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground group-hover:text-[#4F9CF9]">
+                        <Icon className="size-3.5 text-[#4F9CF9]" />
                         <span>{card.title}</span>
                       </div>
-                      <p className="mt-1 text-[0.72rem] leading-relaxed text-muted-foreground">
+                      <p className="mt-0.5 line-clamp-2 text-[0.7rem] leading-relaxed text-muted-foreground">
                         {card.prompt}
                       </p>
                     </button>
@@ -512,23 +541,42 @@ export function AdvisorChatPanel({
               );
             })}
 
+            {pendingUserMessage && !pendingMessageIsSaved ? (
+              <div className="flex w-full justify-end px-1">
+                <div className="max-w-[min(44rem,88%)] rounded-2xl rounded-br-md bg-[#4F9CF9] px-4 py-2.5 text-sm leading-6 text-white shadow-xs">
+                  <p className="whitespace-pre-wrap">{pendingUserMessage.content}</p>
+                  <time className="mt-1 block text-[0.65rem] text-white/80">
+                    {formatLocalTime(pendingUserMessage.createdAt)} · Sending…
+                  </time>
+                </div>
+              </div>
+            ) : null}
+
             {/* Active Streaming Assistant Turn */}
             {isGenerating || streamingText ? (
-              <div className="flex w-full items-start gap-2.5 px-1">
+              <div className="flex w-full items-start gap-2.5 px-1" aria-live="polite" aria-busy={isGenerating}>
                 <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EEF6FF] text-[#4F9CF9] animate-pulse dark:bg-blue-950/50">
                   <RiSparkling2Line className="size-4" />
                 </div>
                 <div className="min-w-0 max-w-[min(46rem,calc(100%-2.5rem))] space-y-2">
-                  {/* Tool execution indicator pill */}
+                  {/* Live processing state */}
                   {activeStatus ? (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[#4F9CF9]/30 bg-[#EEF6FF] px-3 py-1 text-xs font-medium text-[#1E3A8A] shadow-xs animate-pulse dark:border-blue-800/40 dark:bg-blue-950/60 dark:text-blue-200">
-                      <RiToolsLine className="size-3.5 text-[#4F9CF9]" />
-                      <span>{activeStatus}</span>
-                      <span className="flex gap-1" aria-hidden="true">
-                        <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-                        <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-                        <span className="size-1 animate-bounce rounded-full bg-current" />
-                      </span>
+                    <div className="rounded-2xl rounded-tl-md border border-[#4F9CF9]/25 bg-[#EEF6FF]/60 px-3.5 py-3 shadow-xs dark:border-blue-800/40 dark:bg-blue-950/30">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#1E3A8A] dark:text-blue-200">
+                        <RiToolsLine className="size-3.5 text-[#4F9CF9]" />
+                        <span>{activeStatus}</span>
+                        <span className="ml-0.5 flex gap-1" aria-hidden="true">
+                          <span className="size-1 animate-bounce rounded-full bg-[#4F9CF9] [animation-delay:-0.3s]" />
+                          <span className="size-1 animate-bounce rounded-full bg-[#4F9CF9] [animation-delay:-0.15s]" />
+                          <span className="size-1 animate-bounce rounded-full bg-[#4F9CF9]" />
+                        </span>
+                      </div>
+                      {!streamingText ? (
+                        <div className="mt-3 space-y-2" aria-hidden="true">
+                          <div className="h-2 w-[88%] animate-pulse rounded-full bg-[#4F9CF9]/15" />
+                          <div className="h-2 w-[62%] animate-pulse rounded-full bg-[#4F9CF9]/10 [animation-delay:150ms]" />
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -563,7 +611,15 @@ export function AdvisorChatPanel({
                   {/* Streaming Text Render */}
                   {streamingText ? (
                     <div className="rounded-2xl rounded-tl-md border border-border/80 bg-card px-4 py-3 text-sm shadow-xs">
+                      <div className="mb-2 flex items-center gap-2 text-[0.68rem] font-semibold text-muted-foreground">
+                        <span>Finovo AI</span>
+                        <span className="inline-flex items-center gap-1 text-[#4F9CF9]">
+                          <span className="size-1.5 animate-pulse rounded-full bg-[#4F9CF9]" />
+                          Streaming
+                        </span>
+                      </div>
                       <MarkdownRenderer content={streamingText} />
+                      {isGenerating ? <span className="ml-0.5 inline-block h-4 w-1 animate-pulse align-[-2px] bg-[#4F9CF9]" aria-label="Response is still streaming" /> : null}
                     </div>
                   ) : null}
                 </div>

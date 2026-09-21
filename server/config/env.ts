@@ -76,7 +76,7 @@ export const GEMINI_API_KEYS = Array.from(new Set([
   GEMINI_API_KEY,
 ].map(extractGoogleApiKey).filter(Boolean)));
 export const GEMINI_MODEL = readEnv("GEMINI_MODEL", "gemini-2.5-flash-lite");
-export const GEMINI_FALLBACK_MODELS = readEnv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
+export const GEMINI_FALLBACK_MODELS = readEnv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);

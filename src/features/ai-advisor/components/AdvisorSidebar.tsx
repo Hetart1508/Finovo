@@ -132,12 +132,15 @@ export function AdvisorSidebar({
         aria-label="Hide recent chats"
         onClick={onHide}
       />
-      <Card className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,86vw)] min-h-0 flex-col rounded-none border-0 shadow-2xl md:static md:z-auto md:w-auto md:rounded-xl md:border md:border-border/80 md:bg-card md:shadow-sm">
-        <CardHeader className="shrink-0 space-y-2 border-b border-border/70 px-3 py-2.5">
+      <Card className="fixed inset-y-0 left-0 z-50 flex w-[min(20rem,86vw)] min-h-0 flex-col rounded-none border-0 shadow-2xl md:static md:z-auto md:w-auto md:rounded-2xl md:border md:border-border/80 md:bg-card/95 md:shadow-md">
+        <CardHeader className="shrink-0 space-y-3 border-b border-border/70 bg-gradient-to-br from-[#F7FBFF] to-card px-3 py-3 dark:from-blue-950/20">
           <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <RiSparklingLine className="size-3.5 text-[#4F9CF9]" aria-hidden="true" />
-              Finovo Chats
+            <CardTitle className="flex items-center gap-1.5 text-sm font-bold text-foreground">
+              <span className="flex size-6 items-center justify-center rounded-lg bg-[#EEF6FF] text-[#4F9CF9] dark:bg-blue-950/50">
+                <RiSparklingLine className="size-3.5" aria-hidden="true" />
+              </span>
+              Conversations
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] font-semibold text-muted-foreground">{sessions.length}</span>
             </CardTitle>
             <div className="flex items-center gap-1">
               <Button
@@ -171,13 +174,13 @@ export function AdvisorSidebar({
 
           {/* Search box */}
           <div className="relative">
-            <RiSearchLine className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" aria-hidden="true" />
+            <RiSearchLine className="absolute left-3 top-3 size-3.5 text-muted-foreground" aria-hidden="true" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations..."
-              className="h-8 w-full rounded-lg border border-border/70 bg-muted/40 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground/80 focus:border-[#4F9CF9] focus:outline-none focus:ring-1 focus:ring-[#4F9CF9]"
+              className="h-9 w-full rounded-xl border border-border/70 bg-card/90 pl-9 pr-3 text-xs text-foreground shadow-xs placeholder:text-muted-foreground/80 transition focus:border-[#4F9CF9] focus:outline-none focus:ring-2 focus:ring-[#4F9CF9]/15"
             />
             {searchQuery ? (
               <button
@@ -192,7 +195,7 @@ export function AdvisorSidebar({
           </div>
         </CardHeader>
 
-        <CardContent className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        <CardContent className="min-h-0 flex-1 overflow-y-auto bg-muted/20 px-2 py-3">
           {/* Mobile summary cards */}
           <div className="grid grid-cols-2 gap-2 pb-3 md:hidden">
             {summaryCards.map(([label, value]) => (
@@ -215,11 +218,11 @@ export function AdvisorSidebar({
           </Button>
 
           {/* Grouped session list */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             {groupedSessions.length ? (
               groupedSessions.map((group) => (
-                <div key={group.name} className="space-y-0.5">
-                  <h3 className="px-2 pb-1 text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                <div key={group.name} className="space-y-1">
+                  <h3 className="px-2 pb-1 text-[0.65rem] font-bold uppercase tracking-[0.12em] text-muted-foreground/70">
                     {group.name}
                   </h3>
                   {group.items.map((session) => {
@@ -267,15 +270,15 @@ export function AdvisorSidebar({
                       <div
                         key={session.session_id}
                         className={cn(
-                          'group relative flex items-center rounded-lg px-2 py-1.5 transition',
+                          'group relative flex items-center rounded-xl border border-transparent px-2.5 py-2 transition-all duration-150',
                           isActive
-                            ? 'bg-[#EEF6FF] font-medium text-[#1E3A8A] dark:bg-blue-950/40 dark:text-blue-200'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                            ? 'border-[#4F9CF9]/15 bg-[#EEF6FF] font-medium text-[#1E3A8A] shadow-xs dark:bg-blue-950/40 dark:text-blue-200'
+                            : 'text-muted-foreground hover:border-border/70 hover:bg-card hover:text-foreground hover:shadow-2xs'
                         )}
                       >
                         <button
                           type="button"
-                          className="min-w-0 flex-1 truncate text-left text-xs leading-5"
+                          className="min-w-0 flex-1 truncate text-left text-xs font-medium leading-5"
                           onClick={() => {
                             dismissKeyboard();
                             onSelectSession(session.session_id);

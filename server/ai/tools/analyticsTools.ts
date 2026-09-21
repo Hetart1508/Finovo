@@ -312,14 +312,14 @@ const getBudgetStatusTool: AgentTool = {
 // compare_spending_periods
 const compareSpendingPeriodsTool: AgentTool = {
   name: "compare_spending_periods",
-  description: "Compare spending between two months or date ranges, calculating category-wise changes deterministically.",
+  description: "Compare spending between two months or date ranges, calculating category-wise changes deterministically. If comparing current month vs previous month, leave all parameters empty.",
   parameters: {
     type: "object",
     properties: {
-      currentStartDate: { type: "string", description: "Current period start YYYY-MM-DD" },
-      currentEndDate: { type: "string", description: "Current period end YYYY-MM-DD" },
-      previousStartDate: { type: "string", description: "Previous period start YYYY-MM-DD" },
-      previousEndDate: { type: "string", description: "Previous period end YYYY-MM-DD" },
+      currentStartDate: { type: "string", description: "Current period start YYYY-MM-DD (optional, defaults to 1st of current month)" },
+      currentEndDate: { type: "string", description: "Current period end YYYY-MM-DD (optional, defaults to today)" },
+      previousStartDate: { type: "string", description: "Previous period start YYYY-MM-DD (optional, defaults to 1st of previous month)" },
+      previousEndDate: { type: "string", description: "Previous period end YYYY-MM-DD (optional, defaults to last day of previous month)" },
     },
   },
   permission: "READ",

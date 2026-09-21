@@ -226,3 +226,38 @@ export const searchKnowledgeBase = async (
     return fallbackResults.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0)).slice(0, limit);
   }
 };
+
+export const ingestKnowledgeChunk = async (
+  title: string,
+  content: string,
+  category: string = "custom",
+  keywords: string = ""
+): Promise<{ success: boolean; chunkId?: number; message: string }> => {
+  try {
+    const slug = `user-fed-${Date.now()}`;
+    const docRes = await execute(
+      `INSERT INTO ai_knowledge_documents (slug, title, category, content)
+       VALUES (?, ?, ?, ?)`,
+      [slug, title, category, content]
+    );
+
+    const chunkRes = await execute(
+      `INSERT INTO ai_knowledge_chunks (document_id, chunk_index, title, content, keywords)
+       VALUES (?, 0, ?, ?, ?)`,
+      [docRes.insertId, title, content, keywords || title.toLowerCase()]
+    );
+
+    return {
+      success: true,
+      chunkId: chunkRes.insertId,
+      message: `Successfully ingested knowledge item "${title}" into RAG memory.`,
+    };
+  } catch (err: any) {
+    logger.error("Failed to ingest knowledge chunk:", err);
+    return {
+      success: false,
+      message: `Could not save knowledge chunk: ${err?.message}`,
+    };
+  }
+};
+

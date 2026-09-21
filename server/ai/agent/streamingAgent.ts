@@ -9,6 +9,7 @@ import { initTools, getAllTools, getTool } from "../tools";
 import { buildSystemInstruction } from "./agentRules";
 import { getUserMemories, summarizeConversationHistory, saveUserMemory } from "../memory/memoryManager";
 import { initKnowledgeBase } from "../rag/knowledgeBase";
+import { recordAiUsage } from "../../services/aiUsage";
 
 initTools();
 initKnowledgeBase().catch(() => {});
@@ -41,6 +42,8 @@ export const getToolLabel = (toolName: string, args: Record<string, unknown> = {
     get_recurring_expenses: "Reviewing recurring bills & SIPs...",
     get_ai_memory: "Retrieving your financial preferences...",
     search_finance_knowledge: "Searching verified financial knowledge...",
+    fetch_financial_news_and_rates: "Fetching current financial benchmark rates...",
+    feed_knowledge_chunk: "Ingesting knowledge into RAG memory...",
   };
   return map[toolName] || `Running ${toolName.replace(/_/g, " ")}...`;
 };
@@ -71,6 +74,63 @@ const formatToolsForGemini = () => {
       })),
     },
   ];
+};
+
+/** Read Gemini server-sent events and forward each generated text delta immediately. */
+const readGeminiStream = async (
+  response: globalThis.Response,
+  emitText: (text: string) => void
+): Promise<{ parts: any[]; text: string; usageMetadata: any }> => {
+  if (!response.body) throw new Error("Gemini streaming response has no body");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: any[] = [];
+  let text = "";
+  let buffer = "";
+  let usageMetadata: any = null;
+
+  const consumePayload = (payload: any) => {
+    if (payload.usageMetadata) usageMetadata = payload.usageMetadata;
+    const candidateParts = payload.candidates?.[0]?.content?.parts || [];
+    for (const part of candidateParts) {
+      if (typeof part.text === "string" && part.text) {
+        text += part.text;
+        emitText(part.text);
+      }
+      if (part.functionCall) parts.push(part);
+    }
+  };
+
+  // A normal generateContent response is a valid fallback when a provider or
+  // model does not support its SSE endpoint.
+  if (!response.headers.get("content-type")?.includes("text/event-stream")) {
+    consumePayload(await response.json());
+    return { parts, text, usageMetadata };
+  }
+
+  const consumeEvent = (raw: string) => {
+    const data = raw
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+    if (!data || data === "[DONE]") return;
+    consumePayload(JSON.parse(data));
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split(/\r?\n\r?\n/);
+    buffer = events.pop() || "";
+    for (const event of events) consumeEvent(event);
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) consumeEvent(buffer);
+  return { parts, text, usageMetadata };
 };
 
 export const runStreamingAdvisorAgent = async (
@@ -110,10 +170,18 @@ export const runStreamingAdvisorAgent = async (
   ];
 
   // Summarize older turns if conversation history is long
-  const rawHistory = (context.history || []).map((h) => ({
-    role: h.role === "user" ? "user" : "assistant",
-    content: String(h.content || ""),
-  }));
+  const rawHistory = (context.history || []).reduce<Array<{ role: "user" | "assistant"; content: string }>>((turns, h) => {
+    const turn = {
+      role: h.role === "user" ? "user" as const : "assistant" as const,
+      content: String(h.content || ""),
+    };
+    const previous = turns.at(-1);
+    // Avoid echoing a turn back to the model when a request is retried or a
+    // message query refreshes during streaming.
+    if (previous?.role === turn.role && previous.content.trim() === turn.content.trim()) return turns;
+    turns.push(turn);
+    return turns;
+  }, []);
   const { recentMessages, summary: conversationSummary } = summarizeConversationHistory(rawHistory);
 
   // Input guardrail check
@@ -164,7 +232,7 @@ export const runStreamingAdvisorAgent = async (
   emitEvent({ type: "status", status: "understanding_query", label: "Understanding your request..." });
 
   // Iterate across candidate keys and models
-  for (const apiKey of GEMINI_API_KEYS) {
+  for (const [keyIndex, apiKey] of GEMINI_API_KEYS.entries()) {
     for (const model of modelCandidates) {
       try {
         let iterations = 0;
@@ -185,41 +253,83 @@ export const runStreamingAdvisorAgent = async (
             abortSignal.addEventListener("abort", () => controller.abort(), { once: true });
           }
 
+          const requestBody = JSON.stringify({
+            contents,
+            tools: toolsDeclaration,
+            generationConfig: {
+              temperature: 0.2,
+              maxOutputTokens: 2500,
+            },
+          });
           let response: globalThis.Response;
           try {
             response = await fetch(
-              `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+              `${GEMINI_API_BASE_URL}/models/${model}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 signal: controller.signal,
-                body: JSON.stringify({
-                  contents,
-                  tools: toolsDeclaration,
-                  generationConfig: {
-                    temperature: 0.2,
-                    maxOutputTokens: 2500,
-                  },
-                }),
+                body: requestBody,
               }
             );
           } finally {
             clearTimeout(timeout);
           }
 
+          if (!response.ok && [400, 404, 405, 501].includes(response.status)) {
+            logger.warn("Gemini SSE endpoint unavailable; retrying standard response endpoint", { status: response.status, model });
+            response = await fetch(
+              `${GEMINI_API_BASE_URL}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                signal: abortSignal,
+                body: requestBody,
+              }
+            );
+          }
+
           if (!response.ok) {
             const errText = await response.text();
             logger.warn("Gemini streaming call error", { status: response.status, model, errText: errText.slice(0, 300) });
+            await recordAiUsage({
+              provider: "gemini",
+              model,
+              keyIdentifier: `Key ${keyIndex + 1}`,
+              inputText: message,
+              success: false,
+              errorType: response.status === 429 ? "quota_or_rate_limit" : `http_${response.status}`,
+            });
             break; // Try next candidate
           }
 
-          const data: any = await response.json();
-          const candidate = data.candidates?.[0];
-          if (!candidate || !candidate.content) {
+          const streamed = await readGeminiStream(response, (text) => {
+            emitEvent({ type: "text_delta", text });
+          });
+          if (!streamed.parts.length && !streamed.text) {
+            await recordAiUsage({
+              provider: "gemini",
+              model,
+              keyIdentifier: `Key ${keyIndex + 1}`,
+              inputText: message,
+              success: false,
+              errorType: "empty_response",
+            });
             break;
           }
 
-          const parts = candidate.content.parts || [];
+          await recordAiUsage({
+            provider: "gemini",
+            model,
+            keyIdentifier: `Key ${keyIndex + 1}`,
+            inputTokens: Number(streamed.usageMetadata?.promptTokenCount || 0) || undefined,
+            outputTokens: Number(streamed.usageMetadata?.candidatesTokenCount || 0) || undefined,
+            inputText: message,
+            outputText: streamed.text,
+            success: true,
+          });
+
+          const parts = streamed.parts;
           const functionCalls = parts.filter((p: any) => Boolean(p.functionCall));
 
           // If model called tools:
@@ -297,10 +407,7 @@ export const runStreamingAdvisorAgent = async (
           }
 
           // Final response text
-          accumulatedReply = parts
-            .map((p: any) => p.text || "")
-            .join("\n")
-            .trim();
+          accumulatedReply = streamed.text.trim();
 
           // If the model returned empty text (can happen when tool responses weren't
           // processed correctly on the first synthesis), push an explicit prompt and retry once.
@@ -325,19 +432,12 @@ export const runStreamingAdvisorAgent = async (
           // Output guardrail: enforce disclaimer
           const hasDisclaimer = /disclaimer|planning guidance|not financial advice|not investment advice/i.test(accumulatedReply);
           if (!hasDisclaimer) {
-            accumulatedReply += "\n\n*Disclaimer: This is for educational and financial planning purposes only and should not be construed as SEBI-registered investment advice. Past performance is not indicative of future returns.*";
+            const disclaimer = "\n\n*Disclaimer: This is for educational and financial planning purposes only and should not be construed as SEBI-registered investment advice. Past performance is not indicative of future returns.*";
+            accumulatedReply += disclaimer;
+            emitEvent({ type: "text_delta", text: disclaimer });
           }
 
           // Stream final text delta chunks — preserve spaces between chunks
-          const words = accumulatedReply.split(/(\s+)/).filter(Boolean);
-          const chunkSize = Math.max(1, Math.ceil(words.length / 45));
-          for (let i = 0; i < words.length; i += chunkSize) {
-            if (abortSignal?.aborted) break;
-            // join with empty string because the regex captures spaces as separate tokens
-            const delta = words.slice(i, i + chunkSize).join("");
-            emitEvent({ type: "text_delta", text: delta });
-            await new Promise((r) => setTimeout(r, 16));
-          }
 
           // Extract and save implicit goals if user mentioned one
           const goalMatch = message.match(/(?:save|budget|target|goal|invest)\s+(?:of\s+)?(?:₹|rs\.?\s*)?(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:lakhs?|cr|k)?\s*(?:for|towards|per month)?\s*([a-zA-Z\s]{3,30})/i);

@@ -5633,14 +5633,29 @@ app.get("/api/ai-advisor/messages", authenticateToken, async (req: any, res) => 
 
   try {
     const messages = await queryAll(`
-      SELECT id, session_id, role, content, created_at
+      SELECT
+        id,
+        session_id,
+        role,
+        content,
+        DATE_FORMAT(CONVERT_TZ(created_at, '+05:30', '+00:00'), '%Y-%m-%dT%H:%i:%s.000Z') AS created_at
       FROM ai_advisor_messages
       WHERE user_id = ? AND session_id = ?
       ORDER BY created_at ASC, id ASC
     `, [req.user.id, sessionId]);
-    res.json(messages.map((message: any) => message.role === "assistant"
-      ? { ...message, content: stripAiReasoning(String(message.content || "")) }
-      : message));
+    const visibleMessages = messages.reduce<any[]>((result, message: any) => {
+      const normalized = message.role === "assistant"
+        ? { ...message, content: stripAiReasoning(String(message.content || "")) }
+        : message;
+      const previous = result.at(-1);
+      // Hide legacy duplicate turns without deleting the user's conversation data.
+      if (previous?.role === normalized.role && previous.content.trim() === String(normalized.content || "").trim()) {
+        return result;
+      }
+      result.push(normalized);
+      return result;
+    }, []);
+    res.json(visibleMessages);
   } catch (error) {
     logger.error("Advisor messages load error", { error, userId: req.user.id });
     res.status(500).json({ error: "Failed to load advisor messages" });
@@ -5709,14 +5724,22 @@ app.post("/api/ai-advisor/confirm", authenticateToken, async (req: any, res) => 
   }
 
   try {
+    const updateRes = await execute(
+      "UPDATE ai_pending_actions SET status = 'executing' WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > NOW()",
+      [actionId, req.user.id]
+    );
+
+    if (updateRes.affectedRows === 0) {
+      return res.status(409).json({ error: "Pending action not found, expired, or already resolved." });
+    }
+
     const action = await queryOne<any>(
-      `SELECT * FROM ai_pending_actions
-       WHERE id = ? AND user_id = ? AND status = 'pending' AND expires_at > NOW()`,
+      `SELECT * FROM ai_pending_actions WHERE id = ? AND user_id = ?`,
       [actionId, req.user.id]
     );
 
     if (!action) {
-      return res.status(404).json({ error: "Pending action not found, expired, or already resolved." });
+      return res.status(404).json({ error: "Pending action not found." });
     }
 
     if (!confirm) {
@@ -5893,7 +5916,7 @@ app.delete("/api/ai-advisor/messages", authenticateToken, async (req: any, res) 
   }
 });
 
-app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res) => {
+app.post("/api/ai-advisor/chat/stream", authenticateToken, createAiUsageGuard("wealth_advisor"), async (req: any, res) => {
   const message = isNonEmptyString(req.body?.message) ? String(req.body.message).slice(0, 2000) : "";
   const sessionId = isNonEmptyString(req.body?.sessionId) ? String(req.body.sessionId).slice(0, 64) : "default";
 
@@ -5908,8 +5931,19 @@ app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res)
   res.flushHeaders?.();
 
   const abortController = new AbortController();
-  req.on("close", () => {
+  let userMessageId: number | null = null;
+  let isCompleted = false;
+
+  req.on("close", async () => {
     abortController.abort();
+    if (!isCompleted && userMessageId) {
+      try {
+        await execute("DELETE FROM ai_advisor_messages WHERE id = ?", [userMessageId]);
+        logger.info("Generation closed before completion. Cleaned up user message.", { userMessageId });
+      } catch (err: any) {
+        logger.warn("Could not clean up aborted user message", { err: err?.message });
+      }
+    }
   });
 
   const sendEvent = (event: any) => {
@@ -5922,10 +5956,11 @@ app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res)
     await ensureAdvisorSession(req.user.id, sessionId, message);
 
     // Save user turn
-    await execute(
+    const userTurnRes = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content, status) VALUES (?, ?, 'user', ?, 'completed')",
       [req.user.id, sessionId, message]
     );
+    userMessageId = userTurnRes.insertId;
 
     const history = await queryAll(`
       SELECT role, content, created_at
@@ -5963,6 +5998,16 @@ app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res)
       abortController.signal
     );
 
+    // If user explicitly aborted during generation, clean up user message and do not save assistant reply
+    if (abortController.signal.aborted) {
+      if (userMessageId) {
+        await execute("DELETE FROM ai_advisor_messages WHERE id = ?", [userMessageId]);
+      }
+      return res.end();
+    }
+
+    isCompleted = true;
+
     // Persist completed assistant message
     const info = await execute(
       "INSERT INTO ai_advisor_messages (user_id, session_id, role, content, status, tools_executed) VALUES (?, ?, 'assistant', ?, 'completed', ?)",
@@ -5990,6 +6035,12 @@ app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res)
 
     res.end();
   } catch (error: any) {
+    if (abortController.signal.aborted) {
+      if (userMessageId) {
+        await execute("DELETE FROM ai_advisor_messages WHERE id = ?", [userMessageId]).catch(() => {});
+      }
+      return res.end();
+    }
     logger.error("Streaming advisor error", { error: error?.message, userId: req.user.id });
     sendEvent({
       type: "error",
