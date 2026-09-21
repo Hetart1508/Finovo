@@ -517,8 +517,60 @@ export const runMigrations = async () => {
   await ensureIndex("ai_memories", "idx_ai_memories_user", "user_id");
   await ensureIndex("ai_pending_actions", "idx_ai_pending_actions_user_session", "user_id, session_id, status");
 
-  await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
+  // AI Agent Production Spec schema additions
+  await ensureColumn("ai_advisor_sessions", "archived_at", "TIMESTAMP NULL");
+  await ensureColumn("ai_advisor_sessions", "pinned", "BOOLEAN NOT NULL DEFAULT FALSE");
+  await ensureIndex("ai_advisor_sessions", "idx_ai_advisor_sessions_archive", "user_id, archived_at, updated_at");
 
+  await ensureColumn("ai_advisor_messages", "parent_message_id", "INT NULL");
+  await ensureColumn("ai_advisor_messages", "status", "ENUM('pending','streaming','completed','failed','cancelled') NOT NULL DEFAULT 'completed'");
+  await ensureColumn("ai_advisor_messages", "tools_executed", "JSON NULL");
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_message_feedback (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      message_id INT NOT NULL,
+      session_id VARCHAR(64) NOT NULL,
+      rating ENUM('thumbs_up', 'thumbs_down') NOT NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_feedback_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+    )
+  `);
+  await ensureIndex("ai_message_feedback", "idx_ai_message_feedback_user", "user_id, session_id");
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_knowledge_documents (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      slug VARCHAR(100) UNIQUE NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      category VARCHAR(60) NOT NULL,
+      content TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS ai_knowledge_chunks (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      document_id INT NOT NULL,
+      chunk_index INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      keywords VARCHAR(255) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_ai_knowledge_chunks_doc
+        FOREIGN KEY (document_id) REFERENCES ai_knowledge_documents(id)
+        ON DELETE CASCADE
+    )
+  `);
+  await ensureIndex("ai_knowledge_chunks", "idx_knowledge_chunks_doc", "document_id");
+
+  await execute("INSERT IGNORE INTO schema_migrations (version) VALUES (?)", [1]);
 
   logger.info("MySQL schema is ready.");
 };

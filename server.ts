@@ -51,6 +51,7 @@ import {
 import { logger } from "./server/config/logger";
 import { execute, queryAll, queryOne } from "./server/db/client";
 import { runAdvisorAgent } from "./server/ai/agent";
+import { runStreamingAdvisorAgent } from "./server/ai/agent/streamingAgent";
 import { runMigrations } from "./server/db/migrations";
 import { authenticateToken } from "./server/middleware/auth";
 import { requestLogger } from "./server/middleware/requestLogger";
@@ -5521,21 +5522,79 @@ app.delete("/api/investments/:id", authenticateToken, async (req: any, res) => {
 });
 
 // --- AI Wealth Advisor ---
+app.get("/api/ai-advisor/sessions/search", authenticateToken, async (req: any, res) => {
+  const query = String(req.query?.q || "").trim();
+  if (!query) return res.json([]);
+  try {
+    const results = await queryAll(`
+      SELECT DISTINCT s.session_id, s.title, s.updated_at, s.archived_at, s.pinned,
+        (SELECT content FROM ai_advisor_messages WHERE session_id = s.session_id AND user_id = ? AND content LIKE ? ORDER BY id DESC LIMIT 1) as matching_snippet
+      FROM ai_advisor_sessions s
+      LEFT JOIN ai_advisor_messages m ON m.session_id = s.session_id AND m.user_id = s.user_id
+      WHERE s.user_id = ? AND (s.title LIKE ? OR m.content LIKE ?)
+      ORDER BY s.pinned DESC, s.updated_at DESC
+      LIMIT 15
+    `, [req.user.id, `%${query}%`, req.user.id, `%${query}%`, `%${query}%`]);
+    res.json(results);
+  } catch (error) {
+    logger.error("Advisor session search error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
 app.get("/api/ai-advisor/sessions", authenticateToken, async (req: any, res) => {
+  const includeArchived = req.query?.archived === "true";
   try {
     const sessions = await queryAll(`
-      SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(m.id) AS message_count
+      SELECT s.session_id, s.title, s.created_at, s.updated_at, s.archived_at, s.pinned, COUNT(m.id) AS message_count
       FROM ai_advisor_sessions s
       LEFT JOIN ai_advisor_messages m
         ON m.user_id = s.user_id AND m.session_id = s.session_id
-      WHERE s.user_id = ?
+      WHERE s.user_id = ? ${includeArchived ? "" : "AND s.archived_at IS NULL"}
       GROUP BY s.id
-      ORDER BY s.updated_at DESC, s.id DESC
+      ORDER BY s.pinned DESC, s.updated_at DESC, s.id DESC
     `, [req.user.id]);
     res.json(sessions);
   } catch (error) {
     logger.error("Advisor sessions load error", { error, userId: req.user.id });
     res.status(500).json({ error: "Failed to load advisor chats" });
+  }
+});
+
+app.patch("/api/ai-advisor/sessions/:sessionId", authenticateToken, async (req: any, res) => {
+  const sessionId = isNonEmptyString(req.params?.sessionId) ? String(req.params.sessionId).slice(0, 64) : "";
+  if (!sessionId) return res.status(400).json({ error: "Valid session id is required" });
+
+  const { title, archived, pinned } = req.body || {};
+  const updates: string[] = [];
+  const params: any[] = [];
+
+  if (typeof title === "string" && title.trim()) {
+    updates.push("title = ?");
+    params.push(title.trim().slice(0, 40));
+  }
+  if (typeof archived === "boolean") {
+    updates.push(archived ? "archived_at = CURRENT_TIMESTAMP" : "archived_at = NULL");
+  }
+  if (typeof pinned === "boolean") {
+    updates.push("pinned = ?");
+    params.push(pinned ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: "No update fields specified" });
+  }
+
+  try {
+    params.push(req.user.id, sessionId);
+    await execute(
+      `UPDATE ai_advisor_sessions SET ${updates.join(", ")} WHERE user_id = ? AND session_id = ?`,
+      params
+    );
+    res.json({ message: "Session updated", sessionId });
+  } catch (error) {
+    logger.error("Advisor session patch error", { error, userId: req.user.id });
+    res.status(500).json({ error: "Failed to update session" });
   }
 });
 
@@ -5831,6 +5890,133 @@ app.delete("/api/ai-advisor/messages", authenticateToken, async (req: any, res) 
   } catch (error) {
     logger.error("Advisor messages clear error", { error, userId: req.user.id });
     res.status(500).json({ error: "Failed to clear advisor messages" });
+  }
+});
+
+app.post("/api/ai-advisor/chat/stream", authenticateToken, async (req: any, res) => {
+  const message = isNonEmptyString(req.body?.message) ? String(req.body.message).slice(0, 2000) : "";
+  const sessionId = isNonEmptyString(req.body?.sessionId) ? String(req.body.sessionId).slice(0, 64) : "default";
+
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  // Set up Server-Sent Events headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  const abortController = new AbortController();
+  req.on("close", () => {
+    abortController.abort();
+  });
+
+  const sendEvent = (event: any) => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+  };
+
+  try {
+    await ensureAdvisorSession(req.user.id, sessionId, message);
+
+    // Save user turn
+    await execute(
+      "INSERT INTO ai_advisor_messages (user_id, session_id, role, content, status) VALUES (?, ?, 'user', ?, 'completed')",
+      [req.user.id, sessionId, message]
+    );
+
+    const history = await queryAll(`
+      SELECT role, content, created_at
+      FROM ai_advisor_messages
+      WHERE user_id = ? AND session_id = ?
+      ORDER BY created_at ASC, id ASC
+      LIMIT 25
+    `, [req.user.id, sessionId]);
+
+    const safeHistory = history.map((item: any) => item.role === "assistant"
+      ? { ...item, content: stripAiReasoning(String(item.content || "")) }
+      : item);
+
+    const [{ investments, summary }, profileContext, transactionContext] = await Promise.all([
+      getAdvisorPortfolioContext(req.user.id),
+      getAdvisorProfileContext(req.user.id),
+      getAdvisorTransactionContext(req.user.id),
+    ]);
+
+    const clientMemories = Array.isArray(req.body?.clientMemories) ? req.body.clientMemories : [];
+
+    const agentResult = await runStreamingAdvisorAgent(
+      message,
+      req.user.id,
+      sessionId,
+      {
+        profileContext,
+        summary,
+        investments,
+        history: safeHistory,
+        transactionContext,
+        clientMemories,
+      },
+      sendEvent,
+      abortController.signal
+    );
+
+    // Persist completed assistant message
+    const info = await execute(
+      "INSERT INTO ai_advisor_messages (user_id, session_id, role, content, status, tools_executed) VALUES (?, ?, 'assistant', ?, 'completed', ?)",
+      [req.user.id, sessionId, agentResult.reply, JSON.stringify(agentResult.toolsUsed)]
+    );
+
+    // Update session timestamp and auto-generate title if default
+    const autoTitle = compactAdvisorTitle(message);
+    await execute(
+      "UPDATE ai_advisor_sessions SET title = IF(title = 'New Chat', ?, title), updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND session_id = ?",
+      [autoTitle, req.user.id, sessionId]
+    );
+
+    const suggestedPrompts = generateAdvisorSuggestedPrompts(message, profileContext, summary);
+
+    sendEvent({
+      type: "message_complete",
+      messageId: info.insertId,
+      sessionId,
+      reply: agentResult.reply,
+      toolsUsed: agentResult.toolsUsed,
+      pendingAction: agentResult.pendingAction,
+      suggestedPrompts,
+    });
+
+    res.end();
+  } catch (error: any) {
+    logger.error("Streaming advisor error", { error: error?.message, userId: req.user.id });
+    sendEvent({
+      type: "error",
+      error: "Something went wrong while generating the response. Please try again.",
+    });
+    res.end();
+  }
+});
+
+app.post("/api/ai-advisor/messages/:id/feedback", authenticateToken, async (req: any, res) => {
+  const messageId = Number(req.params.id);
+  const { rating, comment, sessionId } = req.body || {};
+
+  if (!messageId || !rating || !["thumbs_up", "thumbs_down"].includes(rating)) {
+    return res.status(400).json({ error: "Valid messageId and rating (thumbs_up | thumbs_down) are required" });
+  }
+
+  try {
+    await execute(
+      `INSERT INTO ai_message_feedback (user_id, message_id, session_id, rating, comment)
+       VALUES (?, ?, ?, ?, ?)`,
+      [req.user.id, messageId, sessionId || "default", rating, comment ? String(comment).slice(0, 500) : null]
+    );
+    res.json({ success: true, message: "Feedback recorded" });
+  } catch (error: any) {
+    logger.error("Error saving message feedback", { error: error?.message, userId: req.user.id });
+    res.status(500).json({ error: "Failed to record feedback" });
   }
 });
 

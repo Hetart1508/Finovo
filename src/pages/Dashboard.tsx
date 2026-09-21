@@ -57,7 +57,7 @@ export default function Dashboard() {
           categoryData={analysis.categoryData}
           colors={dashboardChartColors}
           dailyData={analysis.dailyData}
-          trendGranularity={analysis.trendGranularity}
+          trendGranularity={analysis.trendGranularity as 'daily' | 'weekly' | 'monthly'}
         />
       </Suspense>
 

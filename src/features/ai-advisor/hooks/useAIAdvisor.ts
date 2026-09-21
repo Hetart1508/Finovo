@@ -149,6 +149,18 @@ export function useAIAdvisor() {
     localStorage.setItem(storageKeys.aiAdvisorSession, sessionId);
   }, [sessionId]);
 
+  const patchChatMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { title?: string; archived?: boolean; pinned?: boolean } }) =>
+      aiAdvisorApi.patchSession(id, data),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.aiAdvisorSessions, refetchType: 'all' });
+      toast.success('Chat updated.');
+    },
+    onError: (error) => {
+      toast.error(getApiMessage(error, 'Failed to update chat.'));
+    },
+  });
+
   const selectSession = (nextSessionId: string) => {
     setSessionId(nextSessionId);
     sendMutation.reset();
@@ -178,6 +190,7 @@ export function useAIAdvisor() {
     clearMutation,
     newChatMutation,
     deleteChatMutation,
+    patchChatMutation,
     selectSession,
   };
 }

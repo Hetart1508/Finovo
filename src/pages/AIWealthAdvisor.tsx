@@ -76,6 +76,7 @@ export default function AIWealthAdvisor() {
             clearMutation={advisor.clearMutation}
             newChatMutation={advisor.newChatMutation}
             deleteChatMutation={advisor.deleteChatMutation}
+            patchChatMutation={advisor.patchChatMutation}
             onHide={() => advisor.setShowRecentChats(false)}
             onSelectSession={advisor.selectSession}
           />

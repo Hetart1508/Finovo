@@ -3,6 +3,7 @@ import { registerTransactionTools } from "./transactionTools";
 import { registerInvestmentTools } from "./investmentTools";
 import { registerRecurringTools } from "./recurringTools";
 import { registerMemoryTools } from "./memoryTools";
+import { registerKnowledgeTools } from "./knowledgeTools";
 import { getAllTools, getTool, AgentTool } from "./registry";
 
 let initialized = false;
@@ -14,6 +15,7 @@ export const initTools = (): void => {
   registerInvestmentTools();
   registerRecurringTools();
   registerMemoryTools();
+  registerKnowledgeTools();
   initialized = true;
 };
 

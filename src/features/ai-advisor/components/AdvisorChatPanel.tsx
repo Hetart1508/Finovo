@@ -1,39 +1,58 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type UIEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
 import type { UseMutationResult } from '@tanstack/react-query';
-import {
-  ActionBarPrimitive,
-  AssistantRuntimeProvider,
-  ComposerPrimitive,
-  MessagePrimitive,
-  ThreadPrimitive,
-  useAuiState,
-  useExternalStoreRuntime,
-  type ThreadMessageLike,
-} from '@assistant-ui/react';
-import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown';
-import remarkGfm from 'remark-gfm';
+import { toast } from 'react-toastify';
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
-import { aiAdvisorApi, type AdvisorChatResponse, type AdvisorMessage } from '@/src/api/aiAdvisorApi';
-import { formatLocalTime, parseApiDateTime } from '@/src/utils/formatters';
+import {
+  aiAdvisorApi,
+  type AdvisorChatResponse,
+  type AdvisorMessage,
+  type StreamEvent,
+} from '@/src/api/aiAdvisorApi';
+import { formatLocalTime } from '@/src/utils/formatters';
 import { stripAdvisorReasoning } from '../aiAdvisor.utils';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import {
   RiAlertLine,
   RiArrowDownLine,
   RiCheckLine,
   RiCloseLine,
+  RiCompass3Line,
+  RiEditLine,
   RiFileCopyLine,
+  RiLightbulbLine,
+  RiPieChartLine,
   RiRefreshLine,
   RiRobot2Line,
   RiSendPlane2Line,
   RiSparkling2Line,
+  RiStopCircleLine,
+  RiThumbDownLine,
+  RiThumbUpLine,
   RiToolsLine,
 } from 'react-icons/ri';
 
-const starterPrompts = [
-  'Review my portfolio and highlight the biggest risk.',
-  'How can I improve my monthly investment plan?',
-  'Explain my asset allocation in simple terms.',
+const starterPromptCards = [
+  {
+    icon: RiPieChartLine,
+    title: 'Analyze Monthly Spending',
+    prompt: 'How much did I spend this month and what are my top categories?',
+  },
+  {
+    icon: RiCompass3Line,
+    title: 'Compare Periods',
+    prompt: 'Compare my spending this month with last month and show where expenses increased.',
+  },
+  {
+    icon: RiAlertLine,
+    title: 'Budget Utilization',
+    prompt: 'Am I on track with my monthly budget or daily threshold?',
+  },
+  {
+    icon: RiLightbulbLine,
+    title: 'Section 80C Tax Guide',
+    prompt: 'Explain Section 80C tax saving options and ELSS vs PPF rules.',
+  },
 ];
 
 type AdvisorChatPanelProps = {
@@ -46,128 +65,94 @@ type AdvisorChatPanelProps = {
   onRetryLoad: () => void;
 };
 
-const convertMessage = (message: AdvisorMessage): ThreadMessageLike => ({
-  id: `${message.session_id}-${message.id}`,
-  role: message.role,
-  content: [{
-    type: 'text',
-    text: message.role === 'assistant' ? stripAdvisorReasoning(message.content) : message.content,
-  }],
-  createdAt: parseApiDateTime(message.created_at),
-  status: message.role === 'assistant' ? { type: 'complete', reason: 'stop' } : undefined,
-});
+function AssistantMessageActions({
+  messageId,
+  content,
+  sessionId,
+  onRegenerate,
+}: {
+  messageId?: number;
+  content: string;
+  sessionId: string;
+  onRegenerate?: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [feedback, setFeedback] = useState<'thumbs_up' | 'thumbs_down' | null>(null);
 
-function MessageTime() {
-  const createdAt = useAuiState((state) => state.message.createdAt);
-  if (!createdAt || Number.isNaN(createdAt.getTime())) return null;
-
-  return (
-    <time className="mt-1 block text-[0.68rem] text-muted-foreground" dateTime={createdAt.toISOString()}>
-      {formatLocalTime(createdAt)}
-    </time>
-  );
-}
-
-function AssistantMessageActions() {
-  const isCopied = useAuiState((state) => state.message.isCopied);
-
-  return (
-    <ActionBarPrimitive.Root className="mt-1 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100">
-      <ActionBarPrimitive.Copy
-        className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={isCopied ? 'Response copied' : 'Copy response'}
-        title={isCopied ? 'Copied' : 'Copy response'}
-      >
-        {isCopied ? <RiCheckLine aria-hidden="true" /> : <RiFileCopyLine aria-hidden="true" />}
-        <span>{isCopied ? 'Copied' : 'Copy'}</span>
-      </ActionBarPrimitive.Copy>
-    </ActionBarPrimitive.Root>
-  );
-}
-
-function UserMessage() {
-  return (
-    <MessagePrimitive.Root className="flex w-full justify-end px-1 py-2 md:px-3">
-      <div className="max-w-[min(42rem,88%)] rounded-2xl rounded-br-md bg-[#4F9CF9] px-3.5 py-2.5 text-sm leading-6 text-white shadow-sm">
-        <MessagePrimitive.Parts />
-        <MessageTime />
-      </div>
-    </MessagePrimitive.Root>
-  );
-}
-
-function MarkdownText() {
-  return (
-    <MarkdownTextPrimitive
-      remarkPlugins={[remarkGfm]}
-      className="space-y-3 break-words [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-muted [&_pre]:p-3 [&_strong]:font-semibold"
-    />
-  );
-}
-
-function AssistantMessage() {
-  const isRunning = useAuiState((state) => state.thread.isRunning);
-  const isEmpty = useAuiState((state) =>
-    state.message.content.length === 0 ||
-    state.message.content.every((part) => part.type === 'text' && !part.text)
-  );
-
-  if (isRunning && isEmpty) {
-    return (
-      <MessagePrimitive.Root className="flex w-full items-start gap-2 px-1 py-2 md:px-3" role="status" aria-live="polite">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EEF6FF] text-[#4F9CF9]">
-          <RiSparkling2Line className="animate-pulse" aria-hidden="true" />
-        </div>
-        <div className="rounded-2xl rounded-tl-md border bg-card px-3.5 py-2.5 text-sm text-muted-foreground shadow-sm">
-          <span className="inline-flex items-center gap-1.5">
-            Thinking through your portfolio
-            <span className="flex gap-1" aria-hidden="true">
-              <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
-              <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
-              <span className="size-1 animate-bounce rounded-full bg-current" />
-            </span>
-          </span>
-        </div>
-      </MessagePrimitive.Root>
-    );
-  }
-
-  return (
-    <MessagePrimitive.Root className="group/message flex w-full items-start gap-2 px-1 py-2 md:px-3">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EEF6FF] text-[#4F9CF9]">
-        <RiRobot2Line aria-hidden="true" />
-      </div>
-      <div className="min-w-0 max-w-[min(46rem,calc(100%-2.25rem))]">
-        <div className="rounded-2xl rounded-tl-md border border-border bg-card px-3.5 py-2.5 text-sm leading-6 text-foreground shadow-sm">
-          <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
-          <MessageTime />
-        </div>
-        <AssistantMessageActions />
-      </div>
-    </MessagePrimitive.Root>
-  );
-}
-
-const formatToolName = (name: string): string => {
-  const map: Record<string, string> = {
-    get_spending_summary: 'Analyzed spending summary',
-    get_category_spending: 'Calculated category totals',
-    get_top_merchants: 'Checked top merchants',
-    get_monthly_spending: 'Reviewed monthly trends',
-    calculate_change: 'Calculated period change',
-    get_current_date: 'Checked current date',
-    get_transactions: 'Retrieved transactions',
-    search_transactions: 'Searched transactions',
-    get_transaction: 'Retrieved transaction details',
-    create_expense: 'Prepared expense entry',
-    delete_expense: 'Prepared expense deletion',
-    get_investments: 'Checked investment portfolio',
-    get_investment_summary: 'Calculated portfolio metrics',
-    get_recurring_expenses: 'Checked recurring expenses',
-    get_ai_memory: 'Retrieved user goals & preferences',
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
   };
-  return map[name] || name.replace(/_/g, ' ');
-};
+
+  const handleFeedback = async (rating: 'thumbs_up' | 'thumbs_down') => {
+    if (!messageId || messageId <= 0) return;
+    setFeedback(rating);
+    try {
+      await aiAdvisorApi.sendFeedback({
+        messageId,
+        rating,
+        sessionId,
+      });
+      toast.success(rating === 'thumbs_up' ? 'Thanks for your feedback!' : 'Feedback received. We will improve.');
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1 opacity-100 md:opacity-0 md:transition-opacity md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[0.7rem] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        title="Copy response"
+      >
+        {copied ? <RiCheckLine className="text-emerald-500" /> : <RiFileCopyLine />}
+        <span>{copied ? 'Copied' : 'Copy'}</span>
+      </button>
+
+      {onRegenerate ? (
+        <button
+          type="button"
+          onClick={onRegenerate}
+          className="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[0.7rem] text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          title="Regenerate answer"
+        >
+          <RiRefreshLine />
+          <span>Regenerate</span>
+        </button>
+      ) : null}
+
+      {messageId && messageId > 0 ? (
+        <div className="ml-1 flex items-center gap-0.5 border-l border-border/60 pl-1">
+          <button
+            type="button"
+            onClick={() => handleFeedback('thumbs_up')}
+            className={`inline-flex size-6 items-center justify-center rounded transition hover:bg-muted ${feedback === 'thumbs_up' ? 'text-emerald-500 font-bold' : 'text-muted-foreground'}`}
+            title="Helpful response"
+          >
+            <RiThumbUpLine className="size-3" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFeedback('thumbs_down')}
+            className={`inline-flex size-6 items-center justify-center rounded transition hover:bg-muted ${feedback === 'thumbs_down' ? 'text-rose-500 font-bold' : 'text-muted-foreground'}`}
+            title="Poor response"
+          >
+            <RiThumbDownLine className="size-3" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+
 
 function PendingActionCard({
   pendingAction,
@@ -198,18 +183,18 @@ function PendingActionCard({
     return (
       <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
         <RiCheckLine className="text-emerald-500" />
-        <span>Action {resolvedStatus === 'confirmed' ? 'confirmed and executed' : 'cancelled'}.</span>
+        <span>Action {resolvedStatus === 'confirmed' ? 'confirmed and executed successfully.' : 'cancelled.'}</span>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 text-xs shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+    <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-xs shadow-sm dark:border-amber-900/60 dark:bg-amber-950/40">
       <div className="flex items-center gap-1.5 font-semibold text-amber-900 dark:text-amber-200">
         <RiAlertLine className="size-4 text-amber-600 dark:text-amber-400" />
         <span>Confirmation Required</span>
       </div>
-      <p className="mt-1.5 text-foreground">{pendingAction.summary}</p>
+      <p className="mt-1.5 text-foreground leading-relaxed">{pendingAction.summary}</p>
       <div className="mt-3 flex items-center gap-2">
         <Button
           type="button"
@@ -235,182 +220,6 @@ function PendingActionCard({
   );
 }
 
-function AdvisorThread({
-  hasConversation,
-  isLoading,
-  loadError,
-  sendError,
-  onDismissSendError,
-  onRetryLoad,
-  viewportRef,
-  onViewportScroll,
-  onFollowLatest,
-  showScrollToBottom,
-  suggestedPrompts,
-  displayProvider,
-  isStreaming,
-  pendingAction,
-  toolsUsed,
-  sessionId,
-  onResponseComplete,
-}: {
-  hasConversation: boolean;
-  isLoading: boolean;
-  loadError: boolean;
-  sendError: boolean;
-  onDismissSendError: () => void;
-  onRetryLoad: () => void;
-  viewportRef: RefObject<HTMLDivElement | null>;
-  onViewportScroll: (event: UIEvent<HTMLDivElement>) => void;
-  onFollowLatest: () => void;
-  showScrollToBottom: boolean;
-  suggestedPrompts: string[];
-  displayProvider: string | null;
-  isStreaming: boolean;
-  pendingAction?: AdvisorChatResponse['pending_action'];
-  toolsUsed?: string[];
-  sessionId: string;
-  onResponseComplete: () => Promise<unknown>;
-}) {
-  return (
-    <ThreadPrimitive.Root className="relative flex min-h-0 flex-1 flex-col">
-      <ThreadPrimitive.Viewport
-        ref={viewportRef}
-        autoScroll={false}
-        scrollToBottomOnInitialize={false}
-        scrollToBottomOnThreadSwitch={false}
-        scrollToBottomOnRunStart={false}
-        onScroll={onViewportScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-1 py-2 pb-5 md:rounded-lg md:border md:border-border md:px-2"
-      >
-        <ThreadPrimitive.Messages components={{ UserMessage, AssistantMessage }} />
-
-        {toolsUsed && toolsUsed.length > 0 && !isStreaming ? (
-          <div className="mx-2 mb-2 flex flex-wrap items-center gap-1.5 px-1 md:mx-3">
-            <span className="inline-flex items-center gap-1 text-[0.7rem] font-medium text-muted-foreground">
-              <RiToolsLine className="size-3 text-[#4F9CF9]" /> Tools used:
-            </span>
-            {toolsUsed.map((tool) => (
-              <span
-                key={tool}
-                className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[0.68rem] font-medium text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
-              >
-                <RiCheckLine className="size-3" />
-                {formatToolName(tool)}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {pendingAction && !isStreaming ? (
-          <div className="mx-2 mb-3 md:mx-3">
-            <PendingActionCard
-              pendingAction={pendingAction}
-              sessionId={sessionId}
-              onResolved={onResponseComplete}
-            />
-          </div>
-        ) : null}
-
-        {!hasConversation && !isLoading && !loadError ? (
-          <div className="mx-auto grid w-full max-w-2xl gap-2 px-2 pb-4 pt-2 sm:grid-cols-3">
-            {starterPrompts.map((prompt) => (
-              <ThreadPrimitive.Suggestion
-                key={prompt}
-                prompt={prompt}
-                send
-                className="rounded-xl border bg-white p-3 text-left text-xs leading-5 text-muted-foreground shadow-sm transition hover:border-[#4F9CF9]/40 hover:bg-[#EEF6FF] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {prompt}
-              </ThreadPrimitive.Suggestion>
-            ))}
-          </div>
-        ) : null}
-
-        {isLoading ? (
-          <p className="px-3 py-3 text-sm text-muted-foreground" role="status">Loading your conversation…</p>
-        ) : null}
-
-        {loadError ? (
-          <div className="mx-3 my-3 flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
-            <span>We couldn’t load this conversation.</span>
-            <Button type="button" variant="outline" size="sm" onClick={onRetryLoad}>
-              <RiRefreshLine aria-hidden="true" /> Retry
-            </Button>
-          </div>
-        ) : null}
-
-      </ThreadPrimitive.Viewport>
-
-      {showScrollToBottom ? (
-        <button
-          type="button"
-          onClick={onFollowLatest}
-          className="absolute bottom-[6.25rem] left-1/2 z-20 flex size-9 -translate-x-1/2 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition hover:text-foreground md:bottom-[5.5rem]"
-          aria-label="Scroll to latest message"
-          title="Scroll to latest message"
-        >
-          <RiArrowDownLine aria-hidden="true" />
-        </button>
-      ) : null}
-
-      {sendError ? (
-        <div className="mx-2 mt-2 flex items-start justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive md:mx-0">
-          <p>Your question was saved, but the advisor couldn’t finish its response. You can continue when the service recovers.</p>
-          <button type="button" className="shrink-0 font-semibold underline" onClick={onDismissSendError}>Dismiss</button>
-        </div>
-      ) : null}
-
-      <ComposerPrimitive.Root className="sticky bottom-0 z-10 shrink-0 border-t bg-white/95 p-2 md:border-0 md:bg-card md:px-0 md:pb-1 md:pt-3">
-        {suggestedPrompts.length > 0 && !isStreaming ? (
-          <div className="mb-2 flex flex-wrap gap-1.5 px-0.5">
-            {suggestedPrompts.map((prompt) => (
-              <ThreadPrimitive.Suggestion
-                key={prompt}
-                prompt={prompt}
-                send
-                className="rounded-full border border-[#4F9CF9]/30 bg-[#EEF6FF] px-2.5 py-1 text-left text-[0.7rem] leading-4 text-[#4F9CF9] shadow-sm transition hover:border-[#4F9CF9]/60 hover:bg-[#4F9CF9]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {prompt}
-              </ThreadPrimitive.Suggestion>
-            ))}
-          </div>
-        ) : null}
-        <div className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm transition focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/20 md:rounded-xl">
-          <ComposerPrimitive.Input
-            submitMode="enter"
-            unstable_insertNewlineOnTouchEnter
-            maxLength={2000}
-            minRows={1}
-            maxRows={6}
-            placeholder="Ask about your investments or financial goals…"
-            aria-label="Message the wealth advisor"
-            className="min-h-9 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 outline-none placeholder:text-muted-foreground"
-          />
-          <ComposerPrimitive.Send
-            className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition hover:bg-primary/85 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Send message"
-            title="Send message (Enter)"
-          >
-            <RiSendPlane2Line aria-hidden="true" />
-          </ComposerPrimitive.Send>
-        </div>
-        <div className="mt-1.5 flex items-center justify-between px-1 text-[0.68rem] text-muted-foreground">
-          <span>Enter to send · Shift+Enter for a new line</span>
-          {displayProvider ? (
-            <span className="flex max-w-[55%] items-center gap-1 truncate">
-              <span className="inline-block size-1.5 shrink-0 rounded-full bg-green-400" aria-hidden="true" />
-              <span className="truncate">{displayProvider}</span>
-            </span>
-          ) : (
-            <span>Planning guidance only</span>
-          )}
-        </div>
-      </ComposerPrimitive.Root>
-    </ThreadPrimitive.Root>
-  );
-}
-
 export function AdvisorChatPanel({
   messages,
   introMessage,
@@ -420,239 +229,447 @@ export function AdvisorChatPanel({
   onResponseComplete,
   onRetryLoad,
 }: AdvisorChatPanelProps) {
-  const [stagedUserMessage, setStagedUserMessage] = useState<AdvisorMessage | null>(null);
-  const [streamingMessage, setStreamingMessage] = useState<AdvisorMessage | null>(null);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<string | null>(null);
+  const [executedTools, setExecutedTools] = useState<Array<{ name: string; label: string; summary: string }>>([]);
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false);
+  const [streamingText, setStreamingText] = useState<string>('');
+  const [lastCompletedResponse, setLastCompletedResponse] = useState<any>(null);
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editPromptText, setEditPromptText] = useState<string>('');
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [lastResponse, setLastResponse] = useState<AdvisorChatResponse | null>(null);
+  const [inputText, setInputText] = useState('');
 
-  // Derived from last response — cleared while the AI is thinking
-  const suggestedPrompts = (!sendMutation.isPending && !isStreaming)
-    ? (lastResponse?.suggested_prompts ?? [])
-    : [];
-  const displayProvider: string | null = (() => {
-    if (sendMutation.isPending || isStreaming || !lastResponse?.provider) return null;
-    if (lastResponse.provider.startsWith('local-')) return null;
-    return [lastResponse.provider, lastResponse.model].filter(Boolean).join(' · ');
-  })();
-  const streamActiveRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const shouldFollowRef = useRef(false);
-  const initializedSessionRef = useRef<string | null>(null);
-  const manualScrollRef = useRef(false);
-  const manualScrollTimeoutRef = useRef<number | null>(null);
-  const initialScrollCleanupRef = useRef<(() => void) | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const shouldFollowRef = useRef(true);
 
-  useEffect(() => () => {
-    streamActiveRef.current = false;
-    if (manualScrollTimeoutRef.current) window.clearTimeout(manualScrollTimeoutRef.current);
-    initialScrollCleanupRef.current?.();
+  // Auto-resize textarea as user types
+  const autoResizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 144)}px`;
+    }
   }, []);
 
-  useEffect(() => {
-    if (messages.length === 0) {
-      setLastResponse(null);
-      setStagedUserMessage(null);
-      setStreamingMessage(null);
+  // Suggested prompts
+  const suggestedPrompts = !isGenerating ? (lastCompletedResponse?.suggestedPrompts || []) : [];
+
+  // Scroll viewport to bottom
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+      setShowScrollToBottom(false);
     }
-  }, [messages.length]);
-
-  const runtimeMessages = useMemo(
-    () => [
-      introMessage,
-      ...messages,
-      ...(stagedUserMessage ? [stagedUserMessage] : []),
-      ...(streamingMessage ? [streamingMessage] : []),
-    ],
-    [introMessage, messages, stagedUserMessage, streamingMessage]
-  );
-
-  useLayoutEffect(() => {
-    if (isLoading || initializedSessionRef.current === introMessage.session_id) return;
-
-    initializedSessionRef.current = introMessage.session_id;
-    shouldFollowRef.current = true;
-    initialScrollCleanupRef.current?.();
-
-    const scrollToBottom = () => {
-      const viewport = viewportRef.current;
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-        setShowScrollToBottom(false);
-      }
-    };
-
-    const frame = window.requestAnimationFrame(() => {
-      scrollToBottom();
-      window.requestAnimationFrame(scrollToBottom);
-    });
-    const timers = [50, 150, 350, 700].map((delay) => window.setTimeout(scrollToBottom, delay));
-    const observer = new ResizeObserver(scrollToBottom);
-    if (viewportRef.current) observer.observe(viewportRef.current);
-
-    initialScrollCleanupRef.current = () => {
-      window.cancelAnimationFrame(frame);
-      timers.forEach((timer) => window.clearTimeout(timer));
-      observer.disconnect();
-      initialScrollCleanupRef.current = null;
-    };
-
-    return initialScrollCleanupRef.current;
-  }, [introMessage.session_id, isLoading, runtimeMessages.length]);
-
-  useLayoutEffect(() => {
-    if (!shouldFollowRef.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const viewport = viewportRef.current;
-      if (viewport) {
-        viewport.scrollTop = viewport.scrollHeight;
-        setShowScrollToBottom(false);
-      }
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [stagedUserMessage, streamingMessage?.content]);
+  };
 
   const handleViewportScroll = (event: UIEvent<HTMLDivElement>) => {
     const viewport = event.currentTarget;
     const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    shouldFollowRef.current = distanceFromBottom < 100;
+    setShowScrollToBottom(distanceFromBottom >= 100);
+  };
 
-    if (manualScrollRef.current) {
-      if (distanceFromBottom < 4) {
-        manualScrollRef.current = false;
-        shouldFollowRef.current = true;
-        setShowScrollToBottom(false);
-        if (manualScrollTimeoutRef.current) {
-          window.clearTimeout(manualScrollTimeoutRef.current);
-          manualScrollTimeoutRef.current = null;
-        }
-      }
-      return;
+  useEffect(() => {
+    if (shouldFollowRef.current) {
+      scrollToBottom('auto');
+    }
+  }, [messages.length, streamingText, activeStatus]);
+
+  // Main streaming submission function
+  const handleSendMessage = async (userPrompt: string) => {
+    const trimmed = userPrompt.trim();
+    if (!trimmed || isGenerating) return;
+
+    setInputText('');
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
     }
 
-    shouldFollowRef.current = distanceFromBottom < 120;
-    setShowScrollToBottom(distanceFromBottom >= 120);
-  };
+    setIsGenerating(true);
+    setActiveStatus('Understanding your request...');
+    setExecutedTools([]);
+    setIsToolsExpanded(false);
+    setStreamingText('');
+    setLastCompletedResponse(null);
+    shouldFollowRef.current = true;
 
-  const scrollToLatest = () => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
+    abortControllerRef.current = new AbortController();
 
-    manualScrollRef.current = true;
-    shouldFollowRef.current = false;
-    setShowScrollToBottom(false);
-    viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    try {
+      await aiAdvisorApi.streamMessage(
+        trimmed,
+        introMessage.session_id,
+        (event: StreamEvent) => {
+          if (event.type === 'status') {
+            setActiveStatus(event.label);
+          } else if (event.type === 'tool_start') {
+            setActiveStatus(event.label);
+          } else if (event.type === 'tool_result') {
+            setExecutedTools((prev) => [
+              ...prev,
+              { name: event.name, label: event.label, summary: event.summary },
+            ]);
+          } else if (event.type === 'text_delta') {
+            setActiveStatus(null);
+            setStreamingText((prev) => prev + event.text);
+          } else if (event.type === 'pending_action') {
+            setLastCompletedResponse((prev: any) => ({
+              ...prev,
+              pendingAction: event,
+            }));
+          } else if (event.type === 'message_complete') {
+            setLastCompletedResponse(event);
+          } else if (event.type === 'error') {
+            toast.error(event.error);
+          }
+        },
+        undefined,
+        abortControllerRef.current.signal
+      );
 
-    if (manualScrollTimeoutRef.current) window.clearTimeout(manualScrollTimeoutRef.current);
-    manualScrollTimeoutRef.current = window.setTimeout(() => {
-      manualScrollRef.current = false;
-      shouldFollowRef.current = true;
-      setShowScrollToBottom(false);
-      manualScrollTimeoutRef.current = null;
-    }, 1200);
-  };
-
-  const revealResponse = async (response: AdvisorChatResponse) => {
-    const completeMessage = {
-      ...response.message,
-      content: stripAdvisorReasoning(response.message.content),
-    };
-    const pieces = completeMessage.content.split(/(\s+)/).filter(Boolean);
-    const batchSize = Math.max(1, Math.ceil(pieces.length / 220));
-    let visibleContent = '';
-
-    setStreamingMessage({ ...completeMessage, content: '' });
-
-    for (let index = 0; index < pieces.length; index += batchSize) {
-      if (!streamActiveRef.current) return;
-      visibleContent += pieces.slice(index, index + batchSize).join('');
-      setStreamingMessage({ ...completeMessage, content: visibleContent });
-      await new Promise((resolve) => window.setTimeout(resolve, 32));
+      await onResponseComplete();
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        toast.error('Could not complete generation. Please try again.');
+      }
+    } finally {
+      setIsGenerating(false);
+      setActiveStatus(null);
+      setStreamingText('');
+      abortControllerRef.current = null;
     }
   };
 
-  const runtime = useExternalStoreRuntime({
-    messages: runtimeMessages,
-    convertMessage,
-    isLoading,
-    isRunning: sendMutation.isPending || isStreaming,
-    isSendDisabled: isLoading || loadError,
-    onNew: async (message) => {
-      const content = message.content
-        .filter((part) => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n')
-        .trim();
+  const handleStopGenerating = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsGenerating(false);
+      setActiveStatus(null);
+      toast.info('Generation stopped.');
+    }
+  };
 
-      if (!content) return;
-      const optimisticId = -Date.now();
-      const createdAt = new Date().toISOString();
-      shouldFollowRef.current = true;
-      setStagedUserMessage({
-        id: optimisticId,
-        session_id: introMessage.session_id,
-        role: 'user',
-        content,
-        created_at: createdAt,
-      });
+  const handleRegenerateLast = () => {
+    const lastUserTurn = [...messages].reverse().find((m) => m.role === 'user');
+    if (lastUserTurn) {
+      handleSendMessage(lastUserTurn.content);
+    }
+  };
 
-      // Allow the blue user bubble to paint before adding the assistant turn.
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-
-      setIsStreaming(true);
-      setStreamingMessage({
-        id: optimisticId - 1,
-        session_id: introMessage.session_id,
-        role: 'assistant',
-        content: '',
-        created_at: createdAt,
-      });
-      const requestStartedAt = Date.now();
-
-      try {
-        const response = await sendMutation.mutateAsync(content);
-        setLastResponse(response);
-        const remainingThinkingTime = Math.max(0, 350 - (Date.now() - requestStartedAt));
-        if (remainingThinkingTime) {
-          await new Promise((resolve) => window.setTimeout(resolve, remainingThinkingTime));
-        }
-        await revealResponse(response);
-        await onResponseComplete();
-        setStagedUserMessage(null);
-        setStreamingMessage(null);
-      } catch (error) {
-        setStagedUserMessage(null);
-        setStreamingMessage(null);
-        throw error;
-      } finally {
-        if (streamActiveRef.current) setIsStreaming(false);
-      }
-    },
-  });
+  const handleSaveUserEdit = (originalId: number) => {
+    if (editPromptText.trim()) {
+      handleSendMessage(editPromptText.trim());
+    }
+    setEditingMessageId(null);
+  };
 
   return (
-    <Card className="flex min-h-0 flex-1 rounded-none border-0 bg-transparent py-0 shadow-none md:rounded-lg md:border md:bg-card md:shadow-sm">
-      <CardContent className="flex min-h-0 flex-1 flex-col px-0 py-0 md:p-2">
-        <AssistantRuntimeProvider runtime={runtime}>
-          <AdvisorThread
-            hasConversation={messages.length > 0 || Boolean(stagedUserMessage)}
-            isLoading={isLoading}
-            loadError={loadError}
-            sendError={sendMutation.isError}
-            onDismissSendError={sendMutation.reset}
-            onRetryLoad={onRetryLoad}
-            viewportRef={viewportRef}
-            onViewportScroll={handleViewportScroll}
-            onFollowLatest={scrollToLatest}
-            showScrollToBottom={showScrollToBottom}
-            suggestedPrompts={suggestedPrompts}
-            displayProvider={displayProvider}
-            isStreaming={isStreaming}
-            pendingAction={lastResponse?.pending_action}
-            toolsUsed={lastResponse?.tools_used}
-            sessionId={introMessage.session_id}
-            onResponseComplete={onResponseComplete}
-          />
-        </AssistantRuntimeProvider>
+    <Card className="flex min-h-0 flex-1 flex-col rounded-none border-0 bg-transparent py-0 shadow-none md:rounded-xl md:border md:border-border/80 md:bg-card md:shadow-sm">
+      <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
+        {/* Messages Viewport */}
+        <div
+          ref={viewportRef}
+          onScroll={handleViewportScroll}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#FAFBFC] px-2 py-3 pb-6 md:rounded-t-xl dark:bg-background md:px-4"
+        >
+          {/* Loading skeleton */}
+          {isLoading ? (
+            <div className="space-y-5 px-1 py-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex w-full items-start gap-2.5">
+                  <div className="mt-0.5 size-7 shrink-0 animate-pulse rounded-full bg-muted/70" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-3/4 animate-pulse rounded bg-muted/70" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-muted/50" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Empty State / Starter Cards */}
+          {!isLoading && messages.length === 0 && !isGenerating ? (
+            <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center px-2 py-8 text-center">
+              <div className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#4F9CF9] to-[#80BFFF] text-white shadow-lg">
+                <RiSparkling2Line className="size-7" />
+              </div>
+              <h2 className="text-lg font-semibold text-foreground">Welcome to Finovo AI</h2>
+              <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
+                Your production personal wealth and finance advisor. Ask anything about your daily expenses, monthly budgets, SIP investments, or Indian tax rules.
+              </p>
+
+              <div className="mt-6 grid w-full gap-2.5 sm:grid-cols-2">
+                {starterPromptCards.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <button
+                      key={card.title}
+                      type="button"
+                      onClick={() => handleSendMessage(card.prompt)}
+                      className="group flex flex-col items-start rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-xs transition hover:border-[#4F9CF9] hover:bg-[#EEF6FF]/50 dark:hover:bg-blue-950/20"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-semibold text-foreground group-hover:text-[#4F9CF9]">
+                        <Icon className="size-4 text-[#4F9CF9]" />
+                        <span>{card.title}</span>
+                      </div>
+                      <p className="mt-1 text-[0.72rem] leading-relaxed text-muted-foreground">
+                        {card.prompt}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Render historical messages */}
+          <div className="space-y-4">
+            {messages.map((message) => {
+              if (message.role === 'user') {
+                const isEditing = editingMessageId === message.id;
+                return (
+                  <div key={message.id} className="group/user flex w-full justify-end px-1">
+                    {isEditing ? (
+                      <div className="w-full max-w-xl rounded-2xl border border-[#4F9CF9] bg-card p-3 shadow-md">
+                        <textarea
+                          value={editPromptText}
+                          onChange={(e) => setEditPromptText(e.target.value)}
+                          className="w-full resize-none bg-transparent text-sm text-foreground outline-none"
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => setEditingMessageId(null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 bg-[#4F9CF9] text-xs text-white hover:bg-[#3d8be8]"
+                            onClick={() => handleSaveUserEdit(message.id)}
+                          >
+                            Save & Send
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative max-w-[min(44rem,88%)]">
+                        <div className="rounded-2xl rounded-br-md bg-[#4F9CF9] px-4 py-2.5 text-sm leading-6 text-white shadow-xs">
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <time className="mt-1 block text-[0.65rem] text-white/80">
+                            {formatLocalTime(new Date(message.created_at))}
+                          </time>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingMessageId(message.id);
+                            setEditPromptText(message.content);
+                          }}
+                          className="absolute -left-7 top-2 text-muted-foreground opacity-0 transition hover:text-foreground group-hover/user:opacity-100"
+                          title="Edit question"
+                        >
+                          <RiEditLine className="size-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={message.id} className="group/message flex w-full items-start gap-2.5 px-1">
+                  <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EEF6FF] text-[#4F9CF9] dark:bg-blue-950/50">
+                    <RiRobot2Line className="size-4" />
+                  </div>
+                  <div className="min-w-0 max-w-[min(46rem,calc(100%-2.5rem))]">
+                    <div className="rounded-2xl rounded-tl-md border border-border/80 bg-card px-4 py-3 text-sm shadow-xs">
+                      <MarkdownRenderer content={stripAdvisorReasoning(message.content)} />
+                      <time className="mt-1.5 block text-[0.65rem] text-muted-foreground">
+                        {formatLocalTime(new Date(message.created_at))}
+                      </time>
+                    </div>
+                    <AssistantMessageActions
+                      messageId={message.id}
+                      content={message.content}
+                      sessionId={message.session_id}
+                      onRegenerate={handleRegenerateLast}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Active Streaming Assistant Turn */}
+            {isGenerating || streamingText ? (
+              <div className="flex w-full items-start gap-2.5 px-1">
+                <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-[#EEF6FF] text-[#4F9CF9] animate-pulse dark:bg-blue-950/50">
+                  <RiSparkling2Line className="size-4" />
+                </div>
+                <div className="min-w-0 max-w-[min(46rem,calc(100%-2.5rem))] space-y-2">
+                  {/* Tool execution indicator pill */}
+                  {activeStatus ? (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-[#4F9CF9]/30 bg-[#EEF6FF] px-3 py-1 text-xs font-medium text-[#1E3A8A] shadow-xs animate-pulse dark:border-blue-800/40 dark:bg-blue-950/60 dark:text-blue-200">
+                      <RiToolsLine className="size-3.5 text-[#4F9CF9]" />
+                      <span>{activeStatus}</span>
+                      <span className="flex gap-1" aria-hidden="true">
+                        <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
+                        <span className="size-1 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
+                        <span className="size-1 animate-bounce rounded-full bg-current" />
+                      </span>
+                    </div>
+                  ) : null}
+
+                  {/* Executed tools collapsible chip */}
+                  {executedTools.length > 0 ? (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setIsToolsExpanded(!isToolsExpanded)}
+                        className="inline-flex items-center gap-1.5 text-[0.7rem] font-medium text-muted-foreground hover:text-foreground"
+                      >
+                        <RiCheckLine className="text-emerald-500" />
+                        <span>Used {executedTools.length} verified tool{executedTools.length > 1 ? 's' : ''}</span>
+                        <span className="underline">{isToolsExpanded ? 'Hide' : 'View'}</span>
+                      </button>
+                      {isToolsExpanded ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {executedTools.map((t, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[0.68rem] text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            >
+                              <RiCheckLine className="size-3" />
+                              {t.label.replace('...', '')}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {/* Streaming Text Render */}
+                  {streamingText ? (
+                    <div className="rounded-2xl rounded-tl-md border border-border/80 bg-card px-4 py-3 text-sm shadow-xs">
+                      <MarkdownRenderer content={streamingText} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Pending Action Card if returned */}
+            {lastCompletedResponse?.pendingAction ? (
+              <div className="mx-2 my-2">
+                <PendingActionCard
+                  pendingAction={lastCompletedResponse.pendingAction}
+                  sessionId={introMessage.session_id}
+                  onResolved={onResponseComplete}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollToBottom ? (
+          <button
+            type="button"
+            onClick={() => scrollToBottom('smooth')}
+            className="absolute bottom-24 left-1/2 z-20 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-md transition hover:text-foreground"
+            aria-label="Scroll to bottom"
+          >
+            <RiArrowDownLine className="size-4" />
+          </button>
+        ) : null}
+
+        {/* Composer Area */}
+        <div className="shrink-0 border-t border-border/70 bg-card p-3 md:px-4 md:py-3">
+          {/* Suggested follow-up prompt pills */}
+          {suggestedPrompts.length > 0 && !isGenerating ? (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {suggestedPrompts.map((prompt: string) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handleSendMessage(prompt)}
+                  className="rounded-full border border-[#4F9CF9]/30 bg-[#EEF6FF] px-2.5 py-1 text-left text-[0.7rem] leading-4 text-[#4F9CF9] shadow-2xs transition hover:border-[#4F9CF9]/60 hover:bg-[#4F9CF9]/15 dark:bg-blue-950/40 dark:text-blue-300"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Text Input and Action Buttons */}
+          <div className="relative flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-xs transition focus-within:border-[#4F9CF9] focus-within:ring-2 focus-within:ring-[#4F9CF9]/20">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              placeholder="Ask Finovo about your spending, budget, or wealth goals..."
+              disabled={isLoading || loadError}
+              rows={1}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                autoResizeTextarea();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (inputText.trim() && !isGenerating) {
+                    handleSendMessage(inputText);
+                  }
+                }
+              }}
+              className="max-h-36 min-h-9 flex-1 resize-none bg-transparent px-2.5 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+            />
+
+            {isGenerating ? (
+              <Button
+                type="button"
+                onClick={handleStopGenerating}
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white shadow-xs hover:bg-rose-600"
+                title="Stop generating"
+              >
+                <RiStopCircleLine className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (inputText.trim()) {
+                    handleSendMessage(inputText);
+                  }
+                }}
+                disabled={isLoading || loadError || !inputText.trim()}
+                className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#4F9CF9] text-white shadow-xs hover:bg-[#3d8be8] disabled:cursor-not-allowed disabled:opacity-40"
+                title="Send message"
+              >
+                <RiSendPlane2Line className="size-4" />
+              </Button>
+            )}
+          </div>
+
+          <div className="mt-1.5 flex items-center justify-between px-1 text-[0.68rem] text-muted-foreground">
+            <span>Enter to send · Shift+Enter for new line</span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+              <span>Finovo AI Agent v2.0 (Gemini 2.5)</span>
+            </span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
