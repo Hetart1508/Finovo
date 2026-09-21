@@ -286,8 +286,9 @@ export const runStreamingAdvisorAgent = async (
               });
             }
 
+            // IMPORTANT: Gemini REST API requires role "user" (not "function") for functionResponse parts
             contents.push({
-              role: "function",
+              role: "user",
               parts: functionResponseParts,
             });
 
@@ -301,21 +302,38 @@ export const runStreamingAdvisorAgent = async (
             .join("\n")
             .trim();
 
+          // If the model returned empty text (can happen when tool responses weren't
+          // processed correctly on the first synthesis), push an explicit prompt and retry once.
+          if (!accumulatedReply && iterations < MAX_AGENT_ITERATIONS) {
+            logger.warn("Agent received empty synthesis — pushing explicit summary prompt", { iterations });
+            contents.push({
+              role: "user",
+              parts: [{ text: "Please provide a clear summary of the financial data you retrieved from the tools above. Format the response with INR (₹) amounts and include actionable insights." }],
+            });
+            continue; // one more synthesis pass
+          }
+
           if (!accumulatedReply && pendingAction) {
             accumulatedReply = pendingAction.message;
           }
 
+          // Last-resort: if still empty after all retries, provide a meaningful message
+          if (!accumulatedReply) {
+            accumulatedReply = "I retrieved your financial data but had trouble formatting the summary. Please try rephrasing your question or ask me to break it into smaller parts (e.g. \"Show my September spending by category\").";
+          }
+
           // Output guardrail: enforce disclaimer
           const hasDisclaimer = /disclaimer|planning guidance|not financial advice|not investment advice/i.test(accumulatedReply);
-          if (!hasDisclaimer && accumulatedReply) {
+          if (!hasDisclaimer) {
             accumulatedReply += "\n\n*Disclaimer: This is for educational and financial planning purposes only and should not be construed as SEBI-registered investment advice. Past performance is not indicative of future returns.*";
           }
 
-          // Stream final text delta chunks to client
+          // Stream final text delta chunks — preserve spaces between chunks
           const words = accumulatedReply.split(/(\s+)/).filter(Boolean);
           const chunkSize = Math.max(1, Math.ceil(words.length / 45));
           for (let i = 0; i < words.length; i += chunkSize) {
             if (abortSignal?.aborted) break;
+            // join with empty string because the regex captures spaces as separate tokens
             const delta = words.slice(i, i + chunkSize).join("");
             emitEvent({ type: "text_delta", text: delta });
             await new Promise((r) => setTimeout(r, 16));

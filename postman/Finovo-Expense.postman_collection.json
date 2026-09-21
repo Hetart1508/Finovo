@@ -234,6 +234,24 @@
       "key": "monthlyReportCronSecret",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "aiSessionId",
+      "value": "default",
+      "type": "string",
+      "description": "Active AI Advisor session ID — auto-set by '01 · Create New Session' test script"
+    },
+    {
+      "key": "aiMessageId",
+      "value": "1",
+      "type": "string",
+      "description": "Last AI assistant message ID — auto-set by '07 · Chat' test script"
+    },
+    {
+      "key": "aiActionId",
+      "value": "",
+      "type": "string",
+      "description": "Pending destructive action ID — auto-set when AI proposes create/delete expense"
     }
   ],
   "auth": {
@@ -1405,6 +1423,225 @@
             },
             "url": "{{baseUrl}}/upload",
             "description": "Uploads a bill/invoice PDF or image using multipart form-data key file."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🤖 AI Advisor Agent",
+      "description": "Production AI Financial Advisor endpoints — sessions, SSE streaming chat, tool confirmation, and feedback.",
+      "item": [
+        {
+          "name": "01 · Create New Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.session_id) pm.collectionVariables.set('aiSessionId', json.session_id);",
+                  "  console.log('AI Session ID saved:', json.session_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My Finance Analysis Session\"\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/sessions",
+            "description": "Creates a new AI advisor conversation session. The test script auto-saves session_id to the aiSessionId variable."
+          }
+        },
+        {
+          "name": "02 · List All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-advisor/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-advisor", "sessions"],
+              "query": [
+                {
+                  "key": "archived",
+                  "value": "false",
+                  "description": "Set to true to list archived sessions instead",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Returns all advisor sessions for the authenticated user, grouped by recency. Set archived=true to list archived sessions."
+          }
+        },
+        {
+          "name": "03 · Search Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-advisor/sessions/search?q=spending",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-advisor", "sessions", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "spending",
+                  "description": "Keyword to search session titles"
+                }
+              ]
+            },
+            "description": "Full-text search of conversation session titles. Returns matching sessions with optional snippet."
+          }
+        },
+        {
+          "name": "04 · Patch Session (Rename / Archive / Pin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"September Budget Analysis\",\n  \"archived\": false,\n  \"pinned\": true\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/sessions/{{aiSessionId}}",
+            "description": "Rename, archive, or pin a session. Send only the fields you want to change. Set archived: true to archive or false to restore. Set pinned: true to pin to top of sidebar."
+          }
+        },
+        {
+          "name": "05 · Delete Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/ai-advisor/sessions/{{aiSessionId}}",
+            "description": "Permanently deletes a session and all its messages. This action cannot be undone."
+          }
+        },
+        {
+          "name": "06 · List Messages in Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-advisor/messages?sessionId={{aiSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-advisor", "messages"],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{aiSessionId}}"
+                }
+              ]
+            },
+            "description": "Returns all messages (user + assistant turns) for a session, ordered by created_at ASC. Each assistant message may include tools_executed."
+          }
+        },
+        {
+          "name": "07 · Chat (Standard — Non-Streaming)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.message && json.message.id) pm.collectionVariables.set('aiMessageId', String(json.message.id));",
+                  "  if (json.pending_action && json.pending_action.actionId) {",
+                  "    pm.collectionVariables.set('aiActionId', json.pending_action.actionId);",
+                  "    console.log('Pending action saved — use endpoint 09 to confirm/cancel');",
+                  "  }",
+                  "  console.log('Provider:', json.provider, '| Tools used:', json.tools_used);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"How much did I spend this month and what are my top expense categories?\",\n  \"sessionId\": \"{{aiSessionId}}\",\n  \"clientMemories\": []\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/chat",
+            "description": "Sends a message to the AI advisor and receives the complete response (non-streaming). The agent runs tools internally and returns the final reply. For real-time streaming token output, use endpoint 08 instead.\n\nTest script auto-saves:\n- aiMessageId: the assistant message ID\n- aiActionId: if a destructive action (create/delete expense) requires confirmation\n\nExample messages to try:\n• 'How much did I spend this month?'\n• 'Compare September vs August spending'\n• 'Am I over my food budget?'\n• 'Explain Section 80C tax saving options'\n• 'What are my top 5 expenses this month?'"
+          }
+        },
+        {
+          "name": "08 · Chat Stream (SSE — Real-Time Streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "text/event-stream" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Compare my spending this month with last month and show where expenses increased.\",\n  \"sessionId\": \"{{aiSessionId}}\",\n  \"clientMemories\": []\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/chat/stream",
+            "description": "⚡ SSE Streaming endpoint — streams AI response tokens in real-time.\n\n⚠️ POSTMAN NOTE: Postman shows the full SSE response body once complete (not live). To see actual streaming, use: curl -X POST http://localhost:3000/api/ai-advisor/chat/stream -H 'Content-Type: application/json' -H 'Cookie: token=YOUR_JWT' -d '{\"message\":\"Analyze my spending\",\"sessionId\":\"default\"}'\n\nEach SSE event is a JSON object prefixed with 'data: ':\n• data: {\"type\":\"status\",\"label\":\"Understanding your request...\"}\n• data: {\"type\":\"tool_start\",\"name\":\"get_spending_summary\",\"label\":\"Analyzing your spending...\"}\n• data: {\"type\":\"tool_result\",\"name\":\"get_spending_summary\",\"summary\":\"Found 42 records\"}\n• data: {\"type\":\"text_delta\",\"text\":\" Your total \"}\n• data: {\"type\":\"message_complete\",\"messageId\":123,\"sessionId\":\"...\",\"toolsUsed\":[...]}\n• data: {\"type\":\"pending_action\",\"actionId\":\"...\",\"toolName\":\"delete_expense\",\"summary\":\"...\"}\n• data: {\"type\":\"error\",\"error\":\"...\"}"
+          }
+        },
+        {
+          "name": "09 · Confirm / Cancel Destructive Action",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{aiSessionId}}\",\n  \"actionId\": \"{{aiActionId}}\",\n  \"confirm\": true\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/confirm",
+            "description": "Confirms or cancels a destructive action (create_expense / delete_expense) that the AI proposed. The actionId comes from a pending_action SSE event or non-streaming response.\n\nSet confirm: true to execute, false to cancel.\nActions expire after 5 minutes for security."
+          }
+        },
+        {
+          "name": "10 · Submit Message Feedback (👍 / 👎)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": \"thumbs_up\",\n  \"comment\": \"Accurate breakdown with great formatting\",\n  \"sessionId\": \"{{aiSessionId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/ai-advisor/messages/{{aiMessageId}}/feedback",
+            "description": "Submits thumbs_up or thumbs_down feedback for a specific assistant message. Used to rate response quality.\n\nrating: 'thumbs_up' | 'thumbs_down'\ncomment: optional text feedback"
+          }
+        },
+        {
+          "name": "11 · Clear All Messages in Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-advisor/messages?sessionId={{aiSessionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-advisor", "messages"],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{aiSessionId}}"
+                }
+              ]
+            },
+            "description": "Deletes all messages in the given session (clears chat history). The session itself is preserved."
           }
         }
       ]
