@@ -310,12 +310,47 @@ const createRateLimiter = (
   name: string,
   rule: RateLimitRule,
   options: { includeEmail?: boolean } = {}
-) => (req: Request, res: Response, next: NextFunction) => {
+) => async (req: Request, res: Response, next: NextFunction) => {
   const now = Date.now();
   cleanupRateLimitBuckets(now);
 
   const includeEmail = options.includeEmail ?? true;
   const { keys, ip, email } = getRateLimitKeys(name, req, includeEmail);
+
+  if (redisEnabled) {
+    let maxCount = 0;
+    let minTtlMs = rule.windowMs;
+    let blocked = false;
+
+    for (const key of keys) {
+      const redisKey = `ratelimit:${key}`;
+      const result = await consumeRedisRateBucket(redisKey, rule.max, rule.windowMs);
+      if (result) {
+        maxCount = Math.max(maxCount, result.count);
+        minTtlMs = Math.min(minTtlMs, result.ttlMs);
+        if (!result.allowed) {
+          blocked = true;
+        }
+      }
+    }
+
+    if (blocked) {
+      const retryAfterSeconds = Math.ceil(minTtlMs / 1000);
+      logger.warn("Rate limit exceeded", { limiter: name, ip, email: email || null, path: req.path });
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      res.setHeader("RateLimit-Limit", String(rule.max));
+      res.setHeader("RateLimit-Remaining", "0");
+      res.setHeader("RateLimit-Reset", String(retryAfterSeconds));
+      return res.status(429).json({ error: rule.message });
+    }
+
+    const remaining = Math.max(0, rule.max - maxCount);
+    res.setHeader("RateLimit-Limit", String(rule.max));
+    res.setHeader("RateLimit-Remaining", String(remaining));
+    res.setHeader("RateLimit-Reset", String(Math.ceil(minTtlMs / 1000)));
+    return next();
+  }
+
   const buckets = keys.map((key) => ({
     key,
     bucket: rateLimitBuckets.get(key),
@@ -391,8 +426,21 @@ const toPositiveInteger = (value: unknown) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
-const getWalletMembership = (walletId: number, userId: number) =>
-  queryOne(`
+export const walletMemberCacheKey = (walletId: number, userId: number) => `wallet_member:${walletId}:${userId}`;
+
+const getWalletMembership = async (walletId: number, userId: number) => {
+  const cacheKey = walletMemberCacheKey(walletId, userId);
+  const cached = await safeGet(cacheKey);
+  if (cached) {
+    if (cached === "none") return null;
+    try {
+      return JSON.parse(cached);
+    } catch {
+      // Fallback to DB if corrupted JSON
+    }
+  }
+
+  const membership = await queryOne(`
     SELECT
       wallets.id,
       wallets.name,
@@ -405,6 +453,15 @@ const getWalletMembership = (walletId: number, userId: number) =>
     WHERE wallets.id = ? AND wallet_members.user_id = ?
     LIMIT 1
   `, [walletId, userId]);
+
+  if (!membership) {
+    await safeSetex(cacheKey, 300, "none");
+  } else {
+    await safeSetex(cacheKey, 300, JSON.stringify(membership));
+  }
+
+  return membership;
+};
 
 const ensurePersonalWallet = async (userId: number) => {
   let wallet: any = await queryOne(
@@ -4630,6 +4687,7 @@ app.post("/api/wallets/:walletId/members", authenticateToken, async (req: any, r
     "INSERT IGNORE INTO wallet_members (wallet_id, user_id, role) VALUES (?, ?, 'member')",
     [walletId, member.id]
   );
+  await safeDel(walletMemberCacheKey(walletId, member.id));
 
   const members = await queryAll(`
     SELECT users.id, users.name, users.email, wallet_members.role, wallet_members.created_at
@@ -4653,6 +4711,7 @@ app.delete("/api/wallets/:walletId/members/:userId", authenticateToken, async (r
 
   const info = await execute("DELETE FROM wallet_members WHERE wallet_id = ? AND user_id = ?", [walletId, memberUserId]);
   if (!info.affectedRows) return res.status(404).json({ error: "Wallet member not found" });
+  await safeDel(walletMemberCacheKey(walletId, memberUserId));
   res.json({ message: "Member removed" });
 });
 
@@ -4984,6 +5043,8 @@ app.delete("/api/user/account", authenticateToken, async (req: any, res) => {
       locked_until = NULL
     WHERE id = ? AND deleted_at IS NULL
   `, [archivedEmail, user.id]);
+
+  await safeDel(userActiveCacheKey(user.id));
 
   res.clearCookie(AUTH_COOKIE_NAME, getAuthCookieOptions());
   res.json({ message: "Account deleted. Please register again to use Finovo." });

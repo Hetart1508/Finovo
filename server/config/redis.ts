@@ -91,7 +91,7 @@ export const consumeRedisRateBucket = async (
   key: string,
   limit: number,
   windowMs: number
-): Promise<{ allowed: boolean; retryAfterMs: number } | null> => {
+): Promise<{ count: number; ttlMs: number; allowed: boolean; retryAfterMs: number } | null> => {
   try {
     const redisKey = `rl:${key}`;
     const count = await redis.incr(redisKey);
@@ -100,8 +100,8 @@ export const consumeRedisRateBucket = async (
       await redis.pexpire(redisKey, windowMs);
     }
     const ttl = await redis.pttl(redisKey);
-    const retryAfterMs = ttl > 0 ? ttl : windowMs;
-    return { allowed: count <= limit, retryAfterMs };
+    const ttlMs = ttl > 0 ? ttl : windowMs;
+    return { count, ttlMs, allowed: count <= limit, retryAfterMs: ttlMs };
   } catch {
     return null; // Signal to caller: fall back to in-memory
   }
