@@ -70,6 +70,8 @@ import {
   shouldSkipGeminiForMonthlyLimit,
   updateAiUsageSettings,
 } from "./server/services/aiUsage";
+import { redis, redisEnabled, consumeRedisRateBucket, safeGet, safeSetex, safeDel } from "./server/config/redis";
+import { userActiveCacheKey } from "./server/middleware/auth";
 
 const app = express();
 if (IS_PRODUCTION) {
@@ -134,13 +136,29 @@ app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 app.use(requestLogger);
 
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  let redisStatus: { connected: boolean; latencyMs?: number; mode: string } = {
+    connected: false,
+    mode: redisEnabled ? "redis" : "disabled",
+  };
+
+  if (redisEnabled) {
+    try {
+      const t0 = Date.now();
+      await redis.ping();
+      redisStatus = { connected: true, latencyMs: Date.now() - t0, mode: "redis" };
+    } catch {
+      redisStatus = { connected: false, mode: "redis" };
+    }
+  }
+
   res.json({
     ok: true,
     service: "finovo-api",
     environment: process.env.NODE_ENV || "development",
     email: getEmailConfigStatus(),
     ai: getAiConfigStatus(),
+    redis: redisStatus,
   });
 });
 

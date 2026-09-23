@@ -13,6 +13,7 @@ import {
 } from "../config/env";
 import { execute, queryAll, queryOne } from "../db/client";
 import { logger } from "../config/logger";
+import { consumeRedisRateBucket, safeGet, safeDel, safeSetex } from "../config/redis";
 
 export type AiFeature =
   | "ai_insights"
@@ -42,7 +43,9 @@ type UsageRecord = {
 };
 
 const requestContext = new AsyncLocalStorage<AiRequestContext>();
-const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+// In-memory fallback for when Redis is unavailable
+const rateBucketsMemory = new Map<string, { count: number; resetAt: number }>();
 const RATE_WINDOW_MS = 60_000;
 
 const monthStartSql = "DATE_FORMAT(UTC_TIMESTAMP(), '%Y-%m-01 00:00:00')";
@@ -54,37 +57,69 @@ export const getRequestIp = (req: Request) =>
     .split(",")[0]
     .trim();
 
-const consumeRateBucket = (key: string, limit: number) => {
+// Redis-backed sliding window rate limiter with in-memory fallback
+const consumeRateBucket = async (key: string, limit: number) => {
+  const redisResult = await consumeRedisRateBucket(key, limit, RATE_WINDOW_MS);
+  if (redisResult !== null) {
+    return {
+      allowed: redisResult.allowed,
+      retryAfter: Math.max(1, Math.ceil(redisResult.retryAfterMs / 1000)),
+    };
+  }
+  // Fallback: in-memory bucket
   const now = Date.now();
-  const existing = rateBuckets.get(key);
+  const existing = rateBucketsMemory.get(key);
   const bucket = !existing || existing.resetAt <= now
     ? { count: 1, resetAt: now + RATE_WINDOW_MS }
     : { count: existing.count + 1, resetAt: existing.resetAt };
-  rateBuckets.set(key, bucket);
+  rateBucketsMemory.set(key, bucket);
   return { allowed: bucket.count <= limit, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
 };
 
+const AI_SETTINGS_CACHE_KEY = "ai:usage:settings";
+const AI_SETTINGS_TTL_S = 300; // 5 minutes
+
 const getSettings = async () => {
+  // Try Redis cache first
+  const cached = await safeGet(AI_SETTINGS_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch { /* fall through */ }
+  }
+
   const existing: any = await queryOne("SELECT monthly_credit_limit, warning_percent, limit_behavior FROM ai_usage_settings WHERE id = 1");
-  if (existing) return existing;
-  await execute(
-    "INSERT IGNORE INTO ai_usage_settings (id, monthly_credit_limit, warning_percent, limit_behavior) VALUES (1, ?, ?, ?)",
-    [GEMINI_MONTHLY_CREDIT_LIMIT, GEMINI_WARNING_PERCENT, GEMINI_LIMIT_BEHAVIOR]
-  );
-  return {
-    monthly_credit_limit: GEMINI_MONTHLY_CREDIT_LIMIT,
-    warning_percent: GEMINI_WARNING_PERCENT,
-    limit_behavior: GEMINI_LIMIT_BEHAVIOR,
-  };
+  const settings = existing ?? (() => {
+    execute(
+      "INSERT IGNORE INTO ai_usage_settings (id, monthly_credit_limit, warning_percent, limit_behavior) VALUES (1, ?, ?, ?)",
+      [GEMINI_MONTHLY_CREDIT_LIMIT, GEMINI_WARNING_PERCENT, GEMINI_LIMIT_BEHAVIOR]
+    ).catch(() => {});
+    return {
+      monthly_credit_limit: GEMINI_MONTHLY_CREDIT_LIMIT,
+      warning_percent: GEMINI_WARNING_PERCENT,
+      limit_behavior: GEMINI_LIMIT_BEHAVIOR,
+    };
+  })();
+
+  await safeSetex(AI_SETTINGS_CACHE_KEY, AI_SETTINGS_TTL_S, JSON.stringify(settings));
+  return settings;
 };
 
+const monthlyCreditsKey = () => `ai:credits:${new Date().toISOString().slice(0, 7)}`;
+
 const getMonthlyGeminiCredits = async () => {
+  // Try Redis counter first
+  const cached = await safeGet(monthlyCreditsKey());
+  if (cached !== null) return parseFloat(cached) || 0;
+
+  // Cache miss — query MySQL and warm Redis
   const row: any = await queryOne(
     `SELECT COALESCE(SUM(credits_used), 0) AS credits_used
      FROM ai_usage_events
      WHERE provider = 'gemini' AND created_at >= ${monthStartSql}`
   );
-  return Number(row?.credits_used || 0);
+  const credits = Number(row?.credits_used || 0);
+  // Cache for 60s; will be kept fresh via INCRBYFLOAT in recordAiUsage
+  await safeSetex(monthlyCreditsKey(), 60, String(credits));
+  return credits;
 };
 
 export const createAiUsageGuard = (feature: AiFeature) => async (req: any, res: Response, next: NextFunction) => {
@@ -93,8 +128,10 @@ export const createAiUsageGuard = (feature: AiFeature) => async (req: any, res: 
 
   const ip = getRequestIp(req);
   const context = { userId, feature, ipHash: hashIp(ip), skipGemini: false };
-  const userLimit = consumeRateBucket(`ai:user:${userId}`, GEMINI_RATE_LIMIT_USER_PER_MINUTE);
-  const ipLimit = consumeRateBucket(`ai:ip:${ip}`, GEMINI_RATE_LIMIT_IP_PER_MINUTE);
+  const [userLimit, ipLimit] = await Promise.all([
+    consumeRateBucket(`ai:user:${userId}`, GEMINI_RATE_LIMIT_USER_PER_MINUTE),
+    consumeRateBucket(`ai:ip:${ip}`, GEMINI_RATE_LIMIT_IP_PER_MINUTE),
+  ]);
   if (!userLimit.allowed || !ipLimit.allowed) {
     const retryAfter = Math.max(userLimit.retryAfter, ipLimit.retryAfter);
     res.setHeader("Retry-After", String(retryAfter));
@@ -194,6 +231,13 @@ export const recordAiUsage = async (record: UsageRecord) => {
         context.ipHash,
       ]
     );
+
+    // Keep the Redis monthly credit counter in sync — avoids expensive SUM() aggregation
+    if (record.provider.toLowerCase() === "gemini" && creditsUsed > 0) {
+      try {
+        await (await import("../config/redis")).redis.incrbyfloat(monthlyCreditsKey(), creditsUsed);
+      } catch { /* non-fatal */ }
+    }
   } catch (error) {
     logger.error("Failed to persist AI usage event", { error, provider: record.provider, model: record.model });
   }
@@ -286,5 +330,7 @@ export const updateAiUsageSettings = async (userId: number, value: any) => {
        updated_by_user_id = VALUES(updated_by_user_id)`,
     [monthlyLimit, warningPercent, behavior, userId]
   );
+  // Invalidate settings cache so next AI request picks up the new values immediately
+  await safeDel(AI_SETTINGS_CACHE_KEY);
   return getAiUsageDashboard();
 };

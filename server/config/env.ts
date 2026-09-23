@@ -139,3 +139,5 @@ export const HUGGINGFACE_FALLBACK_MODELS = readEnv(
   .filter(Boolean);
 export const HUGGINGFACE_API_BASE_URL = readEnv("HUGGINGFACE_API_BASE_URL", "https://router.huggingface.co/v1");
 export const HUGGINGFACE_VISION_MODEL = readEnv("HUGGINGFACE_VISION_MODEL", "Qwen/Qwen2.5-VL-7B-Instruct");
+
+export const REDIS_URL = readEnv("REDIS_URL", "");
