@@ -35,7 +35,7 @@ export function DashboardHero({
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-semibold uppercase text-[#4F9CF9]">Financial overview</p>
-          <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">{rangeLabels[activeRange]} money movement</h1>
+          <h1 className="mt-2 text-2xl font-black leading-tight text-[#1F2937] sm:text-3xl">{rangeLabels[activeRange]} finance movement</h1>
           <p className="mt-2 text-sm text-[#6B7280]">{rangeDescription}</p>
           {hasInvalidCustomRange ? (
             <p className="mt-2 text-sm font-semibold text-[#FF6B6B]">Start date must be before or equal to end date.</p>
